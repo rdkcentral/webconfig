@@ -31,7 +31,7 @@ import (
 const (
 	defaultWebpaHost = "https://api.example.com"
 	webpaServiceName = "webpa"
-	webpaUrlTemplate = "%s/api/v2/device/mac:%s/config"
+	webpaUrlTemplate = "%s/api/%s/device/mac:%s/config"
 	satUrlBase       = "https://token.example.com/oauth/token"
 	webpaError404    = `{"code": 521, "message": "Device not found in webpa"}`
 	webpaError520    = `{"code": 520, "message": "Error unsupported namespace"}`
@@ -64,8 +64,8 @@ func (c *WebpaConnector) SetWebpaHost(host string) {
 	c.host = host
 }
 
-func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
-	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), cpeMac)
+func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, fields log.Fields, apiVersion string) (string, error) {
+	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), apiVersion, cpeMac)
 
 	var traceId string
 	if itf, ok := fields["trace_id"]; ok {

@@ -325,7 +325,8 @@ func (s *WebconfigServer) NotLoggedHeaders() []string {
 }
 
 func (c *WebconfigServer) Poke(cpeMac string, token string, fields log.Fields) (string, error) {
-	transactionId, err := c.Patch(cpeMac, token, PokeBody, fields)
+	apiVersion := c.Config.GetString("webconfig.webpa.apiVersion", "v2")
+	transactionId, err := c.Patch(cpeMac, token, PokeBody, fields, apiVersion)
 	if err != nil {
 		return "", common.NewError(err)
 	}
