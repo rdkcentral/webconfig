@@ -19,27 +19,43 @@ package db
 
 import (
 	"github.com/rdkcentral/webconfig/common"
-	log "github.com/sirupsen/logrus"
 )
 
 type DatabaseClient interface {
 	SetUp() error
 	TearDown() error
 
-	// document and folder
-	GetDocument(string, string, log.Fields) (*common.Document, error)
-	SetDocument(string, string, *common.Document, log.Fields) error
-	GetFolder(string, log.Fields) (*common.Folder, error)
-	DeleteDocument(string, string, log.Fields) error
-	DeleteFullDocument(string, log.Fields) error
+	// SubDocument and Document
+	GetSubDocument(string, string) (*common.SubDocument, error)
+	SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
+	DeleteSubDocument(string, string) error
+
+	GetDocument(string) (*common.Document, error)
+	SetDocument(string, *common.Document) error
+	DeleteDocument(string) error
 
 	// root document
 	GetRootDocument(string) (*common.RootDocument, error)
+	SetRootDocument(string, *common.RootDocument) error
+	DeleteRootDocument(string) error
 	SetRootDocumentVersion(string, string) error
 	SetRootDocumentBitmap(string, int) error
-	DeleteRootDocument(string) error
 	DeleteRootDocumentVersion(string) error
 
 	// not found
 	IsDbNotFound(error) bool
+
+	// TODO
+	// These functions are now changed to use upstream
+	FactoryReset(string) error
+	FirmwareUpdate(string, int, *common.RootDocument) error
+	AppendProfiles(string, []byte) ([]byte, error)
 }
+
+// UpdateRootDocument(string, *common.RootDocument) error
+// calculate root version
+// RootVersion(interface{}) string
+// update Document State because eventMessage could update a single subdoc or the whole doc
+// UpdateDocumentState(string, *common.EventMessage, log.Fields) error
+
+// BuildResponse(http.Header, []byte, log.Fields) (int, http.Header, []byte)

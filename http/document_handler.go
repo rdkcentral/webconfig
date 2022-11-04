@@ -19,15 +19,43 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
 )
 
+// TODO
+// 1. group_id related validation
+// 2. mac validation
+// 3. msgpack body validation
+
+func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
+	if subdoc.Version() != nil {
+		w.Header().Set(common.HeaderSubdocumentVersion, *subdoc.Version())
+	}
+	if subdoc.State() != nil {
+		w.Header().Set(common.HeaderSubdocumentState, strconv.Itoa(*subdoc.State()))
+	}
+	if subdoc.UpdatedTime() != nil {
+		w.Header().Set(common.HeaderSubdocumentUpdatedTime, strconv.Itoa(*subdoc.UpdatedTime()))
+	}
+
+	if subdoc.ErrorCode() != nil {
+		w.Header().Set(common.HeaderSubdocumentErrorCode, strconv.Itoa(*subdoc.ErrorCode()))
+	}
+	if subdoc.ErrorDetails() != nil {
+		w.Header().Set(common.HeaderSubdocumentErrorDetails, *subdoc.ErrorDetails())
+	}
+}
+
 func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, _, fields, err := Validate(w, r, false)
+	fmt.Printf("t0=%v\n", time.Now())
+	mac, subdocId, _, _, err := Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -39,28 +67,32 @@ func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Requ
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, err)
 		return
 	}
 
-	mdoc, err := s.GetDocument(mac, groupId, fields)
+	fmt.Printf("t1=%v\n", time.Now())
+	subdoc, err := s.GetSubDocument(mac, subdocId)
+	fmt.Printf("t2=%v\n", time.Now())
+
 	if err != nil {
 		if s.IsDbNotFound(err) {
-			Error(w, r, http.StatusNotFound, nil)
+			Error(w, http.StatusNotFound, nil)
 		} else {
-			LogError(w, r, err)
-			Error(w, r, http.StatusInternalServerError, err)
+			LogError(w, err)
+			Error(w, http.StatusInternalServerError, err)
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/msgpack")
-	rbytes := mdoc.Bytes()
-	WriteResponseBytes(w, r, rbytes, http.StatusOK, "application/msgpack")
+	writeStateHeaders(w, subdoc)
+	w.WriteHeader(http.StatusOK)
+	w.Write(subdoc.Payload())
 }
 
 func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, bbytes, fields, err := Validate(w, r, true)
+	mac, subdocId, bbytes, _, err := Validate(w, r, true)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -72,47 +104,41 @@ func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Req
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, err)
 		return
 	}
 
 	version := util.GetMurmur3Hash(bbytes)
-	updatedTime := time.Now().UnixNano() / 1000000
+	updatedTime := int(time.Now().UnixNano() / 1000000)
 	state := common.PendingDownload
-	doc := common.NewDocument(
-		bbytes,
-		nil,
-		&version,
-		&state,
-		&updatedTime,
-	)
+	subdoc := common.NewSubDocument(bbytes, &version, &state, &updatedTime, nil, nil)
 
-	err = s.SetDocument(mac, groupId, doc, fields)
+	err = s.SetSubDocument(mac, subdocId, subdoc)
 	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// update the root version
-	folder, err := s.GetFolder(mac, fields)
+	doc, err := s.GetDocument(mac)
 	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	folder.SetDocument(groupId, doc)
-	newRootVersion := util.RootVersion(folder.VersionMap())
+	doc.SetSubDocument(subdocId, subdoc)
+	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	WriteOkResponse(w, r, nil)
+	WriteOkResponse(w, nil)
 }
 
 func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, _, fields, err := Validate(w, r, false)
+	mac, subdocId, _, _, err := Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -124,40 +150,40 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, err)
 		return
 	}
 
-	err = s.DeleteDocument(mac, groupId, fields)
+	err = s.DeleteSubDocument(mac, subdocId)
 	if err != nil {
 		if s.IsDbNotFound(err) {
-			Error(w, r, http.StatusNotFound, nil)
+			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, r, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, err)
 		}
 		return
 	}
 
 	// update the root version
-	folder, err := s.GetFolder(mac, fields)
+	doc, err := s.GetDocument(mac)
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, r, http.StatusInternalServerError, err)
+				Error(w, http.StatusInternalServerError, err)
 			}
 		} else {
-			Error(w, r, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, err)
 		}
 		return
 	}
 
-	newRootVersion := util.RootVersion(folder.VersionMap())
+	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	WriteOkResponse(w, r, nil)
+	WriteOkResponse(w, nil)
 }

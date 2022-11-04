@@ -32,7 +32,7 @@ var (
 )
 
 func TestCodebigConnector(t *testing.T) {
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 
 	// codebig mock server
 	mockServer := httptest.NewServer(
@@ -52,7 +52,7 @@ func TestCodebigConnector(t *testing.T) {
 
 func TestCodebigConnectorWithCpe(t *testing.T) {
 	t.Skip()
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 	// cpeMac := "44AAF59D0F3A" // ok
 	// cpeMac := "DCEB695C7812" // not found

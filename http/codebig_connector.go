@@ -22,13 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
 )
 
 const (
-	defaultCodebigHost        = "https://token.example.com"
+	defaultCodebigHost        = "https://sat-prod.codebig2.net"
 	codebigServiceName        = "codebig"
 	codebigUrlTemplate        = "%s/oauth/token"
 	codebigPartnerUrlTemplate = "%s/oauth/token?partners=%s"
@@ -82,7 +82,7 @@ func (c *CodebigConnector) GetToken(fields log.Fields, vargs ...string) (string,
 	} else {
 		url = fmt.Sprintf(codebigUrlTemplate, c.CodebigHost())
 	}
-	rbytes, err := c.DoWithRetries("POST", url, c.headers, nil, fields, codebigServiceName)
+	rbytes, _, err := c.DoWithRetries("POST", url, c.headers, nil, fields, codebigServiceName)
 	if err != nil {
 		return token, common.NewError(err)
 	}

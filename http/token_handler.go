@@ -19,32 +19,43 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/rdkcentral/webconfig/common"
 )
 
-type PostTokenBody struct {
-	Mac string `json:"mac"`
-	Ttl int64  `json:"ttl"`
+type TokenRequest struct {
+	Mac       string `json:"mac"`
+	Ttl       int64  `json:"ttl"`
+	PartnerId string `json:"partner_id"`
 }
 
 func (s *WebconfigServer) CreateTokenHandler(w http.ResponseWriter, r *http.Request) {
 	m := s.TokenManager
-	var body string
-	if xw, ok := w.(*XpcResponseWriter); ok {
-		body = xw.Body()
-	} else {
-		Error(w, r, http.StatusBadRequest, nil)
+
+	xw, ok := w.(*XpcResponseWriter)
+	if !ok {
+		err := fmt.Errorf("responsewriter cast error")
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
+	bodyBytes := xw.BodyBytes()
 
 	// Unmarshal
-	msg := PostTokenBody{}
-	if err := json.Unmarshal([]byte(body), &msg); err != nil {
-		Error(w, r, http.StatusBadRequest, nil)
+	tokenRequest := TokenRequest{}
+	if err := json.Unmarshal(bodyBytes, &tokenRequest); err != nil {
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	token := m.Generate(strings.ToLower(msg.Mac), msg.Ttl)
-	WriteOkResponse(w, r, token)
+	var token string
+	if len(tokenRequest.PartnerId) > 0 {
+		token = m.Generate(strings.ToLower(tokenRequest.Mac), tokenRequest.Ttl, tokenRequest.PartnerId)
+	} else {
+		token = m.Generate(strings.ToLower(tokenRequest.Mac), tokenRequest.Ttl)
+	}
+
+	WriteOkResponse(w, token)
 }

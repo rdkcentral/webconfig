@@ -23,13 +23,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 )
 
 // XPC-10013 the supported doc header in GET /config is parsed and stored as a bitmap
-//           this API returns the bitmap in read friendly json
+//
+//	this API returns the bitmap in read friendly json
 func (s *WebconfigServer) GetSupportedGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	// check mac
 	params := mux.Vars(r)
@@ -37,7 +38,7 @@ func (s *WebconfigServer) GetSupportedGroupsHandler(w http.ResponseWriter, r *ht
 	mac = strings.ToUpper(mac)
 	if !util.ValidateMac(mac) {
 		err := common.NewError(fmt.Errorf("invalid mac"))
-		Error(w, r, http.StatusBadRequest, err)
+		Error(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -45,17 +46,17 @@ func (s *WebconfigServer) GetSupportedGroupsHandler(w http.ResponseWriter, r *ht
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			err = errors.Unwrap(err)
-			Error(w, r, http.StatusNotFound, err)
+			Error(w, http.StatusNotFound, err)
 			return
 		}
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	outdata := common.SupportedGroupsData{
-		Bitmap: rdoc.Bitmap(),
-		Groups: util.GetSupportedMap(rdoc.Bitmap()),
+		Bitmap: rdoc.Bitmap,
+		Groups: util.GetSupportedMap(rdoc.Bitmap),
 	}
 
-	WriteOkResponse(w, r, outdata)
+	WriteOkResponse(w, outdata)
 }

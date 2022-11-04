@@ -18,6 +18,7 @@
 package util
 
 import (
+	"net/http"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -128,6 +129,67 @@ func (d Dict) SelectByKeys(names ...string) Dict {
 	return ndict
 }
 
+func (d Dict) GetString(key string, defaults ...string) string {
+	var ret string
+	if len(defaults) > 0 {
+		ret = defaults[0]
+	}
+
+	if itf, ok := d[key]; ok {
+		if x, ok := itf.(string); ok {
+			ret = x
+		}
+	}
+	return ret
+}
+
+func (d Dict) GetNonEmptyString(key string, defaults ...string) string {
+	var ret string
+	if len(defaults) > 0 {
+		ret = defaults[0]
+	}
+
+	if itf, ok := d[key]; ok {
+		if x, ok := itf.(string); ok {
+			if len(x) > 0 {
+				ret = x
+			}
+		}
+	}
+	return ret
+}
+
+func (d Dict) GetBool(key string, defaults ...bool) bool {
+	var ret bool
+	if len(defaults) > 0 {
+		ret = defaults[0]
+	}
+
+	if itf, ok := d[key]; ok {
+		if x, ok := itf.(bool); ok {
+			ret = x
+		}
+	}
+	return ret
+}
+
+func (d Dict) GetInt(key string, defaults ...int) int {
+	var ret int
+	if len(defaults) > 0 {
+		ret = defaults[0]
+	}
+
+	if itf, ok := d[key]; ok {
+		x, ok := itf.(int)
+		if ok {
+			ret = x
+		} else {
+			ret = ToInt(itf)
+		}
+	}
+	return ret
+}
+
 func ToInt(itf interface{}) int {
 	var v int
 	switch ty := itf.(type) {
@@ -139,4 +201,30 @@ func ToInt(itf interface{}) int {
 		v = int(ty)
 	}
 	return v
+}
+
+func (d Dict) Update(itf interface{}) {
+	switch ty := itf.(type) {
+	case log.Fields:
+		for k, v := range ty {
+			d[k] = v
+		}
+	case Dict:
+		for k, v := range ty {
+			d[k] = v
+		}
+	case http.Header:
+		for k, v := range ty {
+			d[k] = v[0]
+		}
+	}
+}
+
+func HeaderToMap(header http.Header) map[string]string {
+	m := make(map[string]string)
+	for k, v := range header {
+		m[k] = v[0]
+	}
+	return m
+
 }

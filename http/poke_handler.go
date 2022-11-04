@@ -22,59 +22,139 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/gorilla/mux"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
-	mac, ok := params["mac"]
+	mac := params["mac"]
 	if !util.ValidateMac(mac) {
-		err := common.Http404Error{"invalid mac"}
-		Error(w, r, http.StatusNotFound, err)
+		err := common.Http404Error{
+			Message: "invalid mac",
+		}
+		Error(w, http.StatusNotFound, err)
+		return
+	}
+
+	queryParams := r.URL.Query()
+
+	// parse and validate query param "doc"
+	pokeStr, err := util.ValidatePokeQuery(queryParams)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err)
 		return
 	}
 
 	xw, ok := w.(*XpcResponseWriter)
 	if !ok {
 		err := fmt.Errorf("PokeHandler() responsewriter cast error")
-		Error(w, r, http.StatusInternalServerError, common.NewError(err))
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 
 	token := xw.Token()
 	fields := xw.Audit()
-	var err error
 
 	if len(token) == 0 {
 		token, err = s.GetToken(fields)
 		if err != nil {
-			Error(w, r, http.StatusInternalServerError, common.NewError(err))
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
 	}
 
-	transactionId, err := s.Poke(mac, token, fields)
+	// extract "metrics_agent"
+	metricsAgent := "default"
+	if itf, ok := fields["metrics_agent"]; ok {
+		metricsAgent = itf.(string)
+	}
+
+	// XPC-15999
+	var document *common.Document
+	if pokeStr == "mqtt" {
+		document, err = db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
+		if err != nil {
+			if s.IsDbNotFound(err) {
+				Error(w, http.StatusNotFound, nil)
+				return
+			}
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+		if document.Length() == 0 {
+			WriteResponseBytes(w, nil, http.StatusNoContent)
+			return
+		}
+
+		// TODO, we can build/filter it again for blocked subdocs if needed
+
+		mbytes, err := document.Bytes()
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+
+		rbytes, err := s.PostMqtt(mac, mbytes, fields)
+		if err != nil {
+			var rherr common.RemoteHttpError
+			if errors.As(err, &rherr) {
+				if rherr.StatusCode == http.StatusNotFound {
+					Error(w, http.StatusNotFound, nil)
+					return
+				}
+			}
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+
+		err = db.UpdateStatesInBatch(s.DatabaseClient, mac, metricsAgent, fields, document.StateMap())
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+
+		WriteResponseBytes(w, rbytes, http.StatusAccepted)
+		return
+	}
+
+	// pokes through cpe_action API can bypass this "smart" poke
+	_, ok = queryParams["cpe_action"]
+	if !ok {
+		document, err = db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
+		if err != nil {
+			if s.IsDbNotFound(err) {
+				Error(w, http.StatusNoContent, nil)
+				return
+			}
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+		if document.Length() == 0 {
+			WriteResponseBytes(w, nil, http.StatusNoContent)
+			return
+		}
+	}
+
+	transactionId, err := s.Poke(mac, token, pokeStr, fields)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.As(err, common.RemoteHttpErrorType) {
-			unerr := errors.Unwrap(err)
-			rherr := unerr.(common.RemoteHttpError)
-
+		var rherr common.RemoteHttpError
+		if errors.As(err, &rherr) {
 			// webpa error handling
 			if rherr.StatusCode == http.StatusNotFound {
-				status = 520
+				status = 521
 			} else if rherr.StatusCode > http.StatusInternalServerError {
 				status = rherr.StatusCode
-
 			}
 		}
-		Error(w, r, status, err)
+		Error(w, status, err)
 		return
 	}
 	data := map[string]interface{}{
 		"transaction_id": transactionId,
 	}
-	WriteOkResponse(w, r, data)
+	WriteOkResponse(w, data)
 }

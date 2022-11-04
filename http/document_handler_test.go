@@ -30,11 +30,11 @@ import (
 )
 
 func TestDocumentHandler(t *testing.T) {
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 
 	cpeMac := util.GenerateRandomCpeMac()
-	groupId := "lan"
+	subdocId := "lan"
 
 	lanHexData := "81aa706172616d65746572739183a46e616d65b84465766963652e4448435076342e5365727665722e4c616ea576616c7565d99581a36c616e86b044686370536572766572456e61626c65c3ac4c616e495041646472657373a831302e302e302e31ad4c616e5375626e65744d61736bad3235352e3235352e3235352e30b2446863705374617274495041646472657373a831302e302e302e35b044686370456e64495041646472657373aa31302e302e302e323030a94c6561736554696d65d3000000000002a300a86461746154797065d3000000000000000c"
 
@@ -42,7 +42,7 @@ func TestDocumentHandler(t *testing.T) {
 	assert.NilError(t, err)
 
 	// post
-	url := fmt.Sprintf("/api/v1/device/%v/document?group_id=%v", cpeMac, groupId)
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
@@ -64,7 +64,7 @@ func TestDocumentHandler(t *testing.T) {
 	// check the root doc version
 	rdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-	assert.Assert(t, len(rdoc.Version()) > 0)
+	assert.Assert(t, len(rdoc.Version) > 0)
 
 	// delete
 	req, err = http.NewRequest("DELETE", url, nil)
@@ -87,5 +87,5 @@ func TestDocumentHandler(t *testing.T) {
 	// check the root doc version
 	rdoc, err = server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-	assert.Equal(t, rdoc.Version(), "")
+	assert.Equal(t, rdoc.Version, "")
 }

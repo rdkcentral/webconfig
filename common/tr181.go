@@ -18,11 +18,12 @@
 package common
 
 const (
-	TR181Str  = 0
-	TR181Int  = 1
-	TR181Uint = 2
-	TR181Bool = 3
-	TR181Blob = 12
+	TR181Str           = 0
+	TR181Int           = 1
+	TR181Uint          = 2
+	TR181Bool          = 3
+	TR181Blob          = 12
+	TR181NameTelemetry = "Device.X_RDKCENTRAL-COM_T2.ReportProfilesMsgPack"
 )
 
 type TR181Entry struct {

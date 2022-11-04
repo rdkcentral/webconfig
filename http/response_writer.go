@@ -22,20 +22,26 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
+)
+
+var (
+	ObfuscatedMap = map[string]string{
+		// "x": "****",
+	}
 )
 
 type XpcResponseWriter struct {
 	http.ResponseWriter
-	status         int
-	length         int
-	response       string
-	startTime      time.Time
-	body           string
-	token          string
-	audit          log.Fields
-	bodyObfuscated bool
+	status    int
+	length    int
+	response  string
+	startTime time.Time
+	bodyBytes []byte
+	token     string
+	audit     log.Fields
+	partnerId string
 }
 
 func (w *XpcResponseWriter) String() string {
@@ -111,12 +117,12 @@ func (w *XpcResponseWriter) AuditId() string {
 	return w.AuditData("audit_id")
 }
 
-func (w *XpcResponseWriter) Body() string {
-	return w.AuditData("body")
+func (w *XpcResponseWriter) BodyBytes() []byte {
+	return w.bodyBytes
 }
 
-func (w *XpcResponseWriter) SetBody(body string) {
-	w.SetAuditData("body", body)
+func (w *XpcResponseWriter) SetBodyBytes(bbytes []byte) {
+	w.bodyBytes = bbytes
 }
 
 func (w *XpcResponseWriter) Token() string {
@@ -128,16 +134,7 @@ func (w *XpcResponseWriter) TraceId() string {
 }
 
 func (w *XpcResponseWriter) Audit() log.Fields {
-	// return w.audit
-	out := log.Fields{}
-	for k, v := range w.audit {
-		if k == "body" && w.bodyObfuscated {
-			out[k] = "****"
-		} else {
-			out[k] = v
-		}
-	}
-	return out
+	return w.audit
 }
 
 func (w *XpcResponseWriter) AuditData(k string) string {
@@ -152,6 +149,11 @@ func (w *XpcResponseWriter) SetAuditData(k string, v interface{}) {
 	w.audit[k] = v
 }
 
-func (w *XpcResponseWriter) SetBodyObfuscated(obfuscated bool) {
-	w.bodyObfuscated = obfuscated
+func (w *XpcResponseWriter) PartnerId() string {
+	return w.partnerId
+}
+
+func (w *XpcResponseWriter) SetPartnerId(partnerId string) {
+	w.partnerId = partnerId
+	w.audit["partner"] = partnerId
 }
