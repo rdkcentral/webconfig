@@ -24,14 +24,26 @@ const (
 	Failure
 )
 
+var (
+	States = [5]string{
+		"",
+		"deployed",
+		"pending download",
+		"in deployment",
+		"failure",
+	}
+)
+
 const (
 	LoggingTimeFormat = "2006-01-02 15:04:05.000"
+	PokeBodyTemplate  = `{"parameters":[{"dataType":0,"name":"Device.X_RDK_WebConfig.ForceSync","value":"%s"}]}`
 )
 
 var (
 	BinaryVersion   = ""
 	BinaryBranch    = ""
 	BinaryBuildTime = ""
+	OpenLibVersion  = ""
 
 	DefaultIgnoredHeaders = []string{
 		"Accept",
@@ -52,9 +64,25 @@ var (
 )
 
 const (
-	HeaderIfNoneMatch     = "If-None-Match"
-	HeaderFirmwareVersion = "X-System-Firmware-Version"
-	HeaderSupportedDocs   = "X-System-Supported-Docs"
+	HeaderIfNoneMatch             = "If-None-Match"
+	HeaderFirmwareVersion         = "X-System-Firmware-Version"
+	HeaderSupportedDocs           = "X-System-Supported-Docs"
+	HeaderSupplementaryService    = "X-System-SupplementaryService-Sync"
+	HeaderModelName               = "X-System-Model-Name"
+	HeaderProfileVersion          = "X-System-Telemetry-Profile-Version"
+	HeaderPartnerID               = "X-System-PartnerID"
+	HeaderAccountID               = "X-System-AccountID"
+	HeaderUserAgent               = "User-Agent"
+	HeaderSchemaVersion           = "X-System-Schema-Version"
+	HeaderMetricsAgent            = "X-Metrics-Agent"
+	HeaderStoreUpstreamResponse   = "X-Store-Upstream-Response"
+	HeaderSubdocumentVersion      = "X-Subdocument-Version"
+	HeaderSubdocumentState        = "X-Subdocument-State"
+	HeaderSubdocumentUpdatedTime  = "X-Subdocument-Updated-Time"
+	HeaderSubdocumentErrorCode    = "X-Subdocument-Error-Code"
+	HeaderSubdocumentErrorDetails = "X-Subdocument-Error-Details"
+	HeaderDeviceId                = "Device-Id"
+	HeaderDocName                 = "Doc-Name"
 )
 
 // header X-System-Supported-Docs
@@ -64,49 +92,63 @@ type BitMaskTuple struct {
 }
 
 // The group based bitmaps will be merged into 1 cpe bitmap
-// 1: []BitMaskTuple{ // group_id:
-//    BitMaskTuple{1, 1},  // {"index_of_bit_from_lsb" for a group bitmap, "index_of_bit_from_lsb" for the cpe bitmap
+// 1: []BitMaskTuple{ // meta_group_id: defined by RDK
 //
+//	BitMaskTuple{1, 1},  // {"index_of_bit_from_lsb" for a group bitmap, "index_of_bit_from_lsb" for the cpe bitmap
 var (
 	SupportedDocsBitMaskMap = map[int][]BitMaskTuple{
-		1: []BitMaskTuple{
-			BitMaskTuple{1, 1},
-			BitMaskTuple{2, 2},
-			BitMaskTuple{3, 3},
-			BitMaskTuple{4, 4},
-			BitMaskTuple{5, 5},
-			BitMaskTuple{6, 6},
+		1: {
+			{1, 1},
+			{2, 2},
+			{3, 3},
+			{4, 4},
+			{5, 5},
+			{6, 6},
 		},
-		2: []BitMaskTuple{
-			BitMaskTuple{1, 7},
-			BitMaskTuple{2, 8},
-			BitMaskTuple{3, 9},
+		2: {
+			{1, 7},
+			{2, 8},
+			{3, 9},
 		},
-		3: []BitMaskTuple{
-			BitMaskTuple{1, 10},
+		3: {
+			{1, 10},
 		},
-		4: []BitMaskTuple{
-			BitMaskTuple{1, 11},
+		4: {
+			{1, 11},
 		},
-		5: []BitMaskTuple{
-			BitMaskTuple{1, 12},
+		5: {
+			{1, 12},
 		},
-		6: []BitMaskTuple{
-			BitMaskTuple{1, 13},
+		6: {
+			{1, 13},
 		},
-		7: []BitMaskTuple{
-			BitMaskTuple{1, 14},
+		7: {
+			{1, 14},
 		},
-		8: []BitMaskTuple{
-			BitMaskTuple{1, 15},
+		8: {
+			{1, 15},
 		},
-		9: []BitMaskTuple{
-			BitMaskTuple{1, 16},
-			BitMaskTuple{2, 17},
+		9: {
+			{1, 16},
+			{2, 17},
 		},
-		10: []BitMaskTuple{
-			BitMaskTuple{1, 18},
-			BitMaskTuple{2, 19},
+		10: {
+			{1, 18},
+			{2, 19},
+		},
+		11: {
+			{1, 20},
+			{2, 25},
+		},
+		12: {
+			{1, 21},
+			{2, 23},
+		},
+		13: {
+			{1, 22},
+		},
+		14: {
+			{1, 24},
 		},
 	}
 )
@@ -117,7 +159,7 @@ var (
 		"lan":             2,
 		"wan":             3,
 		"macbinding":      4,
-		"xfinity":         5,
+		"hotspot":         5,
 		"bridge":          6,
 		"privatessid":     7,
 		"homessid":        8,
@@ -132,5 +174,32 @@ var (
 		"trafficreport":   17,
 		"interfacereport": 18,
 		"radioreport":     19,
+		"telcovoip":       20,
+		"wanmanager":      21,
+		"voiceservice":    22,
+		"wanfailover":     23,
+		"cellularconfig":  24,
+		"telcovoice":      25,
 	}
+)
+
+var (
+	SupportedPokeDocs   = []string{"primary", "telemetry"}
+	SupportedPokeRoutes = []string{"mqtt"}
+)
+
+var (
+	CRLFCRLF = []byte("\r\n\r\n")
+	CRLF     = []byte("\r\n")
+)
+
+const (
+	RouteMqtt = "mqtt"
+	RouteHttp = "http"
+)
+
+const (
+	RootDocumentEquals = iota
+	RootDocumentVersionOnlyChanged
+	RootDocumentMetaChanged
 )

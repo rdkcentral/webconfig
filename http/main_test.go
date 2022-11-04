@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package http
 
 import (
@@ -24,13 +24,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
 )
 
 var (
-	testConfigFile string
-	sc             *common.ServerConfig
+	sc *common.ServerConfig
 )
 
 func ExecuteRequest(r *http.Request, handler http.Handler) *httptest.ResponseRecorder {
@@ -40,31 +39,31 @@ func ExecuteRequest(r *http.Request, handler http.Handler) *httptest.ResponseRec
 }
 
 func TestMain(m *testing.M) {
-	testConfigFile = "config/sample_webconfig.conf"
-	if _, err := os.Stat(testConfigFile); os.IsNotExist(err) {
-		testConfigFile = "../config/sample_webconfig.conf"
-	}
-
-	sid := os.Getenv("SAT_CLIENT_ID")
-	if len(sid) == 0 {
-		os.Setenv("SAT_CLIENT_ID", "foo")
-	}
-
-	sec := os.Getenv("SAT_CLIENT_SECRET")
-	if len(sec) == 0 {
-		os.Setenv("SAT_CLIENT_SECRET", "bar")
-	}
-
 	var err error
-	sc, err = common.NewServerConfig(testConfigFile)
+	sc, err = common.GetTestServerConfig()
 	if err != nil {
 		panic(err)
 	}
-	server := NewWebconfigServer(sc, true, nil)
 
-	// start clean
-	server.SetUp()
-	server.TearDown()
+	// var tdbclient db.DatabaseClient
+	// testdbDriver := os.Getenv("TESTDB_DRIVER")
+	// switch testdbDriver {
+	// case "sqlite":
+	// 	tdbclient, err = sqlite.GetTestSqliteClient(sc.Config, true)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// default:
+	// 	tdbclient, err = cassandra.GetTestCassandraClient(sc.Config, true)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
+
+	// TODO eval if this still needed, it should be done when tdbclient is init
+	// server := NewWebconfigServer(sc, true)
+	// server.SetUp()
+	// server.TearDown()
 
 	log.SetOutput(ioutil.Discard)
 

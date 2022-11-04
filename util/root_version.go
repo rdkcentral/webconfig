@@ -18,27 +18,10 @@
 package util
 
 import (
-	"bytes"
-
-	"github.com/rdkcentral/webconfig/common"
+	"github.com/google/uuid"
 )
 
-func RootVersion(itf interface{}) string {
-	var versionMap map[string]string
-	switch ty := itf.(type) {
-	case []common.Multipart:
-		versionMap = make(map[string]string)
-		for _, mpart := range ty {
-			versionMap[mpart.Name] = mpart.Version
-		}
-	case map[string]string:
-		versionMap = ty
-	}
-
-	// if len(mparts) == 0, then the murmur hash value is 0
-	buffer := bytes.NewBufferString("")
-	for _, v := range versionMap {
-		buffer.WriteString(v)
-	}
-	return GetMurmur3Hash(buffer.Bytes())
+func GetRandomRootVersion() string {
+	s := uuid.New().String()
+	return GetMurmur3Hash([]byte(s))
 }

@@ -18,22 +18,31 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/rdkcentral/webconfig/common"
-	xpchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
+	wchttp "github.com/rdkcentral/webconfig/http"
+	"github.com/rdkcentral/webconfig/kafka"
+	_ "go.uber.org/automaxprocs"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	DefaultConfigFile = "config/sample_webconfig.conf"
+	DefaultConfigFile = "/app/webconfigcommon/webconfigcommon.conf"
 )
 
 // main function to boot up everything
 func main() {
+	mainCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// parse flag
 	configFile := flag.String("f", DefaultConfigFile, "config file")
 	showVersion := flag.Bool("version", false, "show version")
@@ -49,7 +58,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	server := xpchttp.NewWebconfigServer(sc, false, nil)
+	server := wchttp.NewWebconfigServer(sc, false)
 
 	// setup logging
 	logFile := server.GetString("webconfig.log.file")
@@ -84,14 +93,69 @@ func main() {
 	// setup router
 	router := server.GetRouter(false)
 
+	var metrics *common.AppMetrics
 	if server.MetricsEnabled() {
 		router.Handle("/metrics", promhttp.Handler())
-		metrics := xpchttp.NewMetrics()
-		handler := xpchttp.WebMetrics(metrics, router)
+		metrics = server.NewMetrics()
+		handler := metrics.WebMetrics(router)
 		server.Handler = handler
 	} else {
 		server.Handler = router
 	}
 
-	server.ListenAndServe()
+	// setup contexts groups
+	g, gCtx := errgroup.WithContext(mainCtx)
+
+	// setup http server
+	g.Go(
+		func() error {
+			return server.ListenAndServe()
+		},
+	)
+
+	g.Go(
+		func() error {
+			<-gCtx.Done()
+			fmt.Printf("HTTP server shutdown NOW !!\n")
+			return server.Shutdown(context.Background())
+		},
+	)
+
+	// setup kafka consumer, if config kafka.enabled=false, then kcgroup=nil, err=nil
+	kcgroup, err := kafka.NewKafkaConsumerGroup(sc.Config, server, metrics)
+	if err != nil {
+		panic(err)
+	}
+	if kcgroup != nil {
+		consumer := *(kcgroup.Consumer())
+		topics := kcgroup.Topics()
+
+		g.Go(
+			func() error {
+				for {
+					if err := kcgroup.Consume(gCtx, topics, &consumer); err != nil {
+						fmt.Printf("kcgroup.Consumer: err=%v\n", err)
+						return err
+					}
+					consumer.Ready = make(chan bool)
+				}
+			},
+		)
+		// This is to setup notify AFTER the sarama is running
+		// it is more or less optional, without this reading from the chan,
+		// the consumer runs anyway.
+		<-consumer.Ready
+
+		g.Go(
+			func() error {
+				<-gCtx.Done()
+				fmt.Printf("SARAMA shutdown NOW !!\n")
+				return kcgroup.Close()
+			},
+		)
+	}
+
+	if err := g.Wait(); err != nil {
+		fmt.Printf("exit reason: %s \n", err)
+	}
 }

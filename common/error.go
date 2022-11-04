@@ -18,13 +18,15 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
 )
 
 var (
-	NotOK = fmt.Errorf("!ok")
+	NotOK           = fmt.Errorf("!ok")
+	ProfileNotFound = fmt.Errorf("profile not found")
 )
 
 type Http400Error struct {
@@ -71,4 +73,16 @@ func NewError(err error) error {
 	_, file, line, _ := runtime.Caller(1)
 	filename := filepath.Base(file)
 	return fmt.Errorf("%v[%v]  %w", filename, line, err)
+}
+
+func UnwrapAll(wrappedErr error) error {
+	err := wrappedErr
+	for i := 0; i < 10; i++ {
+		unerr := errors.Unwrap(err)
+		if unerr == nil {
+			return err
+		}
+		err = unerr
+	}
+	return err
 }

@@ -18,37 +18,26 @@
 package db
 
 import (
-	"bytes"
-	"fmt"
+	"github.com/rdkcentral/webconfig/common"
 )
 
-func GetValuesStr(length int) string {
-	buffer := bytes.NewBufferString("?")
-	for i := 0; i < length-1; i++ {
-		buffer.WriteString(",?")
-	}
-	return buffer.String()
+type BaseClient struct {
 }
 
-func GetColumnsStr(columns []string) string {
-	buffer := bytes.NewBuffer([]byte{})
-	for i, v := range columns {
-		if i > 0 {
-			buffer.WriteString(",")
-		}
-		buffer.WriteString(v)
-	}
-	return buffer.String()
+// ==== TODO new functions to be implemented by all implementation ====
+func (c *BaseClient) SetDocument(cpeMac string, doc *common.Document) error {
+	return nil
 }
 
-func GetSetColumnsStr(columns []string) string {
-	buffer := bytes.NewBuffer([]byte{})
-	for i, c := range columns {
-		if i > 0 {
-			buffer.WriteString(",")
-		}
-		s := fmt.Sprintf("%v=?", c)
-		buffer.WriteString(s)
-	}
-	return buffer.String()
+// ==== TODO should be removed later ====
+func (c *BaseClient) FactoryReset(cpeMac string) error {
+	return nil
+}
+
+func (c *BaseClient) FirmwareUpdate(cpeMac string, oldBitmap int, rootDoc *common.RootDocument) error {
+	return nil
+}
+
+func (c *BaseClient) AppendProfiles(cpeMac string, inbytes []byte) ([]byte, error) {
+	return inbytes, nil
 }

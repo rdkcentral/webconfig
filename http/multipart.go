@@ -18,259 +18,115 @@
 package http
 
 import (
-	"bytes"
 	"fmt"
-	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"strings"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/db"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 )
-
-const (
-	Boundary           = "2xKIxjfJuErFW+hmNCwEoMoY8I+ECM9efrV6EI4efSSW9QjI"
-	Linebreak          = '\n'
-	MsgpackContentType = "Content-type: application/msgpack\r\n"
-)
-
-var (
-	FirstLineBoundary    = fmt.Sprintf("--%s\r\n", Boundary)
-	LineBoundary         = fmt.Sprintf("\r\n--%s\r\n", Boundary)
-	LastLineBoundary     = fmt.Sprintf("\r\n--%s--\r\n", Boundary)
-	MultipartContentType = fmt.Sprintf("multipart/mixed; boundary=%s", Boundary)
-)
-
-type MultipartOutput struct {
-	mparts      []common.Multipart
-	rootVersion string
-}
-
-func NewMultipartOutput(mparts []common.Multipart, rootVersion string) *MultipartOutput {
-	return &MultipartOutput{
-		mparts:      mparts,
-		rootVersion: rootVersion,
-	}
-}
-
-func (o *MultipartOutput) Mparts() []common.Multipart {
-	return o.mparts
-}
-
-func (o *MultipartOutput) RootVersion() string {
-	return o.rootVersion
-}
-
-func WriteMultipartResponse(w http.ResponseWriter, r *http.Request, o *MultipartOutput) {
-	w.Header().Set("Content-type", MultipartContentType)
-	w.Header().Set("Etag", o.rootVersion)
-	w.WriteHeader(http.StatusOK)
-
-	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
-	writer.SetBoundary(Boundary)
-	for _, m := range o.mparts {
-		header := textproto.MIMEHeader{
-			"Content-type": {"application/msgpack"},
-			"Namespace":    {m.Name},
-			"Etag":         {m.Version},
-		}
-		p, err := writer.CreatePart(header)
-		if err != nil {
-			panic(err)
-		}
-		p.Write(m.Bytes)
-	}
-	if err := writer.Close(); err != nil {
-		panic(err)
-	}
-
-	bbytes := buffer.Bytes()
-	w.Write(bbytes)
-}
 
 func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.Request) {
-	c := s.DatabaseClient
+	// check if this is a Supplementary service, if so, call a different handler
+	if hd := r.Header.Get(common.HeaderSupplementaryService); len(hd) > 0 {
+		s.MultipartSupplementaryHandler(w, r)
+		return
+	}
 
 	// ==== data integrity check ====
 	params := mux.Vars(r)
 	mac, ok := params["mac"]
 	if !ok || len(mac) != 12 {
-		Error(w, r, http.StatusNotFound, nil)
+		Error(w, http.StatusNotFound, nil)
 		return
 	}
+	mac = strings.ToUpper(mac)
+	r.Header.Set(common.HeaderDeviceId, mac)
 
 	// ==== processing ====
-	var fields log.Fields
-	if xw, ok := w.(*XpcResponseWriter); ok {
-		fields = xw.Audit()
-	} else {
-		err := fmt.Errorf("MultipartConfigHandler() responsewriter cast error")
-		Error(w, r, http.StatusInternalServerError, err)
+	// partnerId should be in fields by middleware
+	xw, ok := w.(*XpcResponseWriter)
+	if !ok {
+		err1 := fmt.Errorf("MultipartConfigHandler() responsewriter cast error")
+		Error(w, http.StatusInternalServerError, err1)
 		return
 	}
+	fields := xw.Audit()
 
-	ifNoneMatch := r.Header.Get(common.HeaderIfNoneMatch)
-	supportedDocs := r.Header.Get(common.HeaderSupportedDocs)
-
-	// NOTE that it is ok to have no "group_id". It would be the case of factory reset
-	clientVersionMap := make(map[string]string)
-
+	fields["cpe_mac"] = mac
 	if qGroupIds, ok := r.URL.Query()["group_id"]; ok {
-		queryStr := qGroupIds[0]
-		subdocIds := strings.Split(queryStr, ",")
-
-		versions := strings.Split(ifNoneMatch, ",")
-
-		if len(subdocIds) != len(versions) {
-			Error(w, r, http.StatusBadRequest, fmt.Errorf("group_id=%v  IF-NONE-MATCH=%v", queryStr, ifNoneMatch))
-			return
-		}
-
-		for i, subdocId := range subdocIds {
-			clientVersionMap[subdocId] = versions[i]
-		}
+		fields["group_id"] = qGroupIds[0]
+		r.Header.Set(common.HeaderDocName, qGroupIds[0])
 	}
 
-	// in xpcdb, all data are stored with uppercased cpemac
-	mac = strings.ToUpper(mac)
+	dbclient := s.DatabaseClient
+	uconn := s.GetUpstreamConnector()
+	status, respHeader, respBytes, err := BuildWebconfigResponse(dbclient, uconn, r.Header, nil, common.RouteHttp, fields)
+	if err != nil && respBytes == nil {
+		respBytes = []byte(err.Error())
+	}
 
-	// ==== read the root version from db ====
-	var rootVersion string
-	rdoc, err := c.GetRootDocument(mac)
+	for k := range respHeader {
+		w.Header().Set(k, respHeader.Get(k))
+	}
 
-	// it is ok if err is sql.ErrNoRows, just continue the execution
+	w.WriteHeader(status)
+	_, _ = w.Write(respBytes)
+}
+
+func BuildWebconfigResponse(c db.DatabaseClient, uconn *UpstreamConnector, rHeader http.Header, bbytes []byte, route string, fields log.Fields) (int, http.Header, []byte, error) {
+	// do I need these 2 here?
+	mac := rHeader.Get(common.HeaderDeviceId)
+	respHeader := make(http.Header)
+
+	document, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
 	if err != nil {
-		if !s.IsDbNotFound(err) {
-			Error(w, r, http.StatusInternalServerError, err)
-			return
+		if !c.IsDbNotFound(err) {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
-	} else {
-		rootVersion = rdoc.Version()
-		if len(rootVersion) > 0 {
-			if queryRootVersion, ok := clientVersionMap["root"]; ok {
-				if queryRootVersion == rootVersion {
-					Error(w, r, http.StatusNotModified, nil)
-					return
-				}
-			}
-		}
+		return http.StatusNotFound, respHeader, nil, common.NewError(err)
 	}
 
-	folder, err := c.GetFolder(mac, fields)
+	// 304
+	if document.Length() == 0 {
+		return http.StatusNotModified, respHeader, nil, nil
+	}
+
+	respBytes, err := document.Bytes()
 	if err != nil {
-		if s.IsDbNotFound(err) {
-			// in the case of 404, parse and store the bitmap
-			if len(supportedDocs) > 0 {
-				bitmap, err := util.GetCpeBitmap(supportedDocs)
-				if err != nil {
-					log.WithFields(fields).Warn(common.NewError(err))
-				}
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
 
-				// even in 404, the bitmap could still change
-				if rdoc != nil {
-					if bitmap != rdoc.Bitmap() {
-						err = s.SetRootDocumentBitmap(mac, bitmap)
-						if err != nil {
-							log.WithFields(fields).Warn(common.NewError(err))
-						}
-					}
-				} else {
-					err = s.SetRootDocumentBitmap(mac, bitmap)
-					if err != nil {
-						log.WithFields(fields).Warn(common.NewError(err))
-					}
-				}
-			}
-			Error(w, r, http.StatusNotFound, nil)
-			return
-		} else {
-			Error(w, r, http.StatusInternalServerError, err)
-			return
+	if !postUpstream || uconn == nil {
+		// update states to InDeployment before the final response
+		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
-	}
-	if folder.Length() == 0 {
-		Error(w, r, http.StatusNotFound, nil)
-		return
+
+		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set("Etag", document.RootVersion())
+		return http.StatusOK, respHeader, respBytes, nil
 	}
 
-	// parse and store x-system-supported-docs in headers
-	// if errors, log warnings but do not stop
-	if len(supportedDocs) > 0 {
-		bitmap, err := util.GetCpeBitmap(supportedDocs)
+	// =============================
+	// upstream handling
+	// =============================
+	upstreamHeaderMap := make(http.Header)
+	upstreamHeaderMap.Set("Content-type", common.MultipartContentType)
+	upstreamHeaderMap.Set("Etag", document.RootVersion())
+	upstreamRespBytes, upstreamRespHeader, err := uconn.PostUpstream(mac, upstreamHeaderMap, respBytes, fields)
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
+	}
+
+	// ==== parse the upstreamRespBytes and store them ====
+	if x := upstreamRespHeader.Get(common.HeaderStoreUpstreamResponse); x == "true" {
+		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespHeader, upstreamRespBytes, document)
 		if err != nil {
-			log.WithFields(fields).Warn(common.NewError(err))
-		}
-
-		if bitmap != rdoc.Bitmap() {
-			err = s.SetRootDocumentBitmap(mac, bitmap)
-
-			if err != nil {
-				log.WithFields(fields).Warn(common.NewError(err))
-			}
+			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 		}
 	}
-
-	// factory reset handling
-	if s.FactoryResetEnabled() && ifNoneMatch == "NONE" {
-		err := db.FactoryReset(c, mac, fields)
-		if err != nil {
-			if s.IsDbNotFound(err) {
-				Error(w, r, http.StatusNotFound, nil)
-				return
-			} else {
-				Error(w, r, http.StatusInternalServerError, err)
-				return
-			}
-		}
-		WriteFactoryResetResponse(w)
-		return
-	}
-
-	mparts := []common.Multipart{}
-	for subdocId, doc := range folder.Items() {
-		clientVersion := clientVersionMap[subdocId]
-		var cloudVersion string
-		if doc.Version() != nil {
-			cloudVersion = *doc.Version()
-		}
-		if cloudVersion != "" && cloudVersion == clientVersion {
-			// match do nothing
-		} else if len(doc.Bytes()) == 0 {
-			// empty subdoc do nothing
-		} else {
-			mpart := common.Multipart{
-				Bytes:   doc.Bytes(),
-				Version: *doc.Version(),
-				Name:    subdocId,
-			}
-			mparts = append(mparts, mpart)
-		}
-	}
-
-	if len(mparts) > 0 {
-		// if get no root version from db, must update db with a proper rootVersion
-		if rootVersion == "" {
-			rootVersion = util.RootVersion(mparts)
-			if err := c.SetRootDocumentVersion(mac, rootVersion); err != nil {
-				Error(w, r, http.StatusInternalServerError, err)
-				return
-			}
-		}
-
-		o := MultipartOutput{
-			mparts:      mparts,
-			rootVersion: rootVersion,
-		}
-
-		WriteMultipartResponse(w, r, &o)
-	} else {
-		// corner case when there are data from dao.DocumentMap() but none of them in the common.GroupSubdocMap
-		Error(w, r, http.StatusNotModified, nil)
-		return
-	}
+	return http.StatusOK, upstreamRespHeader, upstreamRespBytes, nil
 }

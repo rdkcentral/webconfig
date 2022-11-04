@@ -18,9 +18,19 @@
 package common
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/go-akka/configuration"
+)
+
+var (
+	testServerConfig *ServerConfig
+	testConfigFiles  = []string{
+		"/app/webconfigcommon/webconfigcommon.conf",
+		"../config/sample_webconfigcommon.conf",
+	}
 )
 
 type ServerConfig struct {
@@ -42,4 +52,35 @@ func NewServerConfig(configFile string) (*ServerConfig, error) {
 
 func (c *ServerConfig) ConfigBytes() []byte {
 	return c.configBytes
+}
+
+func GetTestConfigFile() (string, error) {
+	for _, cf := range testConfigFiles {
+		if _, err := os.Stat(cf); os.IsNotExist(err) {
+			continue
+		}
+		return cf, nil
+	}
+	return "", NewError(fmt.Errorf("Cannot find any predefined config file for test"))
+}
+
+// REMINDER
+//
+//	this is called from mutiple packages, but we only init the client/session once
+func GetTestServerConfig() (*ServerConfig, error) {
+	if testServerConfig != nil {
+		return testServerConfig, nil
+	}
+
+	configFile, err := GetTestConfigFile()
+	if err != nil {
+		return nil, NewError(err)
+	}
+
+	// init shared objects
+	testServerConfig, err = NewServerConfig(configFile)
+	if err != nil {
+		return nil, NewError(err)
+	}
+	return testServerConfig, nil
 }

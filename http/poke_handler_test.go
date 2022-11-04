@@ -29,11 +29,14 @@ import (
 )
 
 var (
-	mockedWebpaPokeResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	mockedWebpaPokeResponse      = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	unsupportedNamespaceResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Error unsupported namespace"}],"statusCode":520}`)
+	inProgressResponse           = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Previous request is in progress"}],"statusCode":520}`)
+	requestRejectedResponse      = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Request rejected"}],"statusCode":520}`)
 )
 
 func TestPokeHandler(t *testing.T) {
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 	cpeMac := util.GenerateRandomCpeMac()
 
@@ -43,6 +46,7 @@ func TestPokeHandler(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(mockedWebpaPokeResponse)
 		}))
+	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
 	targetWebpaHost := server.WebpaHost()
 	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
@@ -62,7 +66,7 @@ func TestPokeHandler(t *testing.T) {
 	req, err := http.NewRequest("POST", url, nil)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.Equal(t, res.StatusCode, http.StatusNoContent)
 	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
@@ -70,7 +74,7 @@ func TestPokeHandler(t *testing.T) {
 
 func TestPokeHandlerWithCpe(t *testing.T) {
 	t.Skip()
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 	cpeMac := "44AAF59D0F3A" // ok
 	// cpeMac := "DCEB695C7812" // not found

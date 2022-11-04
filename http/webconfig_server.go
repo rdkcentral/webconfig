@@ -19,6 +19,7 @@ package http
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -26,24 +27,43 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/db"
-	"github.com/rdkcentral/webconfig/security"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
+	"github.com/rdkcentral/webconfig/db/cassandra"
+	"github.com/rdkcentral/webconfig/db/sqlite"
+	"github.com/rdkcentral/webconfig/security"
+	"github.com/rdkcentral/webconfig/util"
 )
 
+// TODO enum, probably no need
 const (
 	LevelWarn = iota
 	LevelInfo
 	LevelDebug
+)
+
+const (
 	MetricsEnabledDefault            = true
 	FactoryResetEnabledDefault       = false
 	serverApiTokenAuthEnabledDefault = false
 	deviceApiTokenAuthEnabledDefault = true
 	tokenApiEnabledDefault           = false
+	activeDriverDefault              = "cassandra"
+)
+
+var (
+	selectedHeaders = []string{
+		"If-None-Match",
+		"X-System-Firmware-Version",
+		"X-System-Supported-Docs",
+		"X-System-Supplementaryservice-Sync",
+		"X-System-Model-Name",
+		"X-System-Product-Class",
+		"X-System-Schema-Version",
+	}
 )
 
 type WebconfigServer struct {
@@ -53,6 +73,9 @@ type WebconfigServer struct {
 	*common.ServerConfig
 	*WebpaConnector
 	*CodebigConnector
+	*XconfConnector
+	*MqttConnector
+	*UpstreamConnector
 	tlsConfig                 *tls.Config
 	notLoggedHeaders          []string
 	metricsEnabled            bool
@@ -60,6 +83,9 @@ type WebconfigServer struct {
 	serverApiTokenAuthEnabled bool
 	deviceApiTokenAuthEnabled bool
 	tokenApiEnabled           bool
+	blockedSubdocIds          []string
+	kafkaEnabled              bool
+	upstreamEnabled           bool
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -84,29 +110,81 @@ func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
 	}, nil
 }
 
-// testOnly=true ==> running unit test
-func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, dc db.DatabaseClient) *WebconfigServer {
-	conf := sc.Config
+func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
+	// TODO check the client init for enabled
+	var tdbclient db.DatabaseClient
+	var err error
+
+	// this is meant to override the database.active_driver
+	activeDriver := sc.GetString("database.active_driver", activeDriverDefault)
+	if x := os.Getenv("TESTDB_DRIVER"); len(x) > 0 {
+		activeDriver = x
+	}
+
+	switch activeDriver {
+	case "sqlite":
+		tdbclient, err = sqlite.GetTestSqliteClient(sc.Config, true)
+		if err != nil {
+			panic(err)
+		}
+	case "cassandra":
+		tdbclient, err = cassandra.GetTestCassandraClient(sc.Config, true)
+		if err != nil {
+			panic(err)
+		}
+	default:
+		err = fmt.Errorf("Unsupported database.active_driver %v is configured", activeDriver)
+		panic(err)
+	}
+	err = tdbclient.SetUp()
+	if err != nil {
+		panic(err)
+	}
+	return tdbclient
+}
+
+func GetDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 	var dbclient db.DatabaseClient
 	var err error
 
-	if dc == nil {
-		if conf.GetBoolean("webconfig.database.sqlite3.enabled", false) {
-			dbclient, err = db.NewSqliteClient(conf, testOnly)
-			if err != nil {
-				panic(err)
-			}
-			err = dbclient.SetUp()
-			if err != nil {
-				panic(err)
-			}
+	activeDriver := sc.GetString("database.active_driver", activeDriverDefault)
+	switch activeDriver {
+	case "sqlite":
+		dbclient, err = sqlite.NewSqliteClient(sc.Config, false)
+		if err != nil {
+			panic(err)
 		}
+	case "cassandra":
+		dbclient, err = cassandra.NewCassandraClient(sc.Config, false)
+		if err != nil {
+			panic(err)
+		}
+	default:
+		err = fmt.Errorf("Unsupported database.active_driver %v is configured", activeDriver)
+		panic(err)
+	}
+
+	err = dbclient.SetUp()
+	if err != nil {
+		panic(err)
+	}
+	return dbclient
+}
+
+// testOnly=true ==> running unit test
+func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer {
+	conf := sc.Config
+	var dbclient db.DatabaseClient
+
+	// setup up database client
+	if testOnly {
+		dbclient = GetTestDatabaseClient(sc)
 	} else {
-		dbclient = dc
+		dbclient = GetDatabaseClient(sc)
 	}
 
 	metricsEnabled := conf.GetBoolean("webconfig.server.metrics_enabled", MetricsEnabledDefault)
-	factoryResetEnabled := conf.GetBoolean("webconfig.server.factory_reset_enabled", FactoryResetEnabledDefault)
+	factoryResetEnabled := conf.GetBoolean("webconfig.factory_reset_enabled", FactoryResetEnabledDefault)
 
 	// configure headers that should not be logged
 	ignoredHeaders := conf.GetStringList("webconfig.log.ignored_headers")
@@ -119,24 +197,39 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, dc db.DatabaseCl
 	// tlsConfig, here we ignore any error
 	tlsConfig, _ := NewTlsConfig(conf)
 
+	panicExitEnabled := conf.GetBoolean("webconfig.panic_exit_enabled", false)
 	// load codebig credentials
 	satClientId := os.Getenv("SAT_CLIENT_ID")
 	if len(satClientId) == 0 {
-		panic("No env SAT_CLIENT_ID")
+		if panicExitEnabled {
+			panic("No env SAT_CLIENT_ID")
+		}
 	}
 
 	satClientSecret := os.Getenv("SAT_CLIENT_SECRET")
 	if len(satClientSecret) == 0 {
-		panic("No env SAT_CLIENT_SECRET")
+		if panicExitEnabled {
+			panic("No env SAT_CLIENT_SECRET")
+		}
 	}
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
 	tokenApiEnabled := conf.GetBoolean("webconfig.token_api_enabled", tokenApiEnabledDefault)
+	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
+
+	var listenHost string
+	if conf.GetBoolean("webconfig.server.localhost_only", false) {
+		listenHost = "localhost"
+	}
+	port := conf.GetInt32("webconfig.server.port", 8080)
+
+	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
+	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
 
 	return &WebconfigServer{
 		Server: &http.Server{
-			Addr:         fmt.Sprintf(":%s", conf.GetString("webconfig.server.port")),
+			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
 			WriteTimeout: time.Duration(conf.GetInt32("webconfig.server.write_timeout_in_secs", 3)) * time.Second,
 		},
@@ -145,6 +238,9 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, dc db.DatabaseCl
 		ServerConfig:              sc,
 		WebpaConnector:            NewWebpaConnector(conf, tlsConfig),
 		CodebigConnector:          NewCodebigConnector(conf, satClientId, satClientSecret, tlsConfig),
+		XconfConnector:            NewXconfConnector(conf, tlsConfig),
+		MqttConnector:             NewMqttConnector(conf, tlsConfig),
+		UpstreamConnector:         NewUpstreamConnector(conf, tlsConfig),
 		tlsConfig:                 tlsConfig,
 		notLoggedHeaders:          notLoggedHeaders,
 		metricsEnabled:            metricsEnabled,
@@ -152,24 +248,28 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, dc db.DatabaseCl
 		serverApiTokenAuthEnabled: serverApiTokenAuthEnabled,
 		deviceApiTokenAuthEnabled: deviceApiTokenAuthEnabled,
 		tokenApiEnabled:           tokenApiEnabled,
+		blockedSubdocIds:          blockedSubdocIds,
+		kafkaEnabled:              kafkaEnabled,
+		upstreamEnabled:           upstreamEnabled,
 	}
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xp := NewXpcResponseWriter(w)
-		xw := *xp
+		xw := NewXpcResponseWriter(w)
+		metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
+		if len(metricsAgent) > 0 {
+			xw.SetAuditData("metrics_agent", metricsAgent)
+		}
 
 		if r.Method == "POST" {
 			if r.Body != nil {
 				if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
-					xw.SetBody(string(rbytes))
+					xw.SetBodyBytes(rbytes)
 				}
-			} else {
-				xw.SetBody("")
 			}
 		}
-		next.ServeHTTP(&xw, r)
+		next.ServeHTTP(xw, r)
 	}
 	return http.HandlerFunc(fn)
 }
@@ -177,8 +277,8 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		xw := s.logRequestStarts(w, r)
-		defer s.logRequestEnds(&xw, r)
-		next.ServeHTTP(&xw, r)
+		defer s.logRequestEnds(xw, r)
+		next.ServeHTTP(xw, r)
 	}
 	return http.HandlerFunc(fn)
 }
@@ -187,7 +287,7 @@ func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		xw := s.logRequestStarts(w, r)
-		defer s.logRequestEnds(&xw, r)
+		defer s.logRequestEnds(xw, r)
 
 		isValid := false
 		token := xw.Token()
@@ -195,12 +295,13 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
 			if !ok || len(mac) != 12 {
-				Error(&xw, r, http.StatusForbidden, nil)
+				Error(xw, http.StatusForbidden, nil)
 				return
 			}
 
-			if ok, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, partnerId, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
+				xw.SetPartnerId(partnerId)
 			} else {
 				xw.LogDebug(r, "token", fmt.Sprintf("CpeMiddleware() VerifyCpeToken()=false, err=%v", err))
 			}
@@ -209,9 +310,9 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		}
 
 		if isValid {
-			next.ServeHTTP(&xw, r)
+			next.ServeHTTP(xw, r)
 		} else {
-			Error(&xw, r, http.StatusForbidden, nil)
+			Error(xw, http.StatusForbidden, nil)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -221,7 +322,7 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		xw := s.logRequestStarts(w, r)
-		defer s.logRequestEnds(&xw, r)
+		defer s.logRequestEnds(xw, r)
 
 		isValid := false
 		token := xw.Token()
@@ -236,9 +337,9 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		}
 
 		if isValid {
-			next.ServeHTTP(&xw, r)
+			next.ServeHTTP(xw, r)
 		} else {
-			Error(&xw, r, http.StatusForbidden, nil)
+			Error(xw, http.StatusForbidden, nil)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -246,8 +347,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xp := NewXpcResponseWriter(w)
-		xw := *xp
+		xw := NewXpcResponseWriter(w)
 
 		// read the token
 		authorization := r.Header.Get("Authorization")
@@ -262,19 +362,19 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
 			if !ok || len(mac) != 12 {
-				Error(&xw, r, http.StatusForbidden, nil)
+				Error(xw, http.StatusForbidden, nil)
 				return
 			}
 
-			if ok, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
 			}
 		}
 
 		if isValid {
-			next.ServeHTTP(&xw, r)
+			next.ServeHTTP(xw, r)
 		} else {
-			Error(&xw, r, http.StatusForbidden, nil)
+			Error(xw, http.StatusForbidden, nil)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -316,6 +416,37 @@ func (s *WebconfigServer) SetTokenApiEnabled(enabled bool) {
 	s.tokenApiEnabled = enabled
 }
 
+func (s *WebconfigServer) BlockedSubdocIds() []string {
+	return s.blockedSubdocIds
+}
+
+func (s *WebconfigServer) SetBlockedSubdocIds(blockedSubdocIds []string) {
+	s.blockedSubdocIds = blockedSubdocIds
+}
+
+func (s *WebconfigServer) KafkaEnabled() bool {
+	return s.kafkaEnabled
+}
+
+func (s *WebconfigServer) SetKafkaEnabled(enabled bool) {
+	s.kafkaEnabled = enabled
+}
+
+func (s *WebconfigServer) UpstreamEnabled() bool {
+	return s.upstreamEnabled
+}
+
+func (s *WebconfigServer) SetUpstreamEnabled(enabled bool) {
+	s.upstreamEnabled = enabled
+}
+
+func (s *WebconfigServer) GetUpstreamConnector() *UpstreamConnector {
+	if !s.upstreamEnabled {
+		return nil
+	}
+	return s.UpstreamConnector
+}
+
 func (s *WebconfigServer) TlsConfig() *tls.Config {
 	return s.tlsConfig
 }
@@ -324,8 +455,18 @@ func (s *WebconfigServer) NotLoggedHeaders() []string {
 	return s.notLoggedHeaders
 }
 
-func (c *WebconfigServer) Poke(cpeMac string, token string, fields log.Fields) (string, error) {
-	transactionId, err := c.Patch(cpeMac, token, PokeBody, fields)
+func (s *WebconfigServer) NewMetrics() *common.AppMetrics {
+	m := common.NewMetrics()
+	sclient, ok := s.DatabaseClient.(*sqlite.SqliteClient)
+	if ok {
+		sclient.SetMetrics(m)
+	}
+	return m
+}
+
+func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
+	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
+	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
 	if err != nil {
 		return "", common.NewError(err)
 	}
@@ -343,7 +484,7 @@ func getHeadersForLogAsMap(r *http.Request, notLoggedHeaders []string) map[strin
 	return loggedHeaders
 }
 
-func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) XpcResponseWriter {
+func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XpcResponseWriter {
 	remoteIp := r.RemoteAddr
 	host := r.Host
 	headers := getHeadersForLogAsMap(r, s.notLoggedHeaders)
@@ -370,7 +511,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(auditId) == 0 {
 		auditId = util.GetAuditId()
 	}
-
 	fields := log.Fields{
 		"path":      r.URL.String(),
 		"method":    r.Method,
@@ -380,6 +520,26 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		"headers":   headers,
 		"logger":    "request",
 		"trace_id":  traceId,
+		"app_name":  "webconfig",
+	}
+
+	userAgent := r.UserAgent()
+	if len(userAgent) > 0 {
+		fields["user_agent"] = userAgent
+	}
+	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
+	if len(metricsAgent) > 0 {
+		fields["metrics_agent"] = metricsAgent
+	}
+
+	// log critical headers
+	_, ok := headers["If-None-Match"]
+	if ok {
+		selected := util.Dict{}
+		for _, k := range selectedHeaders {
+			selected[k] = headers[k]
+		}
+		fields["selected"] = selected
 	}
 
 	// add cpemac or csid in loggings
@@ -400,31 +560,25 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		fields["cpemac"] = mac
 	}
 
-	xp := NewXpcResponseWriter(w, time.Now(), token, fields)
-	xwriter := *xp
+	xwriter := NewXpcResponseWriter(w, time.Now(), token, fields)
 
 	if r.Method == "POST" {
-		var body string
 		if r.Body != nil {
-			b, err := ioutil.ReadAll(r.Body)
+			bbytes, err := ioutil.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")
 				return xwriter
 			}
-			body = string(b)
-		}
-		xwriter.SetBody(body)
-		fields["body"] = body
-
-		contentType := r.Header.Get("Content-type")
-		if contentType == "application/msgpack" {
-			xwriter.SetBodyObfuscated(true)
+			xwriter.SetBodyBytes(bbytes)
 		}
 	}
 
 	auditFields := xwriter.Audit()
-	log.WithFields(auditFields).Info("request starts")
+
+	if userAgent != "mget" {
+		log.WithFields(auditFields).Info("request starts")
+	}
 
 	return xwriter
 }
@@ -434,21 +588,39 @@ func (s *WebconfigServer) logRequestEnds(xw *XpcResponseWriter, r *http.Request)
 	duration := tdiff.Nanoseconds() / 1000000
 
 	url := r.URL.String()
-	response := xw.Response()
+	fields := xw.Audit()
 	if strings.Contains(url, "/config") || (strings.Contains(url, "/document") && r.Method == "GET") || (url == "/api/v1/token" && r.Method == "POST") {
-		response = "****"
+		fields["response"] = ObfuscatedMap
+		fields["response_text"] = "****"
+	} else {
+		_, ok := fields["response"]
+		// XPC-13444 if the "response" is already set in the audit, then no need to do more handling
+		if !ok {
+			response := xw.Response()
+			var itf interface{}
+			err := json.Unmarshal([]byte(response), &itf)
+			if err != nil {
+				err1 := common.NewError(err)
+				fields["response"] = ObfuscatedMap
+				fields["response_text"] = err1.Error()
+			}
+		}
 	}
 
-	fields := xw.Audit()
-	fields["response"] = response
 	fields["status"] = xw.Status()
 	fields["duration"] = duration
 	fields["logger"] = "request"
 
-	log.WithFields(fields).Info("request ends")
+	var userAgent string
+	if itf, ok := fields["user_agent"]; ok {
+		userAgent = itf.(string)
+	}
+	if userAgent != "mget" {
+		log.WithFields(fields).Info("request ends")
+	}
 }
 
-func LogError(w http.ResponseWriter, r *http.Request, err error) {
+func LogError(w http.ResponseWriter, err error) {
 	var fields log.Fields
 	if xw, ok := w.(*XpcResponseWriter); ok {
 		fields = xw.Audit()
@@ -460,7 +632,7 @@ func LogError(w http.ResponseWriter, r *http.Request, err error) {
 	log.WithFields(fields).Error("internal error")
 }
 
-func (xw *XpcResponseWriter) logMessage(r *http.Request, logger string, message string, level int) {
+func (xw *XpcResponseWriter) logMessage(logger string, message string, level int) {
 	fields := xw.Audit()
 	fields["logger"] = logger
 
@@ -474,14 +646,15 @@ func (xw *XpcResponseWriter) logMessage(r *http.Request, logger string, message 
 	}
 }
 
+// REMINDER use by the middleware functions
 func (xw *XpcResponseWriter) LogDebug(r *http.Request, logger string, message string) {
-	xw.logMessage(r, logger, message, LevelDebug)
+	xw.logMessage(logger, message, LevelDebug)
 }
 
 func (xw *XpcResponseWriter) LogInfo(r *http.Request, logger string, message string) {
-	xw.logMessage(r, logger, message, LevelInfo)
+	xw.logMessage(logger, message, LevelInfo)
 }
 
 func (xw *XpcResponseWriter) LogWarn(r *http.Request, logger string, message string) {
-	xw.logMessage(r, logger, message, LevelWarn)
+	xw.logMessage(logger, message, LevelWarn)
 }
