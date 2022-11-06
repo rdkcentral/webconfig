@@ -19,7 +19,6 @@ package http
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -54,7 +53,6 @@ func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
 }
 
 func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("t0=%v\n", time.Now())
 	mac, subdocId, _, _, err := Validate(w, r, false)
 	if err != nil {
 		var status int
@@ -71,10 +69,7 @@ func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fmt.Printf("t1=%v\n", time.Now())
 	subdoc, err := s.GetSubDocument(mac, subdocId)
-	fmt.Printf("t2=%v\n", time.Now())
-
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)

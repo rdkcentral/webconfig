@@ -90,7 +90,7 @@ func (c *SqliteClient) TearDown() error {
 	defer func() { <-c.concurrentQueries }()
 
 	for _, t := range SqliteAllTables {
-		stmt, err := c.Prepare(fmt.Sprintf("DELETE FROM %v", t))
+		stmt, err := c.Prepare(fmt.Sprintf("DROP TABLE %v", t))
 		if err != nil {
 			return common.NewError(err)
 		}
@@ -129,5 +129,17 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 	if err != nil {
 		return nil, common.NewError(err)
 	}
+
+	// need to do it this way to sure we have correct schema but empty tables
+	if err = tdbclient.SetUp(); err != nil {
+		return nil, common.NewError(err)
+	}
+	if err = tdbclient.TearDown(); err != nil {
+		return nil, common.NewError(err)
+	}
+	if err = tdbclient.SetUp(); err != nil {
+		return nil, common.NewError(err)
+	}
+
 	return tdbclient, nil
 }

@@ -67,7 +67,15 @@ func GetTestConfigFile() (string, error) {
 // REMINDER
 //
 //	this is called from mutiple packages, but we only init the client/session once
-func GetTestServerConfig() (*ServerConfig, error) {
+func GetTestServerConfig(args ...string) (*ServerConfig, error) {
+	if len(args) > 0 {
+		c, err := NewServerConfig(args[0])
+		if err != nil {
+			return nil, NewError(err)
+		}
+		return c, nil
+	}
+
 	if testServerConfig != nil {
 		return testServerConfig, nil
 	}

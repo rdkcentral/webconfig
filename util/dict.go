@@ -36,8 +36,6 @@ func (d Dict) TimeToMsecs(field string) {
 			} else {
 				d[field] = int(ty.UnixNano() / 1000000)
 			}
-		default:
-			// fmt.Printf("TimeToMsecs() miss it, %v\n", ty)
 		}
 	}
 }

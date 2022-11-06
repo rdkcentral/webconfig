@@ -116,7 +116,7 @@ func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 	var err error
 
 	// this is meant to override the database.active_driver
-	activeDriver := sc.GetString("database.active_driver", activeDriverDefault)
+	activeDriver := sc.GetString("webconfig.database.active_driver", activeDriverDefault)
 	if x := os.Getenv("TESTDB_DRIVER"); len(x) > 0 {
 		activeDriver = x
 	}
@@ -127,7 +127,7 @@ func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 		if err != nil {
 			panic(err)
 		}
-	case "cassandra":
+	case "cassandra", "yugabyte":
 		tdbclient, err = cassandra.GetTestCassandraClient(sc.Config, true)
 		if err != nil {
 			panic(err)
@@ -147,14 +147,14 @@ func GetDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 	var dbclient db.DatabaseClient
 	var err error
 
-	activeDriver := sc.GetString("database.active_driver", activeDriverDefault)
+	activeDriver := sc.GetString("webconfig.database.active_driver", activeDriverDefault)
 	switch activeDriver {
 	case "sqlite":
 		dbclient, err = sqlite.NewSqliteClient(sc.Config, false)
 		if err != nil {
 			panic(err)
 		}
-	case "cassandra":
+	case "cassandra", "yugabyte":
 		dbclient, err = cassandra.NewCassandraClient(sc.Config, false)
 		if err != nil {
 			panic(err)
@@ -164,10 +164,9 @@ func GetDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 		panic(err)
 	}
 
-	err = dbclient.SetUp()
-	if err != nil {
-		panic(err)
-	}
+	// WARNING unlike the testclient, dbclient (used by the application)
+	// chooses NOT to run SetUp(). It leaves devops/dba to prepare the db
+
 	return dbclient
 }
 

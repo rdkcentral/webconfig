@@ -70,7 +70,6 @@ func GetCpeBitmap(rdkSupportedDocsHeaderStr string) (int, error) {
 		if err != nil {
 			return 0, common.NewError(err)
 		}
-		// fmt.Printf("groupId=%v, groupBitmap=%v, cpeBitmap=%v\n", groupId, groupBitmap, cpeBitmap)
 	}
 
 	return cpeBitmap, nil

@@ -96,7 +96,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		document := common.NewDocument(cloudRootDocument)
 		// no need to update root doc
 		return document, false, nil
-	case common.RootDocumentVersionOnlyChanged:
+	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// getDoc, then filter
 		document, err := c.GetDocument(mac)
 		if err != nil {
