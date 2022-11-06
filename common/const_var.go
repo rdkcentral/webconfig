@@ -202,4 +202,5 @@ const (
 	RootDocumentEquals = iota
 	RootDocumentVersionOnlyChanged
 	RootDocumentMetaChanged
+	RootDocumentMissing
 )

@@ -37,12 +37,19 @@ var (
     version text,
     payload blob,
     state int,
+    error_code int,
+    error_details text,
     PRIMARY KEY (cpe_mac, group_id)
 )`,
 		`CREATE TABLE IF NOT EXISTS root_document (
     cpe_mac text PRIMARY KEY,
-    version text,
-    bitmap bigint
+    bitmap bigint,
+    firmware_version text,
+    model_name text,
+    partner_id text,
+    route text,
+    schema_version,
+    version text
 )`,
 	}
 )

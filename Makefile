@@ -28,7 +28,7 @@ Version ?= $(shell git log -1 --pretty=format:"%h")
 BUILDTIME := $(shell date -u +"%F_%T_%Z")
 
 all: build
-testall: test testsqlite
+testall: test testsqlite testyuga
 
 build:  ## Build a version
 	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
@@ -38,6 +38,9 @@ test:
 
 testsqlite:
 	export TESTDB_DRIVER='sqlite' ; go test ./... -cover -count=1
+
+testyuga:
+	export TESTDB_DRIVER='yugabyte' ; go test ./... -cover -count=1
 
 cover:
 	go test ./... -count=1 -coverprofile=coverage.out

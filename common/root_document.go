@@ -97,6 +97,9 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	if d.Version != r.Version {
 		return RootDocumentVersionOnlyChanged
 	}
+	if len(d.Version) == 0 {
+		return RootDocumentMissing
+	}
 	return RootDocumentEquals
 }
 
