@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -23,9 +23,9 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	log "github.com/sirupsen/logrus"
 )
 
 func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +66,21 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	status, respHeader, respBytes, err := BuildWebconfigResponse(dbclient, uconn, r.Header, nil, common.RouteHttp, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
+	}
+
+	// REMINDER 404 use standard response
+	if status == http.StatusNotFound {
+		var errStr string
+		if err != nil {
+			errStr = err.Error()
+		}
+		o := common.HttpErrorResponse{
+			Status:  status,
+			Message: http.StatusText(status),
+			Errors:  errStr,
+		}
+		WriteByMarshal(w, status, o)
+		return
 	}
 
 	for k := range respHeader {

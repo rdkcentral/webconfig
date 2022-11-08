@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package kafka
 
 import (
@@ -26,12 +26,12 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/go-akka/configuration"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
+	log "github.com/sirupsen/logrus"
 	"go.uber.org/ratelimit"
 )
 
@@ -39,6 +39,12 @@ const (
 	WebconfigGetTopic      = "mqtt-get-doc"
 	WebconfigResponseTopic = "mqtt-config-version-report"
 	WebpaNotificationTopic = "config-version-report"
+)
+
+const (
+	WebpaStateTopicDefault = "config-version-report"
+	MqttGetTopicDefault    = "mqtt-get-doc"
+	MqttStateTopicDefault  = "mqtt-config-version-report"
 )
 
 // Consumer represents a Sarama consumer group consumer
@@ -50,9 +56,17 @@ type Consumer struct {
 	*security.TokenManager
 	Ready                      chan bool
 	ratelimitMessagesPerSecond int
+	mqttGetTopic               string
+	mqttStateTopic             string
+	webpaStateTopic            string
 }
 
 func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics) *Consumer {
+	conf := s.ServerConfig.Config
+	webpaStateTopic := conf.GetString("webconfig.kafka.webpa_state_topic", WebpaStateTopicDefault)
+	mqttGetTopic := conf.GetString("webconfig.kafka.mqtt_get_topic", MqttGetTopicDefault)
+	mqttStateTopic := conf.GetString("webconfig.kafka.mqtt_state_topic", WebpaStateTopicDefault)
+
 	uconn := s.GetUpstreamConnector()
 	return &Consumer{
 		DatabaseClient:             s.DatabaseClient,
@@ -62,6 +76,9 @@ func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *c
 		TokenManager:               s.TokenManager,
 		Ready:                      make(chan bool),
 		ratelimitMessagesPerSecond: ratelimitMessagesPerSecond,
+		webpaStateTopic:            webpaStateTopic,
+		mqttGetTopic:               mqttGetTopic,
+		mqttStateTopic:             mqttStateTopic,
 	}
 }
 
@@ -108,6 +125,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	cpeMac := rHeader.Get(common.HeaderDeviceId)
 	if len(cpeMac) == 0 {
 		cpeMac = rHeader.Get("Mac")
+		rHeader.Set(common.HeaderDeviceId, cpeMac)
 	}
 	cpeMac = strings.ToUpper(cpeMac)
 
@@ -180,16 +198,18 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		var m *common.EventMessage
 
 		switch message.Topic {
-		case WebconfigGetTopic:
+		case c.mqttGetTopic:
 			eventName = "mqtt-get"
 			m, err = c.handleGetMessage(message.Value, fields)
 			logMessage = "request ends"
-		case WebconfigResponseTopic:
+		case c.mqttStateTopic:
+			eventName = "mqtt-state"
 			header, bbytes := util.ParseHttp(message.Value)
 			fields["destination"] = header.Get("Destination")
 			m, err = c.handleNotification(bbytes, fields)
 			logMessage = "ok"
-		case WebpaNotificationTopic:
+		case c.webpaStateTopic:
+			eventName = "webpa-state"
 			m, err = c.handleNotification(message.Value, fields)
 			logMessage = "ok"
 		}
@@ -206,7 +226,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		}
 
 		// build metrics dimensions and update metrics
-		if c.AppMetrics != nil {
+		if c.AppMetrics != nil && m != nil {
 			metricsAgent := "default"
 			if m.MetricsAgent != nil {
 				metricsAgent = *m.MetricsAgent
