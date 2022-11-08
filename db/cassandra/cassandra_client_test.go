@@ -41,7 +41,7 @@ func TestCassandraClient(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	configFile := "../../config/sample_webconfigcommon.conf"
+	configFile := "../../config/sample_webconfig.conf"
 	sc, err := common.GetTestServerConfig(configFile)
 	assert.NilError(t, err)
 
