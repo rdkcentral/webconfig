@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package kafka
 
 import (
@@ -26,12 +26,11 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/go-akka/configuration"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
-	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/ratelimit"
 )
 
@@ -49,11 +48,7 @@ const (
 
 // Consumer represents a Sarama consumer group consumer
 type Consumer struct {
-	db.DatabaseClient
-	*common.AppMetrics
-	*wchttp.MqttConnector
-	*wchttp.UpstreamConnector
-	*security.TokenManager
+	*wchttp.WebconfigServer
 	Ready                      chan bool
 	ratelimitMessagesPerSecond int
 	mqttGetTopic               string
@@ -67,13 +62,8 @@ func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *c
 	mqttGetTopic := conf.GetString("webconfig.kafka.mqtt_get_topic", MqttGetTopicDefault)
 	mqttStateTopic := conf.GetString("webconfig.kafka.mqtt_state_topic", WebpaStateTopicDefault)
 
-	uconn := s.GetUpstreamConnector()
 	return &Consumer{
-		DatabaseClient:             s.DatabaseClient,
-		AppMetrics:                 m,
-		MqttConnector:              s.MqttConnector,
-		UpstreamConnector:          uconn,
-		TokenManager:               s.TokenManager,
+		WebconfigServer:            s,
 		Ready:                      make(chan bool),
 		ratelimitMessagesPerSecond: ratelimitMessagesPerSecond,
 		webpaStateTopic:            webpaStateTopic,
@@ -125,9 +115,9 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	cpeMac := rHeader.Get(common.HeaderDeviceId)
 	if len(cpeMac) == 0 {
 		cpeMac = rHeader.Get("Mac")
-		rHeader.Set(common.HeaderDeviceId, cpeMac)
 	}
 	cpeMac = strings.ToUpper(cpeMac)
+	rHeader.Set(common.HeaderDeviceId, cpeMac)
 
 	// TODO parse themis token and extract mac
 	fields["cpe_mac"] = cpeMac
@@ -154,9 +144,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	fields["header"] = d
 	log.WithFields(fields).Info("request starts")
 
-	dbclient := c.DatabaseClient
-	uconn := c.UpstreamConnector
-	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(dbclient, uconn, rHeader, nil, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, rHeader, nil, common.RouteMqtt, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}
@@ -187,7 +175,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 		fields := log.Fields{
 			"logger":    "kafka",
-			"app_name":  "webconfig",
+			"app_name":  "webconfigcommon",
 			"kafka_lag": lag,
 			"topic":     message.Topic,
 			"audit_id":  auditId,
@@ -226,14 +214,15 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		}
 
 		// build metrics dimensions and update metrics
-		if c.AppMetrics != nil && m != nil {
+		metrics := c.WebconfigServer.Metrics()
+		if metrics != nil && m != nil {
 			metricsAgent := "default"
 			if m.MetricsAgent != nil {
 				metricsAgent = *m.MetricsAgent
 			}
 			// TODO try to read metricsAgent from fields["metrics_agent"]
-			c.ObserveKafkaLag(eventName, metricsAgent, lag)
-			c.ObserveKafkaDuration(eventName, metricsAgent, duration)
+			metrics.ObserveKafkaLag(eventName, metricsAgent, lag)
+			metrics.ObserveKafkaDuration(eventName, metricsAgent, duration)
 		}
 	}
 	return nil

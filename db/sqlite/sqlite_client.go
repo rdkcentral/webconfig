@@ -109,6 +109,10 @@ func (c *SqliteClient) IsDbNotFound(err error) bool {
 	return false
 }
 
+func (c *SqliteClient) Metrics() *common.AppMetrics {
+	return c.AppMetrics
+}
+
 func (c *SqliteClient) SetMetrics(m *common.AppMetrics) {
 	c.AppMetrics = m
 }

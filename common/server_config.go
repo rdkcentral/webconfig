@@ -28,8 +28,9 @@ import (
 var (
 	testServerConfig *ServerConfig
 	testConfigFiles  = []string{
-		"/app/webconfigcommon/webconfigcommon.conf",
+		"/app/webconfigcommon/test_webconfigcommon.conf",
 		"../config/sample_webconfigcommon.conf",
+		"/app/webconfigcommon/webconfigcommon.conf",
 	}
 )
 

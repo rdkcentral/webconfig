@@ -45,6 +45,10 @@ type DatabaseClient interface {
 	// not found
 	IsDbNotFound(error) bool
 
+	// set metrics
+	Metrics() *common.AppMetrics
+	SetMetrics(*common.AppMetrics)
+
 	// TODO
 	// These functions are now changed to use upstream
 	FactoryReset(string) error

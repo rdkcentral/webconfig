@@ -25,7 +25,9 @@ import (
 )
 
 func TestCassandraClient(t *testing.T) {
-	sc, err := common.GetTestServerConfig()
+	configFile := "../../config/sample_webconfig.conf"
+	sc, err := common.GetTestServerConfig(configFile)
+
 	assert.NilError(t, err)
 	dbc, err := GetTestCassandraClient(sc.Config, true)
 	assert.NilError(t, err)
@@ -34,10 +36,8 @@ func TestCassandraClient(t *testing.T) {
 	_ = tdbclient.LocalDc()
 	assert.Assert(t, tdbclient.Codec() != nil)
 
-	// XPC-15777
-	// expect empty by default
 	tgtSubdocIds := tdbclient.EncryptedSubdocIds()
-	assert.Assert(t, len(tgtSubdocIds) == 0)
+	assert.Assert(t, len(tgtSubdocIds) == 4)
 }
 
 func TestGetConfig(t *testing.T) {

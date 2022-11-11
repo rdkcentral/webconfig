@@ -18,21 +18,23 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
 var (
-	mockedWebpaPokeResponse      = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
-	unsupportedNamespaceResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Error unsupported namespace"}],"statusCode":520}`)
-	inProgressResponse           = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Previous request is in progress"}],"statusCode":520}`)
-	requestRejectedResponse      = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Request rejected"}],"statusCode":520}`)
+	mockedWebpaPokeResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
 )
 
 func TestPokeHandler(t *testing.T) {
@@ -44,7 +46,7 @@ func TestPokeHandler(t *testing.T) {
 	webpaMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write(mockedWebpaPokeResponse)
+			_, _ = w.Write(mockedWebpaPokeResponse)
 		}))
 	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
@@ -89,4 +91,188 @@ func TestPokeHandlerWithCpe(t *testing.T) {
 	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
+}
+
+func TestBuildMqttSendDocument(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// webpa mock server
+	mockedMqttPokeResponse := []byte("Accepted\n")
+	mqttMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(mockedMqttPokeResponse)
+		}))
+	defer mqttMockServer.Close()
+	server.SetMqttHost(mqttMockServer.URL)
+	targetMqttHost := server.MqttHost()
+	assert.Equal(t, mqttMockServer.URL, targetMqttHost)
+
+	// ==== step 1 setup lan subdoc ====
+	// post
+	subdocId := "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+	state, err := strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.PendingDownload)
+
+	// check the root doc version
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag1 := rdoc.Version
+
+	// ==== step 2 setup wan subdoc ====
+	// post
+	subdocId = "wan"
+	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	wanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.PendingDownload)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag2 := rdoc.Version
+
+	assert.Assert(t, etag1 != etag2)
+
+	// ==== step 3 check the length ===
+	fields := make(log.Fields)
+	document, err := db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, document.Length(), 2)
+
+	// ==== step 4 send a document through mqtt ====
+	mqttUrl := fmt.Sprintf("/api/v1/device/%v/poke?route=mqtt", cpeMac)
+	req, err = http.NewRequest("POST", mqttUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	t.Logf("%v\n", string(rbytes))
+	assert.Equal(t, res.StatusCode, http.StatusAccepted)
+
+	// get to verify
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.InDeployment)
+
+	// get to verify
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.InDeployment)
+
+	// ==== step 6 check the length again ===
+	fields = make(log.Fields)
+	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, document.Length(), 0)
+
+	// ==== step 7 change the subdoc again ====
+	lanBytes2 := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes2))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes2)
+	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.PendingDownload)
+
+	// ==== step 8 check the document length ===
+	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, document.Length(), 1)
+
+	// ==== step 9 send a document through mqtt ====
+	req, err = http.NewRequest("POST", mqttUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusAccepted)
+
+	// get to verify
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
+	assert.NilError(t, err)
+	assert.Equal(t, state, common.InDeployment)
+
+	// ==== step 10 check the length again ===
+	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, document.Length(), 0)
 }

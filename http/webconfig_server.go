@@ -454,15 +454,6 @@ func (s *WebconfigServer) NotLoggedHeaders() []string {
 	return s.notLoggedHeaders
 }
 
-func (s *WebconfigServer) NewMetrics() *common.AppMetrics {
-	m := common.NewMetrics()
-	sclient, ok := s.DatabaseClient.(*sqlite.SqliteClient)
-	if ok {
-		sclient.SetMetrics(m)
-	}
-	return m
-}
-
 func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
 	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
@@ -519,7 +510,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		"headers":   headers,
 		"logger":    "request",
 		"trace_id":  traceId,
-		"app_name":  "webconfig",
+		"app_name":  "webconfigcommon",
 	}
 
 	userAgent := r.UserAgent()

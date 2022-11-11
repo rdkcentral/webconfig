@@ -185,6 +185,10 @@ func (c *CassandraClient) LocalDc() string {
 	return c.localDc
 }
 
+func (c *CassandraClient) Metrics() *common.AppMetrics {
+	return c.AppMetrics
+}
+
 func (c *CassandraClient) SetMetrics(m *common.AppMetrics) {
 	c.AppMetrics = m
 }

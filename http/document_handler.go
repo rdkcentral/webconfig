@@ -21,8 +21,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
@@ -52,7 +54,7 @@ func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
 	}
 }
 
-func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Request) {
+func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
 	mac, subdocId, _, _, err := Validate(w, r, false)
 	if err != nil {
 		var status int
@@ -86,7 +88,7 @@ func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Requ
 	w.Write(subdoc.Payload())
 }
 
-func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Request) {
+func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
 	mac, subdocId, bbytes, _, err := Validate(w, r, true)
 	if err != nil {
 		var status int
@@ -132,7 +134,7 @@ func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Req
 	WriteOkResponse(w, nil)
 }
 
-func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
+func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
 	mac, subdocId, _, _, err := Validate(w, r, false)
 	if err != nil {
 		var status int
@@ -150,6 +152,52 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 	}
 
 	err = s.DeleteSubDocument(mac, subdocId)
+	if err != nil {
+		if s.IsDbNotFound(err) {
+			Error(w, http.StatusNotFound, nil)
+		} else {
+			Error(w, http.StatusInternalServerError, err)
+		}
+		return
+	}
+
+	// update the root version
+	doc, err := s.GetDocument(mac)
+	if err != nil {
+		if s.IsDbNotFound(err) {
+			err := s.DeleteRootDocumentVersion(mac)
+			if err != nil {
+				Error(w, http.StatusInternalServerError, err)
+			}
+		} else {
+			Error(w, http.StatusInternalServerError, err)
+		}
+		return
+	}
+
+	newRootVersion := db.HashRootVersion(doc.VersionMap())
+	err = s.SetRootDocumentVersion(mac, newRootVersion)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	WriteOkResponse(w, nil)
+}
+
+func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	mac := params["mac"]
+	mac = strings.ToUpper(mac)
+	if !util.ValidateMac(mac) {
+		err := common.Http400Error{
+			Message: "invalid mac",
+		}
+		Error(w, http.StatusBadRequest, common.NewError(err))
+		return
+	}
+
+	err := s.DeleteDocument(mac)
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)

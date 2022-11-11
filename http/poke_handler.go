@@ -55,16 +55,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := xw.Token()
 	fields := xw.Audit()
-
-	if len(token) == 0 {
-		token, err = s.GetToken(fields)
-		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
-	}
 
 	// extract "metrics_agent"
 	metricsAgent := "default"
@@ -91,7 +82,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 
 		// TODO, we can build/filter it again for blocked subdocs if needed
 
-		mbytes, err := document.Bytes()
+		mbytes, err := document.HttpBytes()
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
@@ -134,6 +125,16 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if document.Length() == 0 {
 			WriteResponseBytes(w, nil, http.StatusNoContent)
+			return
+		}
+	}
+
+	// handle tokens
+	token := xw.Token()
+	if len(token) == 0 {
+		token, err = s.GetToken(fields)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
 	}
