@@ -29,7 +29,7 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestDocumentHandler(t *testing.T) {
+func TestSubDocumentHandler(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 
@@ -88,4 +88,102 @@ func TestDocumentHandler(t *testing.T) {
 	rdoc, err = server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, rdoc.Version, "")
+}
+
+func TestDeleteDocumentHandler(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 setup lan subdoc ====
+	// post
+	subdocId := "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// check the root doc version
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag1 := rdoc.Version
+
+	// ==== step 2 setup wan subdoc ====
+	// post
+	subdocId = "wan"
+	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	wanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag2 := rdoc.Version
+
+	assert.Assert(t, etag1 != etag2)
+
+	// ==== step 3 call delete api to delete both subdocs ====
+	url := fmt.Sprintf("/api/v1/device/%v/document", cpeMac)
+	req, err = http.NewRequest("DELETE", url, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get to verify
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// get to verify
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	rootDocument, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, rootDocument.Version, "")
 }

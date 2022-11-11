@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package http
 
 import (
@@ -23,9 +23,9 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
-	log "github.com/sirupsen/logrus"
 )
 
 func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -61,9 +61,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 		r.Header.Set(common.HeaderDocName, qGroupIds[0])
 	}
 
-	dbclient := s.DatabaseClient
-	uconn := s.GetUpstreamConnector()
-	status, respHeader, respBytes, err := BuildWebconfigResponse(dbclient, uconn, r.Header, nil, common.RouteHttp, fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, nil, common.RouteHttp, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}
@@ -91,14 +89,14 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	_, _ = w.Write(respBytes)
 }
 
-func BuildWebconfigResponse(c db.DatabaseClient, uconn *UpstreamConnector, rHeader http.Header, bbytes []byte, route string, fields log.Fields) (int, http.Header, []byte, error) {
-	// do I need these 2 here?
+func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []byte, route string, fields log.Fields) (int, http.Header, []byte, error) {
+	c := s.DatabaseClient
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
 	document, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
 	if err != nil {
-		if !c.IsDbNotFound(err) {
+		if !s.IsDbNotFound(err) {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 		return http.StatusNotFound, respHeader, nil, common.NewError(err)
@@ -114,6 +112,7 @@ func BuildWebconfigResponse(c db.DatabaseClient, uconn *UpstreamConnector, rHead
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 
+	uconn := s.GetUpstreamConnector()
 	if !postUpstream || uconn == nil {
 		// update states to InDeployment before the final response
 		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
@@ -131,7 +130,16 @@ func BuildWebconfigResponse(c db.DatabaseClient, uconn *UpstreamConnector, rHead
 	upstreamHeaderMap := make(http.Header)
 	upstreamHeaderMap.Set("Content-type", common.MultipartContentType)
 	upstreamHeaderMap.Set("Etag", document.RootVersion())
-	upstreamRespBytes, upstreamRespHeader, err := uconn.PostUpstream(mac, upstreamHeaderMap, respBytes, fields)
+
+	token := rHeader.Get("Authorization")
+	if len(token) > 0 {
+		upstreamHeaderMap.Set("Authorization", token)
+	} else {
+		token = s.Generate(mac, 86400)
+		rHeader.Set("Authorization", "Bearer "+token)
+	}
+
+	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeaderMap, respBytes, fields)
 	if err != nil {
 		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
 	}

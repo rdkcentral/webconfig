@@ -45,32 +45,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// var tdbclient db.DatabaseClient
-	// testdbDriver := os.Getenv("TESTDB_DRIVER")
-	// switch testdbDriver {
-	// case "sqlite":
-	// 	tdbclient, err = sqlite.GetTestSqliteClient(sc.Config, true)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// default:
-	// 	tdbclient, err = cassandra.GetTestCassandraClient(sc.Config, true)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-
-	// TODO eval if this still needed, it should be done when tdbclient is init
-	// server := NewWebconfigServer(sc, true)
-	// server.SetUp()
-	// server.TearDown()
-
 	log.SetOutput(ioutil.Discard)
 
 	returnCode := m.Run()
-
-	// tear down
-	// _ = suite.TearDown()
 
 	os.Exit(returnCode)
 }

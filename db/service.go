@@ -37,12 +37,11 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	d := make(util.Dict)
 	d.Update(fields)
 
-	mac := d.GetNonEmptyString("cpe_mac")
+	mac := rHeader.Get(common.HeaderDeviceId)
 	if len(mac) != 12 {
 		err := common.NewError(fmt.Errorf("Ill-formatted mac %v", mac))
 		return nil, false, common.NewError(err)
 	}
-	mac = strings.ToUpper(mac)
 
 	// get version map
 	deviceVersionMap, err := parseVersionMap(rHeader, d)

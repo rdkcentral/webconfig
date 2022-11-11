@@ -142,9 +142,7 @@ func TestMultiSubDocuments(t *testing.T) {
 		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 		assert.NilError(t, err)
 
-		// assert.Assert(t, srcDoc.Equals(fetchedDoc))
 		err = srcDoc.Equals(fetchedDoc)
-		// assert.Assert(t, okok)
 		assert.NilError(t, err)
 	}
 
@@ -168,4 +166,10 @@ func TestMultiSubDocuments(t *testing.T) {
 
 	subdoc := doc.SubDocument("moca")
 	assert.Assert(t, subdoc == nil)
+
+	err = tdbclient.DeleteDocument(cpeMac)
+	assert.NilError(t, err)
+
+	doc, err = tdbclient.GetDocument(cpeMac)
+	assert.Assert(t, tdbclient.IsDbNotFound(err))
 }

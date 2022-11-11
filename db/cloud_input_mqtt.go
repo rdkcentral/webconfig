@@ -45,7 +45,7 @@ func BuildMqttSendDocument(c DatabaseClient, cpeMac string, fields log.Fields) (
 	}
 	filteredDocument.SetRootDocument(rootDocument)
 
-	return document, nil
+	return filteredDocument, nil
 }
 
 // NOTE the versionMap should be a filtered one, so no extra checking is needed
