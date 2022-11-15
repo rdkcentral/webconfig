@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	DefaultConfigFile = "/app/webconfigcommon/webconfigcommon.conf"
+	DefaultConfigFile = "/app/webconfig/webconfig.conf"
 )
 
 // main function to boot up everything

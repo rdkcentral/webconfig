@@ -33,26 +33,13 @@ import (
 // (1) need to have a dedicate function update states AFTER this function is executed
 // (2) read from the existing "root_document" table and build those into the header for upstream
 // (3) return a new variable to indicate goUpstream
-func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, fields log.Fields) (*common.Document, bool, error) {
+func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, fields log.Fields) (*common.Document, *common.RootDocument, *common.RootDocument, bool, error) {
 	d := make(util.Dict)
 	d.Update(fields)
 
-	mac := rHeader.Get(common.HeaderDeviceId)
-	if len(mac) != 12 {
-		err := common.NewError(fmt.Errorf("Ill-formatted mac %v", mac))
-		return nil, false, common.NewError(err)
-	}
-
-	// get version map
-	deviceVersionMap, err := parseVersionMap(rHeader, d)
-	if err != nil {
-		return nil, false, common.NewError(err)
-	}
-
-	// ==== build the deviceRootDocument ====
-	deviceRootVersion := deviceVersionMap["root"]
-
+	// ==== deviceRootDocument should always be created from request header ====
 	var bitmap int
+	var err error
 	supportedDocs := rHeader.Get(common.HeaderSupportedDocs)
 	if len(supportedDocs) > 0 {
 		bitmap, err = util.GetCpeBitmap(supportedDocs)
@@ -71,20 +58,37 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 
 	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
 
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, deviceRootVersion)
+	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "")
+
+	// ==== parse mac ====
+	mac := rHeader.Get(common.HeaderDeviceId)
+	if len(mac) != 12 {
+		err := common.NewError(fmt.Errorf("Ill-formatted mac %v", mac))
+		return nil, nil, deviceRootDocument, false, common.NewError(err)
+	}
+
+	// get version map
+	deviceVersionMap, err := parseVersionMap(rHeader, d)
+	if err != nil {
+		return nil, nil, deviceRootDocument, false, common.NewError(err)
+	}
+
+	// ==== update the deviceRootDocument.Version  ====
+	deviceRootDocument.Version = deviceVersionMap["root"]
 
 	// ==== read the cloudRootDocument from db ====
 	cloudRootDocument, err := c.GetRootDocument(mac)
 	if err != nil {
 		if !c.IsDbNotFound(err) {
-			return nil, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 		}
 		// no root doc in db, create a new one
 		if err := c.SetRootDocument(mac, deviceRootDocument); err != nil {
-			return nil, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 		}
 		// the returned err is dbNotFound
-		return nil, false, common.NewError(err)
+		return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 	}
 
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
@@ -94,35 +98,35 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		// create an empty "document"
 		document := common.NewDocument(cloudRootDocument)
 		// no need to update root doc
-		return document, false, nil
+		return document, cloudRootDocument, deviceRootDocument, false, nil
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// getDoc, then filter
 		document, err := c.GetDocument(mac)
 		if err != nil {
 			// 404 should be included here
-			return nil, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 		}
 		document.SetRootDocument(cloudRootDocument)
 		filteredDocument := document.FilterForGet(deviceVersionMap)
-		return filteredDocument, false, nil
+		return filteredDocument, cloudRootDocument, deviceRootDocument, false, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream
 		document, err := c.GetDocument(mac)
 		if err != nil {
 			// 404 should be included here
-			return nil, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 		}
 		document.SetRootDocument(cloudRootDocument)
 
 		// need to update rootDoc meta
 		if err := c.SetRootDocument(mac, deviceRootDocument); err != nil {
-			return nil, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, false, common.NewError(err)
 		}
-		return document, true, nil
+		return document, cloudRootDocument, deviceRootDocument, true, nil
 	}
 
 	// default, should not come here
-	return nil, false, nil
+	return nil, cloudRootDocument, deviceRootDocument, false, nil
 }
 
 func GetValuesStr(length int) string {

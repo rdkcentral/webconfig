@@ -175,7 +175,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 		fields := log.Fields{
 			"logger":    "kafka",
-			"app_name":  "webconfigcommon",
+			"app_name":  "webconfig",
 			"kafka_lag": lag,
 			"topic":     message.Topic,
 			"audit_id":  auditId,

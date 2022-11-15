@@ -131,3 +131,11 @@ func TestValidatePokeQuery(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, s, "mqtt")
 }
+
+func TestIsValidUTF8(t *testing.T) {
+	b1 := []byte(`{"foo":"bar","hello":123,"world":true}`)
+	assert.Assert(t, IsValidUTF8(b1))
+
+	b2 := RandomBytes(100, 150)
+	assert.Assert(t, !IsValidUTF8(b2))
+}

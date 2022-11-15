@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-akka/configuration"
@@ -98,7 +99,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	}
 }
 
-func (c *HttpClient) Do(method string, url string, headerMap map[string]string, bbytes []byte, baseFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
+func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, baseFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
 	// verify a response is received
 	var req *http.Request
 	var err error
@@ -117,28 +118,33 @@ func (c *HttpClient) Do(method string, url string, headerMap map[string]string, 
 		return nil, nil, common.NewError(err), true
 	}
 
-	logHeaders := map[string]string{}
-	for k, v := range headerMap {
-		req.Header.Set(k, v)
-		if k == "Authorization" {
-			logHeaders[k] = "****"
-		} else {
-			logHeaders[k] = v
-		}
+	req.Header = header.Clone()
+	logHeader := header.Clone()
+	auth := logHeader.Get("Authorization")
+	if len(auth) > 0 {
+		logHeader.Set("Authorization", "****")
 	}
 
 	tfields := util.CopyLogFields(baseFields)
 	tfields["logger"] = loggerName
 	tfields[fmt.Sprintf("%v_method", loggerName)] = method
 	tfields[fmt.Sprintf("%v_url", loggerName)] = url
-	tfields[fmt.Sprintf("%v_headers", loggerName)] = logHeaders
+	tfields[fmt.Sprintf("%v_headers", loggerName)] = util.HeaderToMap(logHeader)
 	bodyKey := fmt.Sprintf("%v_body", loggerName)
+
+	var longBody, longResponse string
 	if bbytes != nil && len(bbytes) > 0 {
 		bdict := util.Dict{}
 		err = json.Unmarshal(bbytes, &bdict)
 		if err != nil {
 			bodyKey = fmt.Sprintf("%v_body_text", loggerName)
-			tfields[bodyKey] = base64.StdEncoding.EncodeToString(bbytes)
+			x := base64.StdEncoding.EncodeToString(bbytes)
+			if len(x) < 1000 {
+				tfields[bodyKey] = x
+			} else {
+				tfields[bodyKey] = "long body len " + strconv.Itoa(len(x))
+				longBody = x
+			}
 		} else {
 			tfields[bodyKey] = bdict
 		}
@@ -152,8 +158,15 @@ func (c *HttpClient) Do(method string, url string, headerMap map[string]string, 
 		startMessage = fmt.Sprintf("%v starts", loggerName)
 	}
 	log.WithFields(fields).Info(startMessage)
+	if len(longBody) > 0 {
+		dfields := util.CopyLogFields(fields)
+		dfields[bodyKey] = longBody
+		log.WithFields(dfields).Debug(startMessage)
+	}
+
 	startTime := time.Now()
 
+	// the core http call
 	res, err := c.Client.Do(req)
 
 	tdiff := time.Now().Sub(startTime)
@@ -189,15 +202,27 @@ func (c *HttpClient) Do(method string, url string, headerMap map[string]string, 
 	}
 
 	rbody := string(rbytes)
-	// XPC-13444
 	resp := util.Dict{}
 	err = json.Unmarshal(rbytes, &resp)
+	responseKey := fmt.Sprintf("%v_response_text", loggerName)
+
 	if err != nil {
-		fields[fmt.Sprintf("%v_response_text", loggerName)] = rbody
+		x := base64.StdEncoding.EncodeToString(rbytes)
+		if len(x) < 1000 {
+			fields[responseKey] = x
+		} else {
+			fields[responseKey] = "long response len " + strconv.Itoa(len(x))
+			longResponse = x
+		}
 	} else {
 		fields[fmt.Sprintf("%v_response", loggerName)] = resp
 	}
-	log.WithFields(fields).Info(fmt.Sprintf("%v ends", loggerName))
+	log.WithFields(fields).Info(endMessage)
+	if len(longResponse) > 0 {
+		dfields := util.CopyLogFields(fields)
+		dfields[responseKey] = longResponse
+		log.WithFields(dfields).Debug(endMessage)
+	}
 
 	// check if there is any customized statusHandler
 	if fn := c.StatusHandler(res.StatusCode); fn != nil {
@@ -229,7 +254,7 @@ func (c *HttpClient) Do(method string, url string, headerMap map[string]string, 
 	return rbytes, res.Header, nil, false
 }
 
-func (c *HttpClient) DoWithRetries(method string, url string, inHeaders map[string]string, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
+func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
 	var traceId string
 	if itf, ok := fields["trace_id"]; ok {
 		traceId = itf.(string)
@@ -238,15 +263,14 @@ func (c *HttpClient) DoWithRetries(method string, url string, inHeaders map[stri
 		traceId = uuid.New().String()
 	}
 
+	var header http.Header
+	if rHeader != nil {
+		header = rHeader.Clone()
+	} else {
+		header = make(http.Header)
+	}
 	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, loggerName)
-	headers := map[string]string{
-		"X-Moneytrace": xmoney,
-	}
-	if inHeaders != nil {
-		for k, v := range inHeaders {
-			headers[k] = v
-		}
-	}
+	header.Set("X-Moneytrace", xmoney)
 
 	// var res *http.Response
 	var respBytes []byte
@@ -262,7 +286,7 @@ func (c *HttpClient) DoWithRetries(method string, url string, inHeaders map[stri
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		respBytes, respHeader, err, cont = c.Do(method, url, headers, cbytes, fields, loggerName, i)
+		respBytes, respHeader, err, cont = c.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}

@@ -35,3 +35,12 @@ type TR181Entry struct {
 type TR181Output struct {
 	Parameters []TR181Entry `json:"parameters" msgpack:"parameters"`
 }
+
+type TR181ResponseObject struct {
+	Name    string `json:"name" msgpack:"name"`
+	Message string `json:"message" msgpack:"message"`
+}
+
+type TR181Response struct {
+	Parameters []TR181ResponseObject `json:"parameters" msgpack:"parameters"`
+}

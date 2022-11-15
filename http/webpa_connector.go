@@ -200,23 +200,22 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	t := time.Now().UnixNano() / 1000
 	transactionId := fmt.Sprintf("%s_____%015x", traceId, t)
 	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, webpaServiceName)
-	headers := map[string]string{
-		"Authorization":          fmt.Sprintf("Bearer %s", token),
-		"X-Webpa-Transaction-Id": transactionId,
-		"X-Moneytrace":           xmoney,
-	}
+	header := make(http.Header)
+	header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	header.Set("X-Webpa-Transaction-Id", transactionId)
+	header.Set("X-Moneytrace", xmoney)
 
 	method := "PATCH"
-	_, _, err, cont := c.syncClient.Do(method, url, headers, bbytes, fields, webpaServiceName, 0)
+	_, _, err, cont := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			if rherr.StatusCode == 524 {
 				if c.asyncPokeEnabled {
 					c.queue <- struct{}{}
-					go c.AsyncDoWithRetries(method, url, headers, bbytes, fields, asyncWebpaServiceName)
+					go c.AsyncDoWithRetries(method, url, header, bbytes, fields, asyncWebpaServiceName)
 				} else {
-					_, err := c.SyncDoWithRetries(method, url, headers, bbytes, fields, webpaServiceName)
+					_, err := c.SyncDoWithRetries(method, url, header, bbytes, fields, webpaServiceName)
 					if err != nil {
 						return transactionId, common.NewError(err)
 					}
@@ -225,7 +224,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 			}
 		}
 		if cont {
-			_, _, err := c.syncClient.DoWithRetries("PATCH", url, headers, bbytes, fields, webpaServiceName)
+			_, _, err := c.syncClient.DoWithRetries("PATCH", url, header, bbytes, fields, webpaServiceName)
 			if err != nil {
 				return transactionId, common.NewError(err)
 			}
@@ -235,7 +234,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	return transactionId, nil
 }
 
-func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, headers map[string]string, bbytes []byte, fields log.Fields, loggerName string) {
+func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
 	var cont bool
 
 	for i := 1; i <= c.retries; i++ {
@@ -244,7 +243,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, headers m
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, _, cont = c.asyncClient.Do(method, url, headers, cbytes, fields, loggerName, i)
+		_, _, _, cont = c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}
@@ -253,7 +252,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, headers m
 }
 
 // this has 1 less retries compared to the standard DoWithRetries()
-func (c *WebpaConnector) SyncDoWithRetries(method string, url string, headers map[string]string, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
+func (c *WebpaConnector) SyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
 	var rbytes []byte
 	var err error
 	var cont bool
@@ -264,7 +263,7 @@ func (c *WebpaConnector) SyncDoWithRetries(method string, url string, headers ma
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, _, err, cont = c.syncClient.Do(method, url, headers, cbytes, fields, loggerName, i)
+		rbytes, _, err, cont = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			// in the case of 524/in-progress, we continue
 			var rherr common.RemoteHttpError

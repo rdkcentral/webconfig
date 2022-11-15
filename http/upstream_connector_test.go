@@ -18,8 +18,6 @@
 package http
 
 import (
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,22 +27,20 @@ import (
 	"gotest.tools/assert"
 )
 
-var (
-	mockedUpstreamResponse = []byte(`{"access_token":"one_mock_token","expires_in":86400,"scope":"scope1 scope2 scope3","token_type":"Bearer"}`)
-)
-
 func TestUpstreamConnector(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 
-	// codebig mock server
-	mockServer := httptest.NewServer(
+	// setup upstream mock server
+	mockedUpstreamResponse := util.RandomBytes(100, 150)
+	upstreamMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(mockedUpstreamResponse)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
+	server.SetUpstreamHost(upstreamMockServer.URL)
 	targetUpstreamHost := server.UpstreamHost()
-	assert.Equal(t, mockServer.URL, targetUpstreamHost)
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
 
 	// ==== post new data ====
 	mac := util.GenerateRandomCpeMac()
@@ -57,23 +53,4 @@ func TestUpstreamConnector(t *testing.T) {
 	fields := log.Fields{}
 	_, _, err = server.PostUpstream(mac, header, bbytes, fields)
 	assert.NilError(t, err)
-}
-
-func TestUpstreamConnectorWithCpe(t *testing.T) {
-	t.Skip()
-	server := NewWebconfigServer(sc, true)
-	router := server.GetRouter(true)
-	// cpeMac := "44AAF59D0F3A" // ok
-	// cpeMac := "DCEB695C7812" // not found
-	cpeMac := "10868C6C5948" // expect 520
-
-	// ==== post new data ====
-	url := fmt.Sprintf("/api/v1/device/%v/poke", cpeMac)
-	req, err := http.NewRequest("POST", url, nil)
-	assert.NilError(t, err)
-	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusOK)
-	_, err = ioutil.ReadAll(res.Body)
-	assert.NilError(t, err)
-	res.Body.Close()
 }

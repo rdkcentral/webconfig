@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	defaultSqliteDbFile        = "/app/db/webconfigcommon.db"
-	defaultSqliteTestDbFile    = "/app/db/test_webconfigcommon.db"
+	defaultSqliteDbFile        = "/app/db/webconfig.db"
+	defaultSqliteTestDbFile    = "/app/db/test_webconfig.db"
 	defaultDbConcurrentQueries = 10
 )
 
