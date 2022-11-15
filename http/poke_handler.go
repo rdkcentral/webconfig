@@ -18,6 +18,7 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -88,7 +89,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		rbytes, err := s.PostMqtt(mac, mbytes, fields)
+		_, err = s.PostMqtt(mac, mbytes, fields)
 		if err != nil {
 			var rherr common.RemoteHttpError
 			if errors.As(err, &rherr) {
@@ -107,7 +108,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		WriteResponseBytes(w, rbytes, http.StatusAccepted)
+		WriteAcceptedResponse(w)
 		return
 	}
 
@@ -132,26 +133,43 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	// handle tokens
 	token := xw.Token()
 	if len(token) == 0 {
-		token, err = s.GetToken(fields)
-		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
+		Error(w, http.StatusForbidden, nil)
+		return
 	}
 
 	transactionId, err := s.Poke(mac, token, pokeStr, fields)
 	if err != nil {
-		status := http.StatusInternalServerError
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			// webpa error handling
+			status := http.StatusInternalServerError
 			if rherr.StatusCode == http.StatusNotFound {
 				status = 521
 			} else if rherr.StatusCode > http.StatusInternalServerError {
 				status = rherr.StatusCode
 			}
+
+			// parse the core message
+			var tr181Res common.TR181Response
+			var tr181Message string
+			if err := json.Unmarshal([]byte(rherr.Message), &tr181Res); err == nil {
+				if len(tr181Res.Parameters) > 0 {
+					tr181Message = tr181Res.Parameters[0].Message
+				}
+			}
+			if len(tr181Message) > 0 {
+				resp := common.HttpErrorResponse{
+					Status: rherr.StatusCode,
+					Errors: tr181Message,
+				}
+				SetAuditValue(w, "response", resp)
+				WriteByMarshal(w, rherr.StatusCode, resp)
+			} else {
+				Error(w, status, rherr)
+			}
+			return
 		}
-		Error(w, status, err)
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 	data := map[string]interface{}{

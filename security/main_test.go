@@ -35,9 +35,9 @@ var (
 func TestMain(m *testing.M) {
 	NewTestCodec()
 
-	testConfigFile = "/app/webconfigcommon/webconfigcommon.conf"
+	testConfigFile = "/app/webconfig/webconfig.conf"
 	if _, err := os.Stat(testConfigFile); os.IsNotExist(err) {
-		testConfigFile = "../config/sample_webconfigcommon.conf"
+		testConfigFile = "../config/sample_webconfig.conf"
 	}
 
 	var err error

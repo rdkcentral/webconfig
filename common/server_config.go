@@ -28,9 +28,9 @@ import (
 var (
 	testServerConfig *ServerConfig
 	testConfigFiles  = []string{
-		"/app/webconfigcommon/test_webconfigcommon.conf",
-		"../config/sample_webconfigcommon.conf",
-		"/app/webconfigcommon/webconfigcommon.conf",
+		"/app/webconfig/test_webconfig.conf",
+		"../config/sample_webconfig.conf",
+		"/app/webconfig/webconfig.conf",
 	}
 )
 
@@ -56,6 +56,13 @@ func (c *ServerConfig) ConfigBytes() []byte {
 }
 
 func GetTestConfigFile() (string, error) {
+	testConfigFile := os.Getenv("TEST_CONFIG_FILE")
+	if len(testConfigFile) > 0 {
+		if _, err := os.Stat(testConfigFile); err == nil {
+			return testConfigFile, nil
+		}
+	}
+
 	for _, cf := range testConfigFiles {
 		if _, err := os.Stat(cf); os.IsNotExist(err) {
 			continue
@@ -66,8 +73,7 @@ func GetTestConfigFile() (string, error) {
 }
 
 // REMINDER
-//
-//	this is called from mutiple packages, but we only init the client/session once
+// this is called from mutiple packages, but we only init the client/session once
 func GetTestServerConfig(args ...string) (*ServerConfig, error) {
 	if len(args) > 0 {
 		c, err := NewServerConfig(args[0])

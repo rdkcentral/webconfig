@@ -145,3 +145,9 @@ func GetEstbMacAddress(mac string) string {
 	}
 	return fmt.Sprintf("%012X", i+2)
 }
+
+func IsValidUTF8(bbytes []byte) bool {
+	str1 := string(bbytes)
+	str2 := strings.ToValidUTF8(str1, "#")
+	return str1 == str2
+}

@@ -43,14 +43,18 @@ func ParseMultipart(header http.Header, bbytes []byte) (map[string]common.Multip
 }
 
 func ParseMultipartAsList(header http.Header, bbytes []byte) ([]common.Multipart, error) {
+	mparts := []common.Multipart{}
+
+	if len(bbytes) == 0 {
+		return mparts, nil
+	}
+
 	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
 	breader := bytes.NewReader(bbytes)
-
-	mparts := []common.Multipart{}
 
 	if strings.HasPrefix(mediaType, "multipart/") {
 		mr := multipart.NewReader(breader, params["boundary"])

@@ -23,16 +23,19 @@ import (
 	"time"
 )
 
+// deviceRootDocument is use to stored the data from device headers in the GET call
+// we stored it to build "new" headers during the upstream call
+// *RootDocument is used to stored data read from db and used to build the "old" headers
 type Document struct {
-	*RootDocument
-	docmap map[string]SubDocument
+	docmap       map[string]SubDocument
+	rootDocument *RootDocument
 }
 
 // TODO add support to support NewDocument([]common.Multipart)
 func NewDocument(rootDocument *RootDocument) *Document {
 	docmap := map[string]SubDocument{}
 	return &Document{
-		RootDocument: rootDocument,
+		rootDocument: rootDocument,
 		docmap:       docmap,
 	}
 }
@@ -82,15 +85,15 @@ func (d *Document) Items() map[string]SubDocument {
 }
 
 func (d *Document) SetRootDocument(rootDocument *RootDocument) {
-	d.RootDocument = rootDocument
+	d.rootDocument = rootDocument
 }
 
 func (d *Document) GetRootDocument() *RootDocument {
-	return d.RootDocument
+	return d.rootDocument
 }
 
 func (d *Document) RootVersion() string {
-	return d.RootDocument.Version
+	return d.rootDocument.Version
 }
 
 // TODO
@@ -98,7 +101,7 @@ func (d *Document) RootVersion() string {
 // (2) expiry check can be included to support blaster/command subdocs
 // (3) we can implement blockedSubdocIds if we want
 func (d *Document) FilterForMqttSend() *Document {
-	newdoc := NewDocument(d.RootDocument)
+	newdoc := NewDocument(d.GetRootDocument())
 	for subdocId, subDocument := range d.docmap {
 		if subDocument.State() != nil {
 			state := *subDocument.State()
@@ -111,7 +114,7 @@ func (d *Document) FilterForMqttSend() *Document {
 }
 
 func (d *Document) FilterForGet(versionMap map[string]string) *Document {
-	newdoc := NewDocument(d.RootDocument)
+	newdoc := NewDocument(d.GetRootDocument())
 
 	deviceRootVersion := versionMap["root"]
 	if len(deviceRootVersion) > 0 {
@@ -165,7 +168,7 @@ func (d *Document) HttpBytes() ([]byte, error) {
 	}
 
 	var rootVersion string
-	if d.RootDocument != nil {
+	if d.GetRootDocument() != nil {
 		rootVersion = d.RootVersion()
 	} else {
 		rootVersion = strconv.Itoa(int(time.Now().Unix()))

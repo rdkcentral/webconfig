@@ -18,14 +18,27 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+)
+
+var (
+	upstreamHeaders = []string{
+		"X-System-Firmware-Version",
+		"X-System-Model-Name",
+		"X-System-Schema-Version",
+		"X-System-Supported-Docs",
+		"X-System-Product-Class",
+		"Transaction-Id",
+	}
 )
 
 func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,16 +81,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 	// REMINDER 404 use standard response
 	if status == http.StatusNotFound {
-		var errStr string
-		if err != nil {
-			errStr = err.Error()
-		}
-		o := common.HttpErrorResponse{
-			Status:  status,
-			Message: http.StatusText(status),
-			Errors:  errStr,
-		}
-		WriteByMarshal(w, status, o)
+		Error(w, http.StatusNotFound, nil)
 		return
 	}
 
@@ -91,29 +95,61 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []byte, route string, fields log.Fields) (int, http.Header, []byte, error) {
 	c := s.DatabaseClient
+	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
-	document, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
+	document, oldRootDocument, newRootDocument, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
+	if uconn == nil {
+		if err != nil {
+			if !s.IsDbNotFound(err) {
+				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			}
+			return http.StatusNotFound, respHeader, nil, common.NewError(err)
+		}
+
+		// 304
+		if document.Length() == 0 {
+			return http.StatusNotModified, respHeader, nil, nil
+		}
+
+		respBytes, err := document.Bytes()
+		if err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
+
+		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
+
+		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set("Etag", document.RootVersion())
+		return http.StatusOK, respHeader, respBytes, nil
+	}
+
 	if err != nil {
 		if !s.IsDbNotFound(err) {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
-		return http.StatusNotFound, respHeader, nil, common.NewError(err)
+		// 404
+		if !postUpstream {
+			postUpstream = true
+		}
+	}
+	if document == nil {
+		rootDocument := common.NewRootDocument(0, "", "", "", "", "")
+		document = common.NewDocument(rootDocument)
 	}
 
-	// 304
-	if document.Length() == 0 {
-		return http.StatusNotModified, respHeader, nil, nil
+	var respBytes []byte
+	if document.Length() > 0 {
+		respBytes, err = document.Bytes()
+		if err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
 	}
 
-	respBytes, err := document.Bytes()
-	if err != nil {
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
-	}
-
-	uconn := s.GetUpstreamConnector()
-	if !postUpstream || uconn == nil {
+	if !postUpstream {
 		// update states to InDeployment before the final response
 		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -127,20 +163,41 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 	// =============================
 	// upstream handling
 	// =============================
-	upstreamHeaderMap := make(http.Header)
-	upstreamHeaderMap.Set("Content-type", common.MultipartContentType)
-	upstreamHeaderMap.Set("Etag", document.RootVersion())
+	upstreamHeader := make(http.Header)
+	upstreamHeader.Set("Content-type", common.MultipartContentType)
+	upstreamHeader.Set("Etag", document.RootVersion())
 
 	token := rHeader.Get("Authorization")
 	if len(token) > 0 {
-		upstreamHeaderMap.Set("Authorization", token)
+		upstreamHeader.Set("Authorization", token)
 	} else {
 		token = s.Generate(mac, 86400)
 		rHeader.Set("Authorization", "Bearer "+token)
 	}
 
-	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeaderMap, respBytes, fields)
+	// add old/new header/metadata in the upstream header
+	if newRootDocument != nil {
+		upstreamHeader.Set(common.HeaderUpstreamNewBitmap, strconv.Itoa(newRootDocument.Bitmap))
+		upstreamHeader.Set(common.HeaderUpstreamNewFirmwareVersion, newRootDocument.FirmwareVersion)
+		upstreamHeader.Set(common.HeaderUpstreamNewModelName, newRootDocument.ModelName)
+		upstreamHeader.Set(common.HeaderUpstreamNewPartnerId, newRootDocument.PartnerId)
+		upstreamHeader.Set(common.HeaderUpstreamNewSchemaVersion, newRootDocument.SchemaVersion)
+	}
+
+	if oldRootDocument != nil {
+		upstreamHeader.Set(common.HeaderUpstreamOldBitmap, strconv.Itoa(oldRootDocument.Bitmap))
+		upstreamHeader.Set(common.HeaderUpstreamOldFirmwareVersion, oldRootDocument.FirmwareVersion)
+		upstreamHeader.Set(common.HeaderUpstreamOldModelName, oldRootDocument.ModelName)
+		upstreamHeader.Set(common.HeaderUpstreamOldPartnerId, oldRootDocument.PartnerId)
+		upstreamHeader.Set(common.HeaderUpstreamOldSchemaVersion, oldRootDocument.SchemaVersion)
+	}
+
+	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeader, respBytes, fields)
 	if err != nil {
+		var rherr common.RemoteHttpError
+		if errors.As(err, &rherr) {
+			return rherr.StatusCode, respHeader, respBytes, common.NewError(err)
+		}
 		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
 	}
 

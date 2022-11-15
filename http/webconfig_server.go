@@ -72,7 +72,6 @@ type WebconfigServer struct {
 	*security.TokenManager
 	*common.ServerConfig
 	*WebpaConnector
-	*CodebigConnector
 	*XconfConnector
 	*MqttConnector
 	*UpstreamConnector
@@ -236,7 +235,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		TokenManager:              security.NewTokenManager(conf),
 		ServerConfig:              sc,
 		WebpaConnector:            NewWebpaConnector(conf, tlsConfig),
-		CodebigConnector:          NewCodebigConnector(conf, satClientId, satClientSecret, tlsConfig),
 		XconfConnector:            NewXconfConnector(conf, tlsConfig),
 		MqttConnector:             NewMqttConnector(conf, tlsConfig),
 		UpstreamConnector:         NewUpstreamConnector(conf, tlsConfig),
@@ -463,21 +461,18 @@ func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fiel
 	return transactionId, nil
 }
 
-func getHeadersForLogAsMap(r *http.Request, notLoggedHeaders []string) map[string]interface{} {
-	loggedHeaders := make(map[string]interface{})
-	for k, v := range r.Header {
-		if util.CaseInsensitiveContains(notLoggedHeaders, k) {
-			continue
-		}
-		loggedHeaders[k] = v
+func getFilteredHeader(r *http.Request, notLoggedHeaders []string) http.Header {
+	header := r.Header.Clone()
+	for _, k := range notLoggedHeaders {
+		header.Del(k)
 	}
-	return loggedHeaders
+	return header
 }
 
 func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XpcResponseWriter {
 	remoteIp := r.RemoteAddr
 	host := r.Host
-	headers := getHeadersForLogAsMap(r, s.notLoggedHeaders)
+	header := getFilteredHeader(r, s.notLoggedHeaders)
 
 	// extract the token from the header
 	authorization := r.Header.Get("Authorization")
@@ -501,16 +496,17 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(auditId) == 0 {
 		auditId = util.GetAuditId()
 	}
+	headerMap := util.HeaderToMap(header)
 	fields := log.Fields{
 		"path":      r.URL.String(),
 		"method":    r.Method,
 		"audit_id":  auditId,
 		"remote_ip": remoteIp,
 		"host_name": host,
-		"headers":   headers,
+		"header":    headerMap,
 		"logger":    "request",
 		"trace_id":  traceId,
-		"app_name":  "webconfigcommon",
+		"app_name":  "webconfig",
 	}
 
 	userAgent := r.UserAgent()
@@ -520,16 +516,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
 	if len(metricsAgent) > 0 {
 		fields["metrics_agent"] = metricsAgent
-	}
-
-	// log critical headers
-	_, ok := headers["If-None-Match"]
-	if ok {
-		selected := util.Dict{}
-		for _, k := range selectedHeaders {
-			selected[k] = headers[k]
-		}
-		fields["selected"] = selected
 	}
 
 	// add cpemac or csid in loggings

@@ -53,19 +53,10 @@ func TestPokeHandler(t *testing.T) {
 	targetWebpaHost := server.WebpaHost()
 	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
 
-	// codebig mock server
-	codebigMockServer := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write(mockedCodebigResponse)
-		}))
-	server.SetCodebigHost(codebigMockServer.URL)
-	targetCodebigHost := server.CodebigHost()
-	assert.Equal(t, codebigMockServer.URL, targetCodebigHost)
-
 	// ==== post new data ====
 	url := fmt.Sprintf("/api/v1/device/%v/poke", cpeMac)
 	req, err := http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusNoContent)

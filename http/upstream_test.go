@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -55,12 +55,22 @@ func TestUpstream(t *testing.T) {
 	mockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// parse request
-			reqBytes, err := ioutil.ReadAll(r.Body)
+			reqBytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(err.Error()))
 				return
 			}
+
+			// not necessarily always the case but we return 404 if the input is empty
+			if len(reqBytes) == 0 {
+				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set("Etag", "")
+				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
 			mparts, err := util.ParseMultipartAsList(r.Header, reqBytes)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -122,6 +132,9 @@ func TestUpstream(t *testing.T) {
 
 	res := ExecuteRequest(req, router).Result()
 	assert.NilError(t, err)
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	t.Logf("%v\n", string(rbytes))
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	// ==== step 3 add group privatessid ====
@@ -133,7 +146,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -142,7 +155,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, privatessidV13Bytes)
@@ -156,7 +169,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -165,7 +178,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -179,7 +192,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -188,7 +201,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
@@ -204,7 +217,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	_ = rbytes
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.NilError(t, err)
@@ -218,7 +231,7 @@ func TestUpstream(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
-		rbytes, err = ioutil.ReadAll(res.Body)
+		rbytes, err = io.ReadAll(res.Body)
 		assert.NilError(t, err)
 		assert.Equal(t, res.StatusCode, http.StatusOK)
 		assert.DeepEqual(t, rbytes, srcbytesMap[subdocId])
@@ -245,7 +258,7 @@ func TestUpstream(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
-		rbytes, err = ioutil.ReadAll(res.Body)
+		rbytes, err = io.ReadAll(res.Body)
 		assert.NilError(t, err)
 		assert.Equal(t, res.StatusCode, http.StatusOK)
 		assert.DeepEqual(t, rbytes, srcbytesMap[subdocId])
@@ -266,7 +279,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion2)
 
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.NilError(t, err)
 	res.Body.Close()
@@ -285,7 +298,7 @@ func TestUpstream(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
-		rbytes, err = ioutil.ReadAll(res.Body)
+		rbytes, err = io.ReadAll(res.Body)
 		assert.NilError(t, err)
 		assert.Equal(t, res.StatusCode, http.StatusOK)
 		assert.DeepEqual(t, rbytes, srcbytesMap[subdocId])

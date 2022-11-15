@@ -69,7 +69,7 @@ func WriteOkResponse(w http.ResponseWriter, data interface{}) {
 	WriteByMarshal(w, http.StatusOK, resp)
 }
 
-func WriteAcceptedResponse(w http.ResponseWriter, r *http.Request) {
+func WriteAcceptedResponse(w http.ResponseWriter) {
 	resp := common.HttpResponse{
 		Status:  http.StatusAccepted,
 		Message: http.StatusText(http.StatusAccepted),

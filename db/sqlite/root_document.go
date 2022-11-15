@@ -201,7 +201,6 @@ func (c *SqliteClient) DeleteRootDocumentVersion(cpeMac string) error {
 	return nil
 }
 
-// 11111111111111111 batman
 func (c *SqliteClient) insertRootDocument(cpeMac string, rd *common.RootDocument) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
@@ -233,9 +232,6 @@ func (c *SqliteClient) updateRootDocument(cpeMac string, rd *common.RootDocument
 	return nil
 }
 
-// rows, err := c.Query("SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version FROM root_document WHERE cpe_mac=?", cpeMac)
-// 22222222222222222 batman
-
 // simple implementation, could optimize if needed
 func (c *SqliteClient) SetRootDocument(cpeMac string, inRootdoc *common.RootDocument) error {
 	rootdoc, err := c.GetRootDocument(cpeMac)
@@ -256,37 +252,3 @@ func (c *SqliteClient) SetRootDocument(cpeMac string, inRootdoc *common.RootDocu
 	}
 	return nil
 }
-
-/*
-func (c *SqliteClient) SetRootDocumentVersion(cpeMac string, version string) error {
-	_, err := c.GetRootDocument(cpeMac)
-	if err != nil {
-		if c.IsDbNotFound(err) {
-			return c.insertRootDocumentVersion(cpeMac, version)
-		} else {
-			// unexpected error
-			return common.NewError(err)
-		}
-	}
-	return c.updateRootDocumentVersion(cpeMac, version)
-}
-*/
-
-// TODO this needs to include other info in the headers
-// func (c *SqliteClient) UpdateRootDocument(cpeMac string, rd *common.RootDocument) error {
-// 	columnMap := rd.ChangedColumnMap()
-// 	if _, ok := columnMap["version"]; ok {
-// 		err := c.SetRootDocumentVersion(cpeMac, rd.Version())
-// 		if err != nil {
-// 			return common.NewError(err)
-// 		}
-// 	}
-
-// 	if _, ok := columnMap["bitmap"]; ok {
-// 		err := c.SetRootDocumentBitmap(cpeMac, rd.Bitmap())
-// 		if err != nil {
-// 			return common.NewError(err)
-// 		}
-// 	}
-// 	return nil
-// }
