@@ -179,9 +179,8 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req, err = http.NewRequest("POST", mqttUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
-	t.Logf("%v\n", string(rbytes))
 	assert.Equal(t, res.StatusCode, http.StatusAccepted)
 
 	// get to verify

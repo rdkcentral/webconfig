@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/rdkcentral/webconfig/util"
@@ -186,4 +187,81 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	rootDocument, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, rootDocument.Version, "")
+}
+
+func TestPostWithDeviceId(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	deviceIds := []string{}
+	for i := 0; i < 3; i++ {
+		deviceIds = append(deviceIds, util.GenerateRandomCpeMac())
+	}
+	queryParams := strings.Join(deviceIds, ",")
+	allMacs := []string{cpeMac}
+	allMacs = append(allMacs, deviceIds...)
+
+	// ==== step 1 setup lan subdoc ====
+	// post
+	subdocId := "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	for _, mac := range allMacs {
+		url := fmt.Sprintf("/api/v1/device/%v/document/%v", mac, subdocId)
+		req, err = http.NewRequest("GET", url, nil)
+		req.Header.Set("Content-Type", "application/msgpack")
+		assert.NilError(t, err)
+		res = ExecuteRequest(req, router).Result()
+		rbytes, err = ioutil.ReadAll(res.Body)
+		assert.NilError(t, err)
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+		assert.DeepEqual(t, rbytes, lanBytes)
+
+		// check the root doc version
+		rdoc, err := server.GetRootDocument(mac)
+		assert.NilError(t, err)
+		assert.Assert(t, len(rdoc.Version) > 0)
+	}
+
+	// ==== step 2 setup wan subdoc ====
+	// post
+	subdocId = "wan"
+	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
+	wanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	for _, mac := range allMacs {
+		url := fmt.Sprintf("/api/v1/device/%v/document/%v", mac, subdocId)
+		req, err = http.NewRequest("GET", url, nil)
+		req.Header.Set("Content-Type", "application/msgpack")
+		assert.NilError(t, err)
+		res = ExecuteRequest(req, router).Result()
+		rbytes, err = ioutil.ReadAll(res.Body)
+		assert.NilError(t, err)
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+		assert.DeepEqual(t, rbytes, wanBytes)
+
+		// check the root doc version
+		rdoc, err := server.GetRootDocument(cpeMac)
+		assert.NilError(t, err)
+		assert.Assert(t, len(rdoc.Version) > 0)
+	}
 }

@@ -105,30 +105,42 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		return
 	}
 
+	deviceIds := []string{
+		mac,
+	}
+	if x, ok := r.URL.Query()["device_id"]; ok {
+		elements := strings.Split(x[0], ",")
+		if len(elements) > 0 {
+			deviceIds = append(deviceIds, elements...)
+		}
+	}
+
 	version := util.GetMurmur3Hash(bbytes)
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	state := common.PendingDownload
 	subdoc := common.NewSubDocument(bbytes, &version, &state, &updatedTime, nil, nil)
 
-	err = s.SetSubDocument(mac, subdocId, subdoc)
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err)
-		return
-	}
+	for _, deviceId := range deviceIds {
+		err = s.SetSubDocument(deviceId, subdocId, subdoc)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, err)
+			return
+		}
 
-	// update the root version
-	doc, err := s.GetDocument(mac)
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err)
-		return
-	}
+		// update the root version
+		doc, err := s.GetDocument(deviceId)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, err)
+			return
+		}
 
-	doc.SetSubDocument(subdocId, subdoc)
-	newRootVersion := db.HashRootVersion(doc.VersionMap())
-	err = s.SetRootDocumentVersion(mac, newRootVersion)
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err)
-		return
+		doc.SetSubDocument(subdocId, subdoc)
+		newRootVersion := db.HashRootVersion(doc.VersionMap())
+		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	WriteOkResponse(w, nil)
