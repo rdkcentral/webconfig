@@ -132,9 +132,8 @@ func TestUpstream(t *testing.T) {
 
 	res := ExecuteRequest(req, router).Result()
 	assert.NilError(t, err)
-	rbytes, err := io.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
-	t.Logf("%v\n", string(rbytes))
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	// ==== step 3 add group privatessid ====
@@ -146,7 +145,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = io.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -155,7 +154,7 @@ func TestUpstream(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = io.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, privatessidV13Bytes)

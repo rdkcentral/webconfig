@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
@@ -64,50 +65,60 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		metricsAgent = itf.(string)
 	}
 
+	deviceIds := []string{
+		mac,
+	}
+	if x, ok := r.URL.Query()["device_id"]; ok {
+		elements := strings.Split(x[0], ",")
+		if len(elements) > 0 {
+			deviceIds = append(deviceIds, elements...)
+		}
+	}
+
 	// XPC-15999
-	var document *common.Document
 	if pokeStr == "mqtt" {
-		document, err = db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
-		if err != nil {
-			if s.IsDbNotFound(err) {
-				Error(w, http.StatusNotFound, nil)
-				return
-			}
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
-		if document.Length() == 0 {
-			WriteResponseBytes(w, nil, http.StatusNoContent)
-			return
-		}
-
-		// TODO, we can build/filter it again for blocked subdocs if needed
-
-		mbytes, err := document.HttpBytes()
-		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
-
-		_, err = s.PostMqtt(mac, mbytes, fields)
-		if err != nil {
-			var rherr common.RemoteHttpError
-			if errors.As(err, &rherr) {
-				if rherr.StatusCode == http.StatusNotFound {
+		for _, deviceId := range deviceIds {
+			document, err := db.BuildMqttSendDocument(s.DatabaseClient, deviceId, fields)
+			if err != nil {
+				if s.IsDbNotFound(err) {
 					Error(w, http.StatusNotFound, nil)
 					return
 				}
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
 			}
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
+			if document.Length() == 0 {
+				WriteResponseBytes(w, nil, http.StatusNoContent)
+				return
+			}
 
-		err = db.UpdateStatesInBatch(s.DatabaseClient, mac, metricsAgent, fields, document.StateMap())
-		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
+			// TODO, we can build/filter it again for blocked subdocs if needed
 
+			mbytes, err := document.HttpBytes()
+			if err != nil {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+
+			_, err = s.PostMqtt(deviceId, mbytes, fields)
+			if err != nil {
+				var rherr common.RemoteHttpError
+				if errors.As(err, &rherr) {
+					if rherr.StatusCode == http.StatusNotFound {
+						Error(w, http.StatusNotFound, nil)
+						return
+					}
+				}
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+
+			err = db.UpdateStatesInBatch(s.DatabaseClient, deviceId, metricsAgent, fields, document.StateMap())
+			if err != nil {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+		}
 		WriteAcceptedResponse(w)
 		return
 	}
@@ -115,7 +126,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	// pokes through cpe_action API can bypass this "smart" poke
 	_, ok = queryParams["cpe_action"]
 	if !ok {
-		document, err = db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
+		document, err := db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
 		if err != nil {
 			if s.IsDbNotFound(err) {
 				Error(w, http.StatusNoContent, nil)

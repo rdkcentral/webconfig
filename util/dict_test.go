@@ -27,7 +27,7 @@ import (
 
 func TestUtilPrettyPrint(t *testing.T) {
 	line := `{"foo":"bar", "enabled": true, "age": 30}`
-	t.Logf(PrettyJson(line))
+	_ = PrettyJson(line)
 
 	a := Dict{
 		"broadcast_ssid":  true,
@@ -38,7 +38,7 @@ func TestUtilPrettyPrint(t *testing.T) {
 		"wifi_security":   4,
 		"wifi_passphrase": "password1",
 	}
-	t.Logf(PrettyJson(a))
+	_ = PrettyJson(a)
 
 	b := []Dict{
 		{
@@ -60,7 +60,7 @@ func TestUtilPrettyPrint(t *testing.T) {
 			"wifi_passphrase": "password5",
 		},
 	}
-	t.Logf(PrettyJson(b))
+	_ = PrettyJson(b)
 
 	d := Dict{}
 	err := json.Unmarshal([]byte(line), &d)
