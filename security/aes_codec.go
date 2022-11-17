@@ -37,7 +37,6 @@ import (
 ## DESCRIPTION
 % ENCRYPTION:
 
-xpc does not encrypt only the text.
 we first generate a sha1 digest
 
 digest = digest(iv, plaintext)
@@ -77,19 +76,19 @@ func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) 
 
 	var defaultCodec AesCodec
 
-	var xpckeyB64 string
+	var enckeyB64 string
 	if len(args) > 0 {
-		xpckeyB64 = args[0]
+		enckeyB64 = args[0]
 	} else {
-		xpckeyB64 = os.Getenv(envName)
+		enckeyB64 = os.Getenv(envName)
 	}
 
-	if len(xpckeyB64) == 0 {
+	if len(enckeyB64) == 0 {
 		err := fmt.Errorf("No env %v", envName)
 		return &defaultCodec, common.NewError(err)
 	}
 
-	key, err := base64.StdEncoding.DecodeString(xpckeyB64)
+	key, err := base64.StdEncoding.DecodeString(enckeyB64)
 	if err != nil {
 		return &defaultCodec, common.NewError(err)
 	}
@@ -329,7 +328,7 @@ func (c *AesCodec) LogResponseDebug(fields log.Fields, bbytes []byte) {
 }
 
 // in base64 format
-func GetRandomXpcKey() string {
+func GetRandomEncryptionKey() string {
 	// use 16-byte for simplicity
 	bbytes := make([]byte, 16)
 	rand.Read(bbytes)

@@ -25,13 +25,6 @@ import (
 )
 
 func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	// xw, ok := w.(*XpcResponseWriter)
-	// if !ok {
-	// 	err := fmt.Errorf("responsewriter cast error")
-	// 	Error(w, http.StatusInternalServerError, common.NewError(err))
-	// 	return
-	// }
-
 	// ==== data integrity check ====
 	params := mux.Vars(r)
 	mac := params["mac"]
@@ -39,7 +32,6 @@ func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.
 		Error(w, http.StatusNotFound, nil)
 		return
 	}
-	// in xpcdb, all data are stored with uppercased cpemac
 	mac = strings.ToUpper(mac)
 
 	// ==== read the rootdoc from db ====

@@ -49,12 +49,12 @@ func TestDecryption(t *testing.T) {
 	assert.Equal(t, dec, Plaintext3)
 }
 
-func TestXpcKeyFuncs(t *testing.T) {
-	xpckey := GetRandomXpcKey()
-	assert.Assert(t, len(xpckey) > 0)
+func TestEncKeyFuncs(t *testing.T) {
+	enckey := GetRandomEncryptionKey()
+	assert.Assert(t, len(enckey) > 0)
 
 	// verify by checking if it is base64-decodable
-	bbytes, err := base64.StdEncoding.DecodeString(xpckey)
+	bbytes, err := base64.StdEncoding.DecodeString(enckey)
 	assert.NilError(t, err)
 
 	// because we hard coded to use 16 bytes

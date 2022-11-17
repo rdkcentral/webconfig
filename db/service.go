@@ -230,7 +230,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		errorCode := 0
 		errorDetails := ""
 		for groupId, oldSubdoc := range doc.Items() {
-			// XPC-15154 fix the bad condition when updated_time is negative
+			// fix the bad condition when updated_time is negative
 			if oldSubdoc.State() != nil && *oldSubdoc.State() != common.Deployed || oldSubdoc.UpdatedTime() != nil && *oldSubdoc.UpdatedTime() < 0 {
 				newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 				oldState := *oldSubdoc.State()
@@ -252,7 +252,6 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		return common.NewError(fmt.Errorf("ill-formatted event"))
 	}
 
-	// XPC-10738
 	state := common.Failure
 	if *m.ApplicationStatus == "success" {
 		state = common.Deployed

@@ -47,7 +47,7 @@ func TestGetConfig(t *testing.T) {
 
 	subConfig := sc.Config.GetConfig("webconfig.database.cassandra")
 	x := subConfig.GetString("keyspace")
-	assert.Equal(t, x, "xpc")
+	assert.Equal(t, x, "webconfig")
 
 	subConfig = sc.Config.GetConfig("webconfig.database.yugabyte")
 	y := subConfig.GetString("keyspace")

@@ -39,7 +39,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 
 	// ==== processing ====
 	var fields log.Fields
-	if xw, ok := w.(*XpcResponseWriter); ok {
+	if xw, ok := w.(*XResponseWriter); ok {
 		fields = xw.Audit()
 	} else {
 		err := fmt.Errorf("MultipartConfigHandler() responsewriter cast error")

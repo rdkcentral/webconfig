@@ -33,10 +33,10 @@ const (
 	TR181ResponseTemplate = `{"parameters":%v,"version":"%v"}`
 )
 
-// TODO: VersionHandler does not go through Middleware, hence the XpcResponseWriter cast will fail
+// TODO: VersionHandler does not go through Middleware, hence the XResponseWriter cast will fail
 // take no actions for now. Need to see if this causes errors
 func SetAuditValue(w http.ResponseWriter, key string, value interface{}) {
-	xw, ok := w.(*XpcResponseWriter)
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		// fields := make(log.Fields)
 		// log.WithFields(fields).Error("internal error in openwebconfig.http.SetAuditValue() NotOK")
@@ -112,7 +112,6 @@ func WriteOkResponseByTemplate(w http.ResponseWriter, dataStr string, state int,
 }
 
 // this is used to return default tr-181 payload while the cpe is not in the db
-// TODO XPC-13444, need eval if changes here is needed
 func WriteContentTypeAndResponse(w http.ResponseWriter, rbytes []byte, version string, contentType string) {
 	w.Header().Set("Content-type", contentType)
 	w.Header().Set("ETag", version)
@@ -136,8 +135,8 @@ func WriteErrorResponse(w http.ResponseWriter, status int, err error) {
 }
 
 func Error(w http.ResponseWriter, status int, err error) {
-	// XPC-12489 calling WriteHeader() multiple times will cause errors in "content-type"
-	//           ==> errors like 'superfluous response.WriteHeader call' in stderr
+	// calling WriteHeader() multiple times will cause errors in "content-type"
+	// ==> errors like 'superfluous response.WriteHeader call' in stderr
 	switch status {
 	case http.StatusNoContent, http.StatusNotModified, http.StatusForbidden:
 		w.WriteHeader(status)

@@ -29,7 +29,7 @@ import (
 
 const (
 	upstreamHostDefault        = "http://localhost:1234"
-	upstreamUrlTemplateDefault = "/api/v1/%v/xpcupstream"
+	upstreamUrlTemplateDefault = "/api/v1/device/%v/upstream"
 )
 
 type UpstreamConnector struct {

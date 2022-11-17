@@ -37,14 +37,13 @@ const (
 	webpaServiceName      = "webpa"
 	asyncWebpaServiceName = "asyncwebpa"
 
-	// TODO eval
 	webpaUrlTemplate = "%s/api/%s/device/mac:%s/config"
 	webpaError404    = `{"code": 521, "message": "Device not found in webpa"}`
 	webpaError520    = `{"code": 520, "message": "Error unsupported namespace"}`
 
-	// XPC-10606 a new error code to indicate it is webpa 520
-	//           but it is caused by some temporary conditions,
-	//           NOT because webconfig is unavailable
+	// a new error code to indicate it is webpa 520
+	// but it is caused by some temporary conditions,
+	// NOT because webconfig is unavailable
 	webpa520NewStatusCode = 524
 )
 

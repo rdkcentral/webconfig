@@ -33,7 +33,6 @@ import (
 )
 
 func TestSupplementaryApi(t *testing.T) {
-	// t.Skip() // TOFIX
 	log.SetOutput(ioutil.Discard)
 
 	server := NewWebconfigServer(sc, true)
@@ -102,7 +101,7 @@ func TestSupplementaryApi(t *testing.T) {
 
 	profile1, ok := profile1Itf.(map[string]interface{})
 	assert.Assert(t, ok)
-	assert.Equal(t, profile1["name"].(string), "xpc_test_profile_001")
+	assert.Equal(t, profile1["name"].(string), "x_test_profile_001")
 
 	coreProfile1Itf, ok := profile1["value"]
 	assert.Assert(t, ok)
@@ -118,7 +117,7 @@ func TestSupplementaryApi(t *testing.T) {
 const (
 	rawProfileStr = `
 {
-    "Description":"XPC TEST PROFILE 001",
+    "Description":"X TEST PROFILE 001",
     "Version":"0.1",
     "Protocol":"HTTP",
     "EncodingType":"JSON",
@@ -189,10 +188,10 @@ const (
 {
   "profiles": [
     {
-      "name": "xpc_test_profile_001",
+      "name": "x_test_profile_001",
       "versionHash": "55e295e3",
       "value": {
-        "Description": "XPC TEST PROFILE 001",
+        "Description": "X TEST PROFILE 001",
         "Version": "0.1",
         "Protocol": "HTTP",
         "EncodingType": "JSON",
