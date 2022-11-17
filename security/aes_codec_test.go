@@ -22,6 +22,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
@@ -61,10 +62,14 @@ func TestXpcKeyFuncs(t *testing.T) {
 }
 
 func TestNoKeyCodec(t *testing.T) {
-	err := os.Unsetenv("XPC_KEY")
+	sc, err := common.GetTestServerConfig()
+	conf := sc.Config
+	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
+
+	err = os.Unsetenv(envName)
 	assert.NilError(t, err)
 
-	nokeyCodec, err := NewAesCodec()
+	nokeyCodec, err := NewAesCodec(conf)
 	assert.Assert(t, err != nil)
 
 	srcText := "helloworld"

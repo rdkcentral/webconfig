@@ -63,6 +63,11 @@ type TokenManager struct {
 }
 
 func NewTokenManager(conf *configuration.Config) *TokenManager {
+	jwtEnabled := conf.GetBoolean("webconfig.jwt.enabled", false)
+	if !jwtEnabled {
+		return nil
+	}
+
 	panicExitEnabled := conf.GetBoolean("webconfig.panic_exit_enabled", false)
 
 	// prepare args for TokenManager

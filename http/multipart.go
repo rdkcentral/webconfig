@@ -167,12 +167,14 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set("Etag", document.RootVersion())
 
-	token := rHeader.Get("Authorization")
-	if len(token) > 0 {
-		upstreamHeader.Set("Authorization", token)
-	} else {
-		token = s.Generate(mac, 86400)
-		rHeader.Set("Authorization", "Bearer "+token)
+	if s.TokenManager != nil {
+		token := rHeader.Get("Authorization")
+		if len(token) > 0 {
+			upstreamHeader.Set("Authorization", token)
+		} else {
+			token = s.Generate(mac, 86400)
+			rHeader.Set("Authorization", "Bearer "+token)
+		}
 	}
 
 	// add old/new header/metadata in the upstream header

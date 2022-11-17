@@ -4,7 +4,7 @@ Webconfig is a solution to pass configuration data from the server to networking
 
 ## Install go
 
-This project is written and tested with Go **1.15**.
+This project is written and tested with Go **1.17**.
 
 ## Build the binary
 ```shell
@@ -13,36 +13,29 @@ make
 ```
 **bin/webconfig-linux-amd64** will be created. 
 
-## Run the application
-The application includes an API to notify RDK devices to download updated configurations from this server. A JWT token is required to communicate with RDK devices. Valid credentials are needed to generate JWT tokens from Comcast codebig2 service. The credentials are passed to the application through environment variables. A configuration file can be passed as an argument when the application starts. config/sample_webconfig.conf is an example. 
 
 
+## Setup a encryption key
+If we want to encrypt the data in db for security, we can set a security key through an environment variable. A command like this generate an random key in base64
 ```shell
-export SAT_CLIENT_ID='xxxxxx'
-export SAT_CLIENT_SECRET='yyyyyy'
-cd $HOME/go/src/github.com/rdkcentral/webconfig
-bin/webconfig-linux-amd64 -f config/sample_webconfig.conf
-```
+$ head -c 32 /dev/random | base64
+ABCDEF...
 
-## security
-A pair of public/private keys can be created like this
-```shell
-$ openssl genrsa -out /tmp/webconfig_key.pem 2048
-$ openssl rsa -in /tmp/webconfig_key.pem -pubout -outform PEM -out /tmp/webconfig_key_pub.pem
+$ export XPC_KEY='ABCDEF...'
+$ mkdir -p /app/logs/webconfig
+$ cd $HOME/go/src/github.com/rdkcentral/webconfig
+$ bin/webconfig-linux-amd64 -f config/sample_webconfig.conf
 ```
 
 ## API examples
+A version API to show the server is up.
+```shell
+curl http://localhost:9000/api/v1/version
+{"status":200,"message":"OK","data":{"code_git_commit":"2ac7ff4","build_time":"Thu Feb 14 01:57:26 2019 UTC","binary_version":"317f2d4","binary_branch":"develop","binary_build_time":"2021-02-10_18:26:49_UTC"}}
+```
+
 ### Write data into DB
 The POST API is designed to accept binary input "Content-type: application/msgpack". A "group_id" is mandatory in the query parameter to specify the subdoc the input is meant for. Most programming languages supports HTTP would accept binary data as POST body. The example uses curl and reads the binary data from a file.
-```shell
-curl -s -i "http://localhost:9000/api/v1/device/010203040506/document?group_id=privatessid" -H 'Content-type: application/msgpack' --data-binary @privatessid.bin -X POST
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Wed, 14 Oct 2020 22:58:21 GMT
-Content-Length: 29
-
-{"status":200,"message":"OK"}
-```
 
 ### Verify data in DB
 The GET API read binary data in the response. The "group_id" is mandatory in the query parameter. For simplicity, the binary output is saved as a file. We can compare the 2 files to verify.
@@ -57,6 +50,9 @@ When data are prepared in DB, users are expected to call this poke API. Webconfi
 ```shell
 curl -s "http://localhost:9009/api/v1/device/010203040506/poke" -X POST
 ```
+
+## Run the application
+The application includes an API to notify RDK devices to download updated configurations from this server. A JWT token is required to communicate with RDK devices. Valid credentials are needed to generate JWT tokens from Comcast codebig2 service. The credentials are passed to the application through environment variables. A configuration file can be passed as an argument when the application starts. config/sample_webconfig.conf is an example. 
 
 ### RDK devices downloads the configuration
 RDK devices use this API to fetch data. The response is in HTTP multipart. Each part maps to a subdoc, or a logical group of configurations encoded in msgpack.

@@ -19,6 +19,7 @@ package cassandra
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -75,12 +76,12 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	// build codec
 	if testOnly {
-		codec = security.NewTestCodec()
+		codec = security.NewTestCodec(conf)
 		if x := os.Getenv("TESTDB_DRIVER"); x == "yugabyte" {
 			dbdriver = x
 		}
 	} else {
-		codec, err = security.NewAesCodec()
+		codec, err = security.NewAesCodec(conf)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
@@ -216,4 +217,57 @@ func (c *CassandraClient) SetEncryptedSubdocIds(x []string) {
 // TODO we hardcoded for now but it should be changed to be configurable
 func (c *CassandraClient) IsEncryptedGroup(subdocId string) bool {
 	return util.Contains(c.EncryptedSubdocIds(), subdocId)
+}
+
+func (c *CassandraClient) SetUp() error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	// NOTE: CREATE cannot be used in a batch
+	for _, t := range createTableStatements {
+		if err := c.Query(t).Exec(); err != nil {
+			return common.NewError(err)
+		}
+	}
+	return nil
+}
+
+func (c *CassandraClient) TearDown() error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	// NOTE: TRUNCATE cannot be used in a batch
+	for t := range CassandraSchemas {
+		if err := c.Query(fmt.Sprintf("TRUNCATE %v", t)).Exec(); err != nil {
+			return common.NewError(err)
+		}
+	}
+	return nil
+}
+
+// test dbclient by other modules
+var (
+	tdbclient *CassandraClient
+	tcodec    *security.AesCodec
+)
+
+func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
+	if tdbclient != nil {
+		return tdbclient, nil
+	}
+
+	var err error
+	tdbclient, err = NewCassandraClient(conf, testOnly)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	err = tdbclient.SetUp()
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	err = tdbclient.TearDown()
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	return tdbclient, nil
 }

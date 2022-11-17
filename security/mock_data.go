@@ -17,6 +17,8 @@
 */
 package security
 
+import "github.com/go-akka/configuration"
+
 const (
 	Plaintext1 = "OutOfService"
 	Plaintext2 = "XFINITY"
@@ -25,14 +27,13 @@ const (
 
 var (
 	Encrypted1a, Encrypted1b, Encrypted2a, Encrypted2b, Encrypted3a, Encrypted3b string
-	testCodec                                                                    *AesCodec
-	err                                                                          error
 )
 
-func NewTestCodec() *AesCodec {
+func NewTestCodec(conf *configuration.Config) *AesCodec {
+	var err error
 	if testCodec == nil {
 		randomKey := GetRandomXpcKey()
-		testCodec, err = NewAesCodec(randomKey)
+		testCodec, err = NewAesCodec(conf, randomKey)
 		if err != nil {
 			panic(err)
 		}
