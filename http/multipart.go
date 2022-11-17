@@ -60,7 +60,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 	// ==== processing ====
 	// partnerId should be in fields by middleware
-	xw, ok := w.(*XpcResponseWriter)
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		err1 := fmt.Errorf("MultipartConfigHandler() responsewriter cast error")
 		Error(w, http.StatusInternalServerError, err1)

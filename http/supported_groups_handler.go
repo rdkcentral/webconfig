@@ -28,9 +28,8 @@ import (
 	"github.com/rdkcentral/webconfig/util"
 )
 
-// XPC-10013 the supported doc header in GET /config is parsed and stored as a bitmap
-//
-//	this API returns the bitmap in read friendly json
+// The supported doc header in GET /config is parsed and stored as a bitmap
+// this API returns the bitmap in read friendly json
 func (s *WebconfigServer) GetSupportedGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	// check mac
 	params := mux.Vars(r)

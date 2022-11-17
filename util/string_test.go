@@ -115,7 +115,6 @@ func TestValidatePokeQuery(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, s, "primary")
 
-	// XPC-15999
 	values["doc"] = []string{
 		"primary",
 	}

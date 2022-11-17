@@ -41,7 +41,7 @@ func Validate(w http.ResponseWriter, r *http.Request, validateContent bool) (str
 	}
 
 	// check for safety, but it should not fail
-	xw, ok := w.(*XpcResponseWriter)
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		err := common.Http500Error{"responsewriter cast error"}
 		return mac, subdocId, nil, nil, common.NewError(err)

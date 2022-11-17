@@ -35,7 +35,7 @@ type TokenRequest struct {
 func (s *WebconfigServer) CreateTokenHandler(w http.ResponseWriter, r *http.Request) {
 	m := s.TokenManager
 
-	xw, ok := w.(*XpcResponseWriter)
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		err := fmt.Errorf("responsewriter cast error")
 		Error(w, http.StatusInternalServerError, common.NewError(err))

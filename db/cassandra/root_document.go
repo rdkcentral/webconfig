@@ -92,7 +92,6 @@ func (c *CassandraClient) SetRootDocumentBitmap(cpeMac string, bitmap int) error
 	return nil
 }
 
-// XPC-12712
 func (c *CassandraClient) SetRootDocumentVersionBitmap(cpeMac string, version *string, bitmap *int64) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()

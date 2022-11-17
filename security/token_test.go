@@ -37,19 +37,19 @@ func TestLoadingKeyFiles(t *testing.T) {
 		t.Skip("webconfig.jwt.enabled = false")
 	}
 
-	publicKeyFile := "/etc/xpc/webconfig_key_pub.pem"
+	publicKeyFile := "/etc/webconfig/webconfig_key_pub.pem"
 	_, err = loadDecodeKey(publicKeyFile)
 	assert.NilError(t, err)
 
-	badPublicKeyFile := "/etc/xpc/webconfig_key_pub.pemx"
+	badPublicKeyFile := "/etc/webconfig/webconfig_key_pub.pemx"
 	_, err = loadDecodeKey(badPublicKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
 
-	privateKeyFile := "/etc/xpc/webconfig_key.pem"
+	privateKeyFile := "/etc/webconfig/webconfig_key.pem"
 	_, err = loadEncodeKey(privateKeyFile)
 	assert.NilError(t, err)
 
-	badPrivateKeyFile := "/etc/xpc/webconfig_key.pemx"
+	badPrivateKeyFile := "/etc/webconfig/webconfig_key.pemx"
 	_, err = loadEncodeKey(badPrivateKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
 }

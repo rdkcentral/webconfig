@@ -182,7 +182,6 @@ func (d *SubDocument) Equals(tdoc *SubDocument) error {
 		}
 	}
 
-	// XPC-10757 empty value handling
 	if d.ErrorCode() != nil && tdoc.ErrorCode() != nil {
 		if *d.ErrorCode() != *tdoc.ErrorCode() {
 			err := fmt.Errorf("*d.ErrorCode()[%v] != *tdoc.ErrorCode()[%v]", *d.ErrorCode(), *tdoc.ErrorCode())

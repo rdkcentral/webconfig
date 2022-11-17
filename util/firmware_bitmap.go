@@ -31,7 +31,6 @@ import (
 func SetBitmapByGroup(cpeBitmap *int, groupId int, groupBitmap int) error {
 	tuples, ok := common.SupportedDocsBitMaskMap[groupId]
 	if !ok {
-		// XPC-15313 ignore unknown groupId, instead of raising an error
 		return nil
 	}
 

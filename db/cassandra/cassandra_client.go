@@ -33,7 +33,7 @@ import (
 
 const (
 	ProtocolVersion               = 4
-	DefaultKeyspace               = "xpc"
+	DefaultKeyspace               = "webconfig"
 	DefaultTestKeyspace           = "test_webconfig"
 	DisableInitialHostLookup      = false
 	DefaultSleepTimeInMillisecond = 10
@@ -41,7 +41,7 @@ const (
 	DefaultPageSize               = 50
 )
 
-// XPC-15293 if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
+// if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
 type CassandraClient struct {
 	db.BaseClient
 	*gocql.Session
@@ -100,7 +100,6 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
 
-	// XPC-8480
 	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
 		ConsistencyLevelsToTry: []gocql.Consistency{
 			gocql.LocalQuorum,

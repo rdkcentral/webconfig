@@ -30,18 +30,6 @@ import (
 	"gotest.tools/assert"
 )
 
-/*
-type MockGenerator struct {
-    mpdict map[string]common.Multipart
-}
-type Multipart struct {
-    Bytes   []byte
-    Version string
-    Name    string
-}
-	mparts, err := gen.GetMockMultiparts(queryStr)
-*/
-
 func getMockMultiparts(queryStr string) []common.Multipart {
 	groupIds := strings.Split(queryStr, ",")
 	mparts := []common.Multipart{}
@@ -132,7 +120,7 @@ func TestMultiSubDocuments(t *testing.T) {
 		srcState := common.PendingDownload
 
 		// write into db
-		// XPC-10880 enforce "params" to be non-empty
+		// enforce "params" to be non-empty
 		srcDoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
 		srcmap[groupId] = *srcDoc
 

@@ -50,7 +50,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	xw, ok := w.(*XpcResponseWriter)
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		err := fmt.Errorf("PokeHandler() responsewriter cast error")
 		Error(w, http.StatusInternalServerError, common.NewError(err))
@@ -75,7 +75,6 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// XPC-15999
 	if pokeStr == "mqtt" {
 		for _, deviceId := range deviceIds {
 			document, err := db.BuildMqttSendDocument(s.DatabaseClient, deviceId, fields)

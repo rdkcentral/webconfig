@@ -32,7 +32,7 @@ var (
 func NewTestCodec(conf *configuration.Config) *AesCodec {
 	var err error
 	if testCodec == nil {
-		randomKey := GetRandomXpcKey()
+		randomKey := GetRandomEncryptionKey()
 		testCodec, err = NewAesCodec(conf, randomKey)
 		if err != nil {
 			panic(err)

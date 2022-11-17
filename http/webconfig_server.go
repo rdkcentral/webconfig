@@ -253,7 +253,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw := NewXpcResponseWriter(w)
+		xw := NewXResponseWriter(w)
 		metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
 		if len(metricsAgent) > 0 {
 			xw.SetAuditData("metrics_agent", metricsAgent)
@@ -344,7 +344,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw := NewXpcResponseWriter(w)
+		xw := NewXResponseWriter(w)
 
 		// read the token
 		authorization := r.Header.Get("Authorization")
@@ -469,7 +469,7 @@ func getFilteredHeader(r *http.Request, notLoggedHeaders []string) http.Header {
 	return header
 }
 
-func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XpcResponseWriter {
+func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XResponseWriter {
 	remoteIp := r.RemoteAddr
 	host := r.Host
 	header := getFilteredHeader(r, s.notLoggedHeaders)
@@ -536,7 +536,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		fields["cpemac"] = mac
 	}
 
-	xwriter := NewXpcResponseWriter(w, time.Now(), token, fields)
+	xwriter := NewXResponseWriter(w, time.Now(), token, fields)
 
 	if r.Method == "POST" {
 		if r.Body != nil {
@@ -559,7 +559,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	return xwriter
 }
 
-func (s *WebconfigServer) logRequestEnds(xw *XpcResponseWriter, r *http.Request) {
+func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	tdiff := time.Now().Sub(xw.StartTime())
 	duration := tdiff.Nanoseconds() / 1000000
 
@@ -570,7 +570,6 @@ func (s *WebconfigServer) logRequestEnds(xw *XpcResponseWriter, r *http.Request)
 		fields["response_text"] = "****"
 	} else {
 		_, ok := fields["response"]
-		// XPC-13444 if the "response" is already set in the audit, then no need to do more handling
 		if !ok {
 			response := xw.Response()
 			var itf interface{}
@@ -598,7 +597,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XpcResponseWriter, r *http.Request)
 
 func LogError(w http.ResponseWriter, err error) {
 	var fields log.Fields
-	if xw, ok := w.(*XpcResponseWriter); ok {
+	if xw, ok := w.(*XResponseWriter); ok {
 		fields = xw.Audit()
 		fields["error"] = err
 	} else {
@@ -608,7 +607,7 @@ func LogError(w http.ResponseWriter, err error) {
 	log.WithFields(fields).Error("internal error")
 }
 
-func (xw *XpcResponseWriter) logMessage(logger string, message string, level int) {
+func (xw *XResponseWriter) logMessage(logger string, message string, level int) {
 	fields := xw.Audit()
 	fields["logger"] = logger
 
@@ -623,14 +622,14 @@ func (xw *XpcResponseWriter) logMessage(logger string, message string, level int
 }
 
 // REMINDER use by the middleware functions
-func (xw *XpcResponseWriter) LogDebug(r *http.Request, logger string, message string) {
+func (xw *XResponseWriter) LogDebug(r *http.Request, logger string, message string) {
 	xw.logMessage(logger, message, LevelDebug)
 }
 
-func (xw *XpcResponseWriter) LogInfo(r *http.Request, logger string, message string) {
+func (xw *XResponseWriter) LogInfo(r *http.Request, logger string, message string) {
 	xw.logMessage(logger, message, LevelInfo)
 }
 
-func (xw *XpcResponseWriter) LogWarn(r *http.Request, logger string, message string) {
+func (xw *XResponseWriter) LogWarn(r *http.Request, logger string, message string) {
 	xw.logMessage(logger, message, LevelWarn)
 }
