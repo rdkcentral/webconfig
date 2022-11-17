@@ -28,23 +28,17 @@ import (
 
 var (
 	testConfigFile string
-	sc             *common.ServerConfig
 	tokenManager   *TokenManager
 )
 
 func TestMain(m *testing.M) {
-	NewTestCodec()
-
-	testConfigFile = "/app/webconfig/webconfig.conf"
-	if _, err := os.Stat(testConfigFile); os.IsNotExist(err) {
-		testConfigFile = "../config/sample_webconfig.conf"
-	}
-
-	var err error
-	sc, err = common.NewServerConfig(testConfigFile)
+	sc, err := common.GetTestServerConfig()
 	if err != nil {
 		panic(err)
 	}
+
+	NewTestCodec(sc.Config)
+
 	tokenManager = NewTokenManager(sc.Config)
 
 	log.SetOutput(ioutil.Discard)

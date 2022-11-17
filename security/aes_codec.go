@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 )
@@ -64,21 +65,27 @@ type AesCodec struct {
 	key []byte
 }
 
+const (
+	envNameDefault = "WEBCONFIG_KEY"
+)
+
 // for controlled testing only
 // var staticIv []byte{111, 114, 219, 23, 120, 151, 157, 32, 117, 31, 98, 99, 106, 3, 169, 224}
 
-func NewAesCodec(args ...string) (*AesCodec, error) {
+func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) {
+	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
+
 	var defaultCodec AesCodec
 
 	var xpckeyB64 string
 	if len(args) > 0 {
 		xpckeyB64 = args[0]
 	} else {
-		xpckeyB64 = os.Getenv("XPC_KEY")
+		xpckeyB64 = os.Getenv(envName)
 	}
 
 	if len(xpckeyB64) == 0 {
-		err := fmt.Errorf("No env XPC_KEY")
+		err := fmt.Errorf("No env %v", envName)
 		return &defaultCodec, common.NewError(err)
 	}
 
@@ -328,3 +335,8 @@ func GetRandomXpcKey() string {
 	rand.Read(bbytes)
 	return base64.StdEncoding.EncodeToString(bbytes)
 }
+
+// test codec shared by other modules
+var (
+	testCodec *AesCodec
+)

@@ -163,6 +163,14 @@ func TestMultipartConfigHandler(t *testing.T) {
 }
 
 func TestCpeMiddleware(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	if err != nil {
+		panic(err)
+	}
+	if !sc.GetBoolean("webconfig.jwt.enabled") {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 

@@ -23,16 +23,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
 func TestLoadingKeyFiles(t *testing.T) {
-	if os.Getenv("WEBCONFIG_EXTENDED_UNIT_TEST") != "true" {
-		t.Skip("has dependencies")
+	sc, err := common.GetTestServerConfig()
+	if err != nil {
+		panic(err)
+	}
+	if !sc.GetBoolean("webconfig.jwt.enabled") {
+		t.Skip("webconfig.jwt.enabled = false")
 	}
 
-	var err error
 	publicKeyFile := "/etc/xpc/webconfig_key_pub.pem"
 	_, err = loadDecodeKey(publicKeyFile)
 	assert.NilError(t, err)
@@ -51,8 +55,12 @@ func TestLoadingKeyFiles(t *testing.T) {
 }
 
 func TestTokenValidation(t *testing.T) {
-	if os.Getenv("WEBCONFIG_EXTENDED_UNIT_TEST") != "true" {
-		t.Skip("has dependencies")
+	sc, err := common.GetTestServerConfig()
+	if err != nil {
+		panic(err)
+	}
+	if !sc.GetBoolean("webconfig.jwt.enabled") {
+		t.Skip("webconfig.jwt.enabled = false")
 	}
 
 	cpeMac := util.GenerateRandomCpeMac()
