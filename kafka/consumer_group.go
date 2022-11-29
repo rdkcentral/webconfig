@@ -54,6 +54,7 @@ type Consumer struct {
 	mqttGetTopic               string
 	mqttStateTopic             string
 	webpaStateTopic            string
+	appName                    string
 }
 
 func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics) *Consumer {
@@ -69,6 +70,7 @@ func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *c
 		webpaStateTopic:            webpaStateTopic,
 		mqttGetTopic:               mqttGetTopic,
 		mqttStateTopic:             mqttStateTopic,
+		appName:                    s.AppName(),
 	}
 }
 
@@ -88,8 +90,6 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 	var m common.EventMessage
 	err := json.Unmarshal(bbytes, &m)
 	if err != nil {
-		raw := base64.StdEncoding.EncodeToString(bbytes)
-		fields["body_text"] = raw
 		return nil, common.NewError(err)
 	}
 
@@ -175,8 +175,9 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 		fields := log.Fields{
 			"logger":    "kafka",
-			"app_name":  "webconfig",
+			"app_name":  c.AppName(),
 			"kafka_lag": lag,
+			"kafka_key": message.Key,
 			"topic":     message.Topic,
 			"audit_id":  auditId,
 		}
@@ -208,6 +209,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 		if err != nil {
 			fields["error"] = err.Error()
+			fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
 			log.WithFields(fields).Error("errors")
 		} else {
 			log.WithFields(fields).Info(logMessage)
@@ -226,6 +228,10 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		}
 	}
 	return nil
+}
+
+func (c *Consumer) AppName() string {
+	return c.appName
 }
 
 type KafkaConsumerGroup struct {
