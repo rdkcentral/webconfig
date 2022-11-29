@@ -85,6 +85,7 @@ type WebconfigServer struct {
 	blockedSubdocIds          []string
 	kafkaEnabled              bool
 	upstreamEnabled           bool
+	appName                   string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -224,6 +225,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
+	appName := conf.GetString("webconfig.app_name")
 
 	return &WebconfigServer{
 		Server: &http.Server{
@@ -248,6 +250,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		blockedSubdocIds:          blockedSubdocIds,
 		kafkaEnabled:              kafkaEnabled,
 		upstreamEnabled:           upstreamEnabled,
+		appName:                   appName,
 	}
 }
 
@@ -437,6 +440,14 @@ func (s *WebconfigServer) SetUpstreamEnabled(enabled bool) {
 	s.upstreamEnabled = enabled
 }
 
+func (s *WebconfigServer) AppName() string {
+	return s.appName
+}
+
+func (s *WebconfigServer) SetAppName(appName string) {
+	s.appName = appName
+}
+
 func (s *WebconfigServer) GetUpstreamConnector() *UpstreamConnector {
 	if !s.upstreamEnabled {
 		return nil
@@ -506,7 +517,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		"header":    headerMap,
 		"logger":    "request",
 		"trace_id":  traceId,
-		"app_name":  "webconfig",
+		"app_name":  s.AppName(),
 	}
 
 	userAgent := r.UserAgent()
