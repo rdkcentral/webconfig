@@ -19,33 +19,16 @@ package cassandra
 
 import (
 	"crypto/rand"
-	"strconv"
-	"strings"
+	"net/http"
 	"testing"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
-
-func getMockMultiparts(queryStr string) []common.Multipart {
-	groupIds := strings.Split(queryStr, ",")
-	mparts := []common.Multipart{}
-	for _, g := range groupIds {
-		slen := util.RandomInt(100) + 16
-		bbytes := make([]byte, slen)
-		rand.Read(bbytes)
-		mpart := common.Multipart{
-			Bytes:   bbytes,
-			Version: strconv.Itoa(util.RandomInt(100000000)),
-			Name:    g,
-		}
-		mparts = append(mparts, mpart)
-	}
-	return mparts
-}
 
 func TestMocaSubDocument(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
@@ -106,7 +89,7 @@ func TestMultiSubDocuments(t *testing.T) {
 
 	// prepare the source data
 	queryStr := "privatessid,homessid,moca"
-	mparts := getMockMultiparts(queryStr)
+	mparts := util.GetMockMultiparts(queryStr)
 	assert.Equal(t, len(mparts), 3)
 
 	srcmap := make(map[string]common.SubDocument)
@@ -160,4 +143,69 @@ func TestMultiSubDocuments(t *testing.T) {
 
 	doc, err = tdbclient.GetDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
+}
+
+func TestBlockedSubdocIds(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+
+	blockedSubdocIds := []string{"portforwarding", "macbinding"}
+	tdbclient.SetBlockedSubdocIds(blockedSubdocIds)
+
+	// prepare the source data
+	queryStr := "privatessid,homessid,moca,portforwarding,macbinding"
+	mparts := util.GetMockMultiparts(queryStr)
+	assert.Equal(t, len(mparts), 5)
+
+	srcmap := make(map[string]common.SubDocument)
+
+	fields := log.Fields{}
+	for _, mpart := range mparts {
+		groupId := mpart.Name
+		srcBytes := mpart.Bytes
+		srcVersion := util.GetMurmur3Hash(srcBytes)
+		srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
+		srcState := common.PendingDownload
+
+		// write into db
+		// enforce "params" to be non-empty
+		srcDoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
+		srcmap[groupId] = *srcDoc
+
+		err := tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
+		assert.NilError(t, err)
+
+		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
+		assert.NilError(t, err)
+
+		err = srcDoc.Equals(fetchedDoc)
+		assert.NilError(t, err)
+	}
+	// add version1 and bitmap1
+	version1 := "indigo violet"
+	err := tdbclient.SetRootDocumentVersion(cpeMac, version1)
+	assert.NilError(t, err)
+
+	bitmap1 := 32479
+	err = tdbclient.SetRootDocumentBitmap(cpeMac, bitmap1)
+	assert.NilError(t, err)
+
+	// ==== read to verify ====
+
+	rHeader := make(http.Header)
+	rHeader.Set(common.HeaderDeviceId, cpeMac)
+	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+
+	rHeader.Set(common.HeaderSupportedDocs, rdkSupportedDocsHeaderStr)
+
+	document, _, _, _, err := db.BuildGetDocument(tdbclient, rHeader, common.RouteHttp, fields)
+	assert.NilError(t, err)
+	assert.Assert(t, document.Length() == 3)
+	versionMap := document.VersionMap()
+	_, ok := versionMap["portforwarding"]
+	assert.Assert(t, !ok)
+	_, ok = versionMap["macbinding"]
+	assert.Assert(t, !ok)
+
+	tdbclient.SetBlockedSubdocIds([]string{})
+	assert.Equal(t, len(tdbclient.BlockedSubdocIds()), 0)
 }

@@ -82,7 +82,6 @@ type WebconfigServer struct {
 	serverApiTokenAuthEnabled bool
 	deviceApiTokenAuthEnabled bool
 	tokenApiEnabled           bool
-	blockedSubdocIds          []string
 	kafkaEnabled              bool
 	upstreamEnabled           bool
 	appName                   string
@@ -215,7 +214,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
 	tokenApiEnabled := conf.GetBoolean("webconfig.token_api_enabled", tokenApiEnabledDefault)
-	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
 
 	var listenHost string
 	if conf.GetBoolean("webconfig.server.localhost_only", false) {
@@ -247,7 +245,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		serverApiTokenAuthEnabled: serverApiTokenAuthEnabled,
 		deviceApiTokenAuthEnabled: deviceApiTokenAuthEnabled,
 		tokenApiEnabled:           tokenApiEnabled,
-		blockedSubdocIds:          blockedSubdocIds,
 		kafkaEnabled:              kafkaEnabled,
 		upstreamEnabled:           upstreamEnabled,
 		appName:                   appName,
@@ -414,14 +411,6 @@ func (s *WebconfigServer) TokenApiEnabled() bool {
 
 func (s *WebconfigServer) SetTokenApiEnabled(enabled bool) {
 	s.tokenApiEnabled = enabled
-}
-
-func (s *WebconfigServer) BlockedSubdocIds() []string {
-	return s.blockedSubdocIds
-}
-
-func (s *WebconfigServer) SetBlockedSubdocIds(blockedSubdocIds []string) {
-	s.blockedSubdocIds = blockedSubdocIds
 }
 
 func (s *WebconfigServer) KafkaEnabled() bool {

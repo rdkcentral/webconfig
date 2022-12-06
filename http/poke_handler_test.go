@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -54,7 +55,8 @@ func TestPokeHandler(t *testing.T) {
 	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
 
 	// ==== post new data ====
-	url := fmt.Sprintf("/api/v1/device/%v/poke", cpeMac)
+	lowerCpeMac := strings.ToLower(cpeMac)
+	url := fmt.Sprintf("/api/v1/device/%v/poke", lowerCpeMac)
 	req, err := http.NewRequest("POST", url, nil)
 	req.Header.Set("Authorization", "Bearer foobar")
 	assert.NilError(t, err)
@@ -265,4 +267,33 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, document.Length(), 0)
+}
+
+func TestPokeHandlerInvalidMac(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac() + "foo"
+
+	// webpa mock server
+	webpaMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(mockedWebpaPokeResponse)
+		}))
+	defer webpaMockServer.Close()
+	server.SetWebpaHost(webpaMockServer.URL)
+	targetWebpaHost := server.WebpaHost()
+	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
+
+	// ==== post new data ====
+	lowerCpeMac := strings.ToLower(cpeMac)
+	url := fmt.Sprintf("/api/v1/device/%v/poke", lowerCpeMac)
+	req, err := http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
 }

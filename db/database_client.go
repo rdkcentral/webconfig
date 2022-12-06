@@ -49,17 +49,12 @@ type DatabaseClient interface {
 	Metrics() *common.AppMetrics
 	SetMetrics(*common.AppMetrics)
 
-	// TODO
+	// blockedSubdocIds
+	BlockedSubdocIds() []string
+	SetBlockedSubdocIds([]string)
+
 	// These functions are now changed to use upstream
 	FactoryReset(string) error
 	FirmwareUpdate(string, int, *common.RootDocument) error
 	AppendProfiles(string, []byte) ([]byte, error)
 }
-
-// UpdateRootDocument(string, *common.RootDocument) error
-// calculate root version
-// RootVersion(interface{}) string
-// update Document State because eventMessage could update a single subdoc or the whole doc
-// UpdateDocumentState(string, *common.EventMessage, log.Fields) error
-
-// BuildResponse(http.Header, []byte, log.Fields) (int, http.Header, []byte)
