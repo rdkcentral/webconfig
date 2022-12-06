@@ -100,6 +100,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		// no need to update root doc
 		return document, cloudRootDocument, deviceRootDocument, false, nil
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
+		// meta unchanged but subdoc versions change ==> new configs
 		// getDoc, then filter
 		document, err := c.GetDocument(mac)
 		if err != nil {
@@ -108,6 +109,9 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		}
 		document.SetRootDocument(cloudRootDocument)
 		filteredDocument := document.FilterForGet(deviceVersionMap)
+		for _, subdocId := range c.BlockedSubdocIds() {
+			filteredDocument.DeleteSubDocument(subdocId)
+		}
 		return filteredDocument, cloudRootDocument, deviceRootDocument, false, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream

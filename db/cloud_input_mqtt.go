@@ -38,6 +38,9 @@ func BuildMqttSendDocument(c DatabaseClient, cpeMac string, fields log.Fields) (
 	if filteredDocument.Length() == 0 {
 		return filteredDocument, nil
 	}
+	for _, subdocId := range c.BlockedSubdocIds() {
+		filteredDocument.DeleteSubDocument(subdocId)
+	}
 
 	rootDocument, err := c.GetRootDocument(cpeMac)
 	if err != nil {

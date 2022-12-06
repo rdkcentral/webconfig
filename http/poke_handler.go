@@ -33,11 +33,12 @@ import (
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	mac := params["mac"]
+	mac = strings.ToUpper(mac)
 	if !util.ValidateMac(mac) {
-		err := common.Http404Error{
+		err := common.Http400Error{
 			Message: "invalid mac",
 		}
-		Error(w, http.StatusNotFound, err)
+		Error(w, http.StatusBadRequest, err)
 		return
 	}
 

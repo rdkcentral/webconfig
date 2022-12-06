@@ -44,6 +44,7 @@ type SqliteClient struct {
 	*sql.DB
 	*common.AppMetrics
 	concurrentQueries chan bool
+	blockedSubdocIds  []string
 }
 
 func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
@@ -55,6 +56,8 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 		dbfile = conf.GetString("webconfig.database.sqlite.db_file", defaultSqliteDbFile)
 	}
 
+	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
+
 	db, err := sql.Open("sqlite3", dbfile)
 	if err != nil {
 		return nil, common.NewError(err)
@@ -63,6 +66,7 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 	return &SqliteClient{
 		DB:                db,
 		concurrentQueries: make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
+		blockedSubdocIds:  blockedSubdocIds,
 	}, nil
 }
 
@@ -122,6 +126,14 @@ func (c *SqliteClient) IsMetricsEnabled() bool {
 		return false
 	}
 	return true
+}
+
+func (c *SqliteClient) BlockedSubdocIds() []string {
+	return c.blockedSubdocIds
+}
+
+func (c *SqliteClient) SetBlockedSubdocIds(x []string) {
+	c.blockedSubdocIds = x
 }
 
 func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
