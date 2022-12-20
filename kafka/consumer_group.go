@@ -208,9 +208,13 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		fields["duration"] = duration
 
 		if err != nil {
-			fields["error"] = err.Error()
-			fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
-			log.WithFields(fields).Error("errors")
+			if c.IsDbNotFound(err) {
+				log.WithFields(fields).Trace("db not found")
+			} else {
+				fields["error"] = err.Error()
+				fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
+				log.WithFields(fields).Error("errors")
+			}
 		} else {
 			log.WithFields(fields).Info(logMessage)
 		}
