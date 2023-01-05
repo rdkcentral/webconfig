@@ -52,18 +52,29 @@ Devices use mqtt or webpa route send message to webconfig cloud. Webconfig suppo
 The actual kafka topic names can be any. Below is just an example. "topics" should include all topics. "ratelimit" can be tuned to users env.
 ```shell
     kafka {
-        webpa_state_topic = "config-version-report"
-        mqtt_get_topic = "mqtt-get-doc"
-        mqtt_state_topic = "mqtt-config-version-report"
         enabled = false
         brokers = "localhost:9092"
-        topics = "config-version-report,mqtt-get-doc,mqtt-config-version-report"
+        topics = "config-version-report"
         use_random_consumer_group = false
         consumer_group = "webconfig"
         assignor = "roundrobin"
         oldest = false
         ratelimit {
             messages_per_second = 10
+        }
+        clusters {
+            mesh {
+                enabled = false
+                brokers = "localhost:19092"
+                topics = "staging-chi-onewifi-from-device"
+                use_random_consumer_group = false
+                consumer_group = "webconfig"
+                assignor = "roundrobin"
+                oldest = false
+                ratelimit {
+                    messages_per_second = 10
+                }
+            }
         }
 ```
 
