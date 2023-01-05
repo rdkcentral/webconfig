@@ -123,11 +123,12 @@ func main() {
 	)
 
 	// setup kafka consumer, if config kafka.enabled=false, then kcgroup=nil, err=nil
-	kcgroup, err := kafka.NewKafkaConsumerGroup(sc.Config, server, metrics)
+	kcgroups, err := kafka.NewKafkaConsumerGroups(sc, server, metrics)
 	if err != nil {
 		panic(err)
 	}
-	if kcgroup != nil {
+
+	for _, kcgroup := range kcgroups {
 		consumer := *(kcgroup.Consumer())
 		topics := kcgroup.Topics()
 

@@ -34,43 +34,22 @@ import (
 	"go.uber.org/ratelimit"
 )
 
-const (
-	WebconfigGetTopic      = "mqtt-get-doc"
-	WebconfigResponseTopic = "mqtt-config-version-report"
-	WebpaNotificationTopic = "config-version-report"
-)
-
-const (
-	WebpaStateTopicDefault = "config-version-report"
-	MqttGetTopicDefault    = "mqtt-get-doc"
-	MqttStateTopicDefault  = "mqtt-config-version-report"
-)
-
 // Consumer represents a Sarama consumer group consumer
 type Consumer struct {
 	*wchttp.WebconfigServer
 	Ready                      chan bool
 	ratelimitMessagesPerSecond int
-	mqttGetTopic               string
-	mqttStateTopic             string
-	webpaStateTopic            string
 	appName                    string
+	clusterName                string
 }
 
-func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics) *Consumer {
-	conf := s.ServerConfig.Config
-	webpaStateTopic := conf.GetString("webconfig.kafka.webpa_state_topic", WebpaStateTopicDefault)
-	mqttGetTopic := conf.GetString("webconfig.kafka.mqtt_get_topic", MqttGetTopicDefault)
-	mqttStateTopic := conf.GetString("webconfig.kafka.mqtt_state_topic", WebpaStateTopicDefault)
-
+func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics, clusterName string) *Consumer {
 	return &Consumer{
 		WebconfigServer:            s,
 		Ready:                      make(chan bool),
 		ratelimitMessagesPerSecond: ratelimitMessagesPerSecond,
-		webpaStateTopic:            webpaStateTopic,
-		mqttGetTopic:               mqttGetTopic,
-		mqttStateTopic:             mqttStateTopic,
 		appName:                    s.AppName(),
+		clusterName:                clusterName,
 	}
 }
 
@@ -174,31 +153,30 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		auditId := util.GetAuditId()
 
 		fields := log.Fields{
-			"logger":    "kafka",
-			"app_name":  c.AppName(),
-			"kafka_lag": lag,
-			"kafka_key": message.Key,
-			"topic":     message.Topic,
-			"audit_id":  auditId,
+			"logger":       "kafka",
+			"app_name":     c.AppName(),
+			"kafka_lag":    lag,
+			"kafka_key":    message.Key,
+			"topic":        message.Topic,
+			"audit_id":     auditId,
+			"cluster_name": c.ClusterName(),
 		}
 
 		var err error
-		var eventName, logMessage string
+		var logMessage string
 		var m *common.EventMessage
 
-		switch message.Topic {
-		case c.mqttGetTopic:
-			eventName = "mqtt-get"
+		eventName := getEventName(message)
+		switch eventName {
+		case "mqtt-get":
 			m, err = c.handleGetMessage(message.Value, fields)
 			logMessage = "request ends"
-		case c.mqttStateTopic:
-			eventName = "mqtt-state"
+		case "mqtt-state":
 			header, bbytes := util.ParseHttp(message.Value)
 			fields["destination"] = header.Get("Destination")
 			m, err = c.handleNotification(bbytes, fields)
 			logMessage = "ok"
-		case c.webpaStateTopic:
-			eventName = "webpa-state"
+		case "webpa-state":
 			m, err = c.handleNotification(message.Value, fields)
 			logMessage = "ok"
 		}
@@ -236,6 +214,10 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 func (c *Consumer) AppName() string {
 	return c.appName
+}
+
+func (c *Consumer) ClusterName() string {
+	return c.clusterName
 }
 
 type KafkaConsumerGroup struct {
@@ -284,7 +266,7 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 		sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
-	consumer := NewConsumer(s, ratelimitMessagesPerSecond, m)
+	consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, "root")
 
 	client, err := sarama.NewConsumerGroup(strings.Split(brokersStr, ","), group, sconfig)
 	if err != nil {
@@ -305,4 +287,96 @@ func (g *KafkaConsumerGroup) Topics() []string {
 
 func (g *KafkaConsumerGroup) Consumer() *Consumer {
 	return g.consumer
+}
+
+func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, m *common.AppMetrics) ([]*KafkaConsumerGroup, error) {
+	rootGroup, err := NewKafkaConsumerGroup(sc.Config, s, m)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+
+	if rootGroup == nil {
+		return nil, nil
+	}
+
+	kcgroups := []*KafkaConsumerGroup{
+		rootGroup,
+	}
+
+	clusterNames := sc.KafkaClusterNames()
+	for _, clusterName := range clusterNames {
+		prefix := "webconfig.kafka.clusters." + clusterName
+		enabled := sc.GetBoolean(prefix + ".enabled")
+		if !enabled {
+			continue
+		}
+
+		brokersStr := sc.GetString(prefix + ".brokers")
+		if len(brokersStr) == 0 {
+			return nil, common.NewError(fmt.Errorf("no brokers in configs"))
+		}
+		topicsStr := sc.GetString(prefix + ".topics")
+		if len(topicsStr) == 0 {
+			return nil, common.NewError(fmt.Errorf("no topics in configs"))
+		}
+		topics := strings.Split(topicsStr, ",")
+		group := sc.GetString(prefix + ".consumer_group")
+		if sc.GetBoolean(prefix + ".use_random_consumer_group") {
+			group = fmt.Sprintf("webconfig_%v", time.Now().Unix())
+		}
+
+		assignor := sc.GetString(prefix+".assignor", "roundrobin")
+		oldest := sc.GetBoolean(prefix + ".oldest")
+		ratelimitMessagesPerSecond := int(sc.GetInt32(prefix + ".ratelimit.messages_per_second"))
+		sconfig := sarama.NewConfig()
+
+		switch assignor {
+		case "sticky":
+			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+		case "roundrobin":
+			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+		case "range":
+			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		default:
+			return nil, common.NewError(fmt.Errorf("Unrecognized consumer group partition assignor: %s", assignor))
+		}
+
+		if oldest {
+			sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+		}
+
+		consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, clusterName)
+
+		client, err := sarama.NewConsumerGroup(strings.Split(brokersStr, ","), group, sconfig)
+		if err != nil {
+			return nil, fmt.Errorf("Error creating consumer group client: %v", err)
+		}
+
+		kcgroup := KafkaConsumerGroup{
+			ConsumerGroup:  client,
+			DatabaseClient: s.DatabaseClient,
+			consumer:       consumer,
+			topics:         topics,
+		}
+		kcgroups = append(kcgroups, &kcgroup)
+	}
+
+	return kcgroups, nil
+}
+
+func getEventName(message *sarama.ConsumerMessage) string {
+	if len(message.Headers) > 0 {
+		for _, h := range message.Headers {
+			if string(h.Key) == "rpt" {
+				switch string(h.Value) {
+				case "x/fr/get":
+					return "mqtt-get"
+				case "x/fr/poke":
+					return "mqtt-state"
+				}
+			}
+		}
+		return "unknown"
+	}
+	return "webpa-state"
 }

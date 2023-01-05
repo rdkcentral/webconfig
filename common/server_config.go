@@ -55,6 +55,16 @@ func (c *ServerConfig) ConfigBytes() []byte {
 	return c.configBytes
 }
 
+func (c *ServerConfig) KafkaClusterNames() []string {
+	clustersNodeValue := c.GetNode("webconfig.kafka.clusters")
+	if clustersNodeValue == nil {
+		return nil
+	}
+
+	clustersNode := clustersNodeValue.GetObject()
+	return clustersNode.GetKeys()
+}
+
 func GetTestConfigFile() (string, error) {
 	testConfigFile := os.Getenv("TEST_CONFIG_FILE")
 	if len(testConfigFile) > 0 {
