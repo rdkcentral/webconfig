@@ -24,7 +24,7 @@ import (
 )
 
 func TestGetTestServerConfig(t *testing.T) {
-	sc, err := GetTestServerConfig("../config/sample_webconfigcommon.conf")
+	sc, err := GetTestServerConfig("../config/sample_webconfig.conf")
 	assert.NilError(t, err)
 
 	xclustersNodeValue := sc.GetNode("webconfig.kafka.xclusters")
