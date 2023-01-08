@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-akka/configuration"
@@ -161,7 +162,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	if len(longBody) > 0 {
 		dfields := util.CopyLogFields(fields)
 		dfields[bodyKey] = longBody
-		log.WithFields(dfields).Debug(startMessage)
+		log.WithFields(dfields).Trace(startMessage)
 	}
 
 	startTime := time.Now()
@@ -207,12 +208,16 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	responseKey := fmt.Sprintf("%v_response_text", loggerName)
 
 	if err != nil {
-		x := base64.StdEncoding.EncodeToString(rbytes)
-		if len(x) < 1000 {
-			fields[responseKey] = x
+		if loggerName == "mqtt" && (res.StatusCode == 404 || res.StatusCode == 202) {
+			fields[responseKey] = strings.TrimSpace(rbody)
 		} else {
-			fields[responseKey] = "long response len " + strconv.Itoa(len(x))
-			longResponse = x
+			x := base64.StdEncoding.EncodeToString(rbytes)
+			if len(x) < 1000 {
+				fields[responseKey] = x
+			} else {
+				fields[responseKey] = "long response len " + strconv.Itoa(len(x))
+				longResponse = x
+			}
 		}
 	} else {
 		fields[fmt.Sprintf("%v_response", loggerName)] = resp
@@ -221,7 +226,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	if len(longResponse) > 0 {
 		dfields := util.CopyLogFields(fields)
 		dfields[responseKey] = longResponse
-		log.WithFields(dfields).Debug(endMessage)
+		log.WithFields(dfields).Trace(endMessage)
 	}
 
 	// check if there is any customized statusHandler

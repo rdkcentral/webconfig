@@ -513,9 +513,11 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(userAgent) > 0 {
 		fields["user_agent"] = userAgent
 	}
-	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
-	if len(metricsAgent) > 0 {
-		fields["metrics_agent"] = metricsAgent
+	if x := r.Header.Get(common.HeaderMetricsAgent); len(x) > 0 {
+		fields["metrics_agent"] = x
+	}
+	if x := r.Header.Get("X-Webconfig-Transaction-Id"); len(x) > 0 {
+		fields["webconfig_transaction_id"] = x
 	}
 
 	// add cpemac or csid in loggings
