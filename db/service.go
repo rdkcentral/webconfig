@@ -370,6 +370,9 @@ func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.
 	errorDetails := ""
 
 	for subdocId, subdoc := range d.Items() {
+		if subdoc.State() != nil && (*subdoc.State() == common.Deployed || *subdoc.State() == common.InDeployment) {
+			continue
+		}
 		newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 		oldState := *subdoc.State()
 		err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent)
