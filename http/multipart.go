@@ -118,8 +118,12 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
-		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		// skip updating states
+		userAgent := rHeader.Get("User-Agent")
+		if userAgent != "mget" {
+			if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
+				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			}
 		}
 
 		respHeader.Set("Content-type", common.MultipartContentType)
