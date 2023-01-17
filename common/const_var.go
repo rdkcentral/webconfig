@@ -64,6 +64,7 @@ var (
 )
 
 const (
+	HeaderEtag                       = "Etag"
 	HeaderIfNoneMatch                = "If-None-Match"
 	HeaderFirmwareVersion            = "X-System-Firmware-Version"
 	HeaderSupportedDocs              = "X-System-Supported-Docs"

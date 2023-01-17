@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 var (
@@ -74,7 +75,12 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 		r.Header.Set(common.HeaderDocName, qGroupIds[0])
 	}
 
-	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, nil, common.RouteHttp, fields)
+	// handle empty schema version header
+	if x := r.Header.Get(common.HeaderSchemaVersion); len(x) == 0 {
+		r.Header.Set(common.HeaderSchemaVersion, "none")
+	}
+
+	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, common.RouteHttp, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}
@@ -93,13 +99,13 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	_, _ = w.Write(respBytes)
 }
 
-func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []byte, route string, fields log.Fields) (int, http.Header, []byte, error) {
+func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route string, fields log.Fields) (int, http.Header, []byte, error) {
 	c := s.DatabaseClient
 	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
-	document, oldRootDocument, newRootDocument, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
+	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
 	if uconn == nil {
 		if err != nil {
 			if !s.IsDbNotFound(err) {
@@ -111,6 +117,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 		// 304
 		if document.Length() == 0 {
 			return http.StatusNotModified, respHeader, nil, nil
+		}
+
+		// filter blockedIds
+		for _, subdocId := range c.BlockedSubdocIds() {
+			document.DeleteSubDocument(subdocId)
 		}
 
 		respBytes, err := document.Bytes()
@@ -127,7 +138,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 		}
 
 		respHeader.Set("Content-type", common.MultipartContentType)
-		respHeader.Set("Etag", document.RootVersion())
+		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return http.StatusOK, respHeader, respBytes, nil
 	}
 
@@ -146,11 +157,13 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 	}
 
 	var respBytes []byte
+	respStatus := http.StatusNotModified
 	if document.Length() > 0 {
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
+		respStatus = http.StatusOK
 	}
 
 	if !postUpstream {
@@ -160,8 +173,8 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 		}
 
 		respHeader.Set("Content-type", common.MultipartContentType)
-		respHeader.Set("Etag", document.RootVersion())
-		return http.StatusOK, respHeader, respBytes, nil
+		respHeader.Set(common.HeaderEtag, document.RootVersion())
+		return respStatus, respHeader, respBytes, nil
 	}
 
 	// =============================
@@ -169,7 +182,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 	// =============================
 	upstreamHeader := make(http.Header)
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
-	upstreamHeader.Set("Etag", document.RootVersion())
+	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 
 	if s.TokenManager != nil {
 		token := rHeader.Get("Authorization")
@@ -202,17 +215,44 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, bbytes []by
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
-			return rherr.StatusCode, respHeader, respBytes, common.NewError(err)
+			return rherr.StatusCode, respHeader, nil, common.NewError(err)
 		}
-		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 
 	// ==== parse the upstreamRespBytes and store them ====
+	finalMparts, err := util.ParseMultipartAsList(upstreamRespHeader, upstreamRespBytes)
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
+	}
+	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
+
 	if x := upstreamRespHeader.Get(common.HeaderStoreUpstreamResponse); x == "true" {
-		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespHeader, upstreamRespBytes, document)
+		// `document` is the document BEFORE sending upstream
+		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalMparts, document)
 		if err != nil {
 			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 		}
 	}
-	return http.StatusOK, upstreamRespHeader, upstreamRespBytes, nil
+
+	// filter by versionMap and filter by blockedIds
+	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag)
+	finalDocument := common.NewDocument(finalRootDocument)
+	finalDocument.SetSubDocuments(finalMparts)
+	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)
+	for _, subdocId := range c.BlockedSubdocIds() {
+		finalFilteredDocument.DeleteSubDocument(subdocId)
+	}
+
+	// 304
+	if finalFilteredDocument.Length() == 0 {
+		return http.StatusNotModified, upstreamRespHeader, nil, nil
+	}
+
+	finalFilteredBytes, err := finalFilteredDocument.Bytes()
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, finalFilteredBytes, common.NewError(err)
+	}
+
+	return http.StatusOK, upstreamRespHeader, finalFilteredBytes, nil
 }

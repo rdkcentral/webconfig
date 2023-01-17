@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/vmihailenco/msgpack/v4"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
@@ -51,6 +54,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
@@ -60,6 +64,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
 
@@ -78,6 +83,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
@@ -87,6 +93,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
 
@@ -96,14 +103,14 @@ func TestMultipartConfigHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
-	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.NilError(t, err)
 	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	mparts, err := util.ParseMultipart(res.Header, rbytes)
 	assert.NilError(t, err)
 	assert.Equal(t, len(mparts), 2)
-	etag := res.Header.Get("Etag")
+	etag := res.Header.Get(common.HeaderEtag)
 
 	// parse the actual data
 	mpart, ok := mparts["lan"]
@@ -130,24 +137,24 @@ func TestMultipartConfigHandler(t *testing.T) {
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
-	req.Header.Set("If-None-Match", etag)
+	req.Header.Set(common.HeaderIfNoneMatch, etag)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
-	assert.Equal(t, res.StatusCode, http.StatusNotModified)
 	assert.NilError(t, err)
 	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
 
 	// ==== cal GET /config with if-none-match partial match ====
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	ifNoneMatch := fmt.Sprintf("foo,%v,bar", lanMpartVersion)
-	req.Header.Set("If-None-Match", ifNoneMatch)
+	req.Header.Set(common.HeaderIfNoneMatch, ifNoneMatch)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
-	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.NilError(t, err)
 	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	mparts, err = util.ParseMultipart(res.Header, rbytes)
 	assert.NilError(t, err)
@@ -191,6 +198,7 @@ func TestCpeMiddleware(t *testing.T) {
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
@@ -200,6 +208,7 @@ func TestCpeMiddleware(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
+	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
 
@@ -212,9 +221,9 @@ func TestCpeMiddleware(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router1).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
-	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 	assert.NilError(t, err)
 	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 
 	// get a token
 	token := server1.Generate(cpeMac, 86400)
@@ -223,7 +232,503 @@ func TestCpeMiddleware(t *testing.T) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
 	res = ExecuteRequest(req, router1).Result()
 	rbytes, err = ioutil.ReadAll(res.Body)
-	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.NilError(t, err)
 	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}
+
+func TestVersionFiltering(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== GET /config ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag := res.Header.Get(common.HeaderEtag)
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanMpartVersion := mpart.Version
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanMpartVersion := mpart.Version
+	matchedIfNoneMatch := fmt.Sprintf("%v,%v,%v", etag, lanMpartVersion, wanMpartVersion)
+
+	// ==== call GET /config with if-none-match ====
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, etag)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+
+	// ==== call GET /config with if-none-match partial match ====
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	ifNoneMatch := fmt.Sprintf("foo,%v,bar", lanMpartVersion)
+	req.Header.Set(common.HeaderIfNoneMatch, ifNoneMatch)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err = util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 1)
+
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	// ==== get mqtt/kafka response ====
+	kHeader := make(http.Header)
+	kHeader.Set(common.HeaderIfNoneMatch, ifNoneMatch)
+	kHeader.Set(common.HeaderDocName, "root,lan,wan")
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "none")
+	fields := make(log.Fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusOK)
+	contentType := respHeader.Get("Content-Type")
+	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
+	mparts, err = util.ParseMultipart(respHeader, respBytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 1)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	// ==== get mqtt/kafka response and expect 304 ====
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderIfNoneMatch, matchedIfNoneMatch)
+	kHeader.Set(common.HeaderDocName, "root,lan,wan")
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "none")
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusNotModified)
+	assert.Equal(t, len(respBytes), 0)
+}
+
+func TestUpstreamVersionFiltering(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== GET /config ====
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag := res.Header.Get(common.HeaderEtag)
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanMpartVersion := mpart.Version
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanMpartVersion := mpart.Version
+	matchedIfNoneMatch := fmt.Sprintf("%v,%v,%v", etag, lanMpartVersion, wanMpartVersion)
+	mismatchedIfNoneMatch := fmt.Sprintf("foo,%v,bar", lanMpartVersion)
+
+	// ==== GET /config but with header changes without mock ====
+	server.SetUpstreamEnabled(true)
+	server.SetUpstreamHost("http://localhost:12345")
+
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	req.Header.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+
+	// ==== GET /config reset schema version ====
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+
+	// ==== GET /config but with header changes with mock ====
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// build the response
+			for k := range r.Header {
+				w.Header().Set(k, r.Header.Get(k))
+			}
+			w.WriteHeader(http.StatusOK)
+			if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
+				_, err := w.Write(rbytes)
+				assert.NilError(t, err)
+			}
+		}))
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
+
+	// test again
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	req.Header.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	mparts, err = util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag = res.Header.Get(common.HeaderEtag)
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	// ==== test for 304 ====
+	// need to NOT setting HeaderSchemaVersion to trigger the upstream
+	qparamsDeviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
+	req, err = http.NewRequest("GET", qparamsDeviceConfigUrl, nil)
+	req.Header.Set(common.HeaderIfNoneMatch, matchedIfNoneMatch)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+
+	// ==== test for partial match ====
+	req, err = http.NewRequest("GET", qparamsDeviceConfigUrl, nil)
+	req.Header.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	req.Header.Set(common.HeaderIfNoneMatch, mismatchedIfNoneMatch)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	mparts, err = util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 1)
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, !ok)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+}
+
+func TestMqttUpstreamVersionFiltering(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== GET /config ====
+	// ==== get mqtt/kafka response ====
+	kHeader := make(http.Header)
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	fields := make(log.Fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusOK)
+	contentType := respHeader.Get("Content-Type")
+	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
+	mparts, err := util.ParseMultipart(respHeader, respBytes)
+	assert.NilError(t, err)
+
+	assert.Equal(t, len(mparts), 2)
+	etag := res.Header.Get(common.HeaderEtag)
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanMpartVersion := mpart.Version
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanMpartVersion := mpart.Version
+	matchedIfNoneMatch := fmt.Sprintf("%v,%v,%v", etag, lanMpartVersion, wanMpartVersion)
+	mismatchedIfNoneMatch := fmt.Sprintf("foo,%v,bar", lanMpartVersion)
+
+	// ==== GET /config but with header changes without mock ====
+	server.SetUpstreamEnabled(true)
+	server.SetUpstreamHost("http://localhost:12345")
+
+	// ==== get mqtt/kafka response ====
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	fields = make(log.Fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.Assert(t, err != nil)
+	assert.Equal(t, status, http.StatusInternalServerError)
+
+	// ==== GET /config reset schema version ====
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	fields = make(log.Fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.Assert(t, err != nil)
+	assert.Equal(t, status, http.StatusInternalServerError)
+
+	// ==== GET /config but with header changes with mock ====
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// build the response
+			for k := range r.Header {
+				w.Header().Set(k, r.Header.Get(k))
+			}
+			w.WriteHeader(http.StatusOK)
+			if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
+				_, err := w.Write(rbytes)
+				assert.NilError(t, err)
+			}
+		}))
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
+
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	fields = make(log.Fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusOK)
+	contentType = respHeader.Get("Content-Type")
+	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
+	mparts, err = util.ParseMultipart(respHeader, respBytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag = res.Header.Get(common.HeaderEtag)
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	// ==== test for 304 ====
+	// need to NOT setting HeaderSchemaVersion to trigger the upstream
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderIfNoneMatch, matchedIfNoneMatch)
+	kHeader.Set(common.HeaderDocName, "root,lan,wan")
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "none")
+	fields = make(log.Fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusNotModified)
+
+	// ==== test for partial match ====
+	kHeader = make(http.Header)
+	kHeader.Set(common.HeaderIfNoneMatch, mismatchedIfNoneMatch)
+	kHeader.Set(common.HeaderDocName, "root,lan,wan")
+	kHeader.Set(common.HeaderDeviceId, cpeMac)
+	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
+	fields = make(log.Fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, status, http.StatusOK)
+	contentType = respHeader.Get("Content-Type")
+	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
+	mparts, err = util.ParseMultipart(respHeader, respBytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 1)
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, !ok)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
 }

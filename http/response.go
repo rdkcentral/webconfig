@@ -114,7 +114,7 @@ func WriteOkResponseByTemplate(w http.ResponseWriter, dataStr string, state int,
 // this is used to return default tr-181 payload while the cpe is not in the db
 func WriteContentTypeAndResponse(w http.ResponseWriter, rbytes []byte, version string, contentType string) {
 	w.Header().Set("Content-type", contentType)
-	w.Header().Set("ETag", version)
+	w.Header().Set(common.HeaderEtag, version)
 	w.WriteHeader(http.StatusOK)
 	w.Write(rbytes)
 }

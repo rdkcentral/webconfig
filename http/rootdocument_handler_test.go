@@ -145,7 +145,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	mparts, err := util.ParseMultipart(res.Header, rbytes)
 	assert.NilError(t, err)
 	assert.Equal(t, len(mparts), 2)
-	etag := res.Header.Get("Etag")
+	etag := res.Header.Get(common.HeaderEtag)
 	assert.Assert(t, len(etag) > 0)
 
 	// parse the actual data

@@ -100,7 +100,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 
 	rootVersion := util.GetRandomRootVersion()
 	w.Header().Set("Content-type", common.MultipartContentType)
-	w.Header().Set("Etag", rootVersion)
+	w.Header().Set(common.HeaderEtag, rootVersion)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(respBytes)
 }
