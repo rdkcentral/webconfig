@@ -65,7 +65,7 @@ func TestUpstream(t *testing.T) {
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
 				w.Header().Set("Content-type", common.MultipartContentType)
-				w.Header().Set("Etag", "")
+				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -104,7 +104,7 @@ func TestUpstream(t *testing.T) {
 
 			// generate response
 			w.Header().Set("Content-type", common.MultipartContentType)
-			w.Header().Set("Etag", newRootVersion)
+			w.Header().Set(common.HeaderEtag, newRootVersion)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)

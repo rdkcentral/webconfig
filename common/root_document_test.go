@@ -18,6 +18,7 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"gotest.tools/assert"
@@ -34,7 +35,8 @@ func TestRootDocumentCompare(t *testing.T) {
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
 	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
-	rootdoc2 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
+	// rootdoc2 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
+	rootdoc2 := rootdoc1.Clone()
 	enum := rootdoc1.Compare(rootdoc2)
 	assert.Equal(t, enum, RootDocumentEquals)
 
@@ -77,4 +79,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	rootdoc1.Update(rootdoc2)
 	assert.Equal(t, *rootdoc1, *rootdoc3)
 	assert.DeepEqual(t, rootdoc1, rootdoc3)
+
+	line := rootdoc1.String()
+	assert.Assert(t, !strings.Contains(line, "map["))
 }

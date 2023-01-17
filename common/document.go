@@ -44,6 +44,14 @@ func (d *Document) SetSubDocument(groupId string, subdoc *SubDocument) {
 	d.docmap[groupId] = *subdoc
 }
 
+func (d *Document) SetSubDocuments(mparts []Multipart) {
+	for _, mpart := range mparts {
+		version := mpart.Version
+		subdoc := NewSubDocument(mpart.Bytes, &version, nil, nil, nil, nil)
+		d.SetSubDocument(mpart.Name, subdoc)
+	}
+}
+
 func (d *Document) SubDocument(subdocId string) *SubDocument {
 	subdoc, ok := d.docmap[subdocId]
 	if !ok {

@@ -18,25 +18,22 @@
 package util
 
 import (
-	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+
+	"gotest.tools/assert"
 )
 
-func PrettyJson(input interface{}) string {
-	var x interface{}
-	var pretty string
-
-	switch ty := input.(type) {
-	case string:
-		if err := json.Unmarshal([]byte(ty), &x); err == nil {
-			if bbytes, err := json.MarshalIndent(x, "", "    "); err == nil {
-				pretty = string(bbytes)
-			}
-		}
-	case Dict, []Dict, map[interface{}]Dict, map[string]string, []string, []interface{}:
-		if bbytes, err := json.MarshalIndent(input, "", "    "); err == nil {
-			pretty = string(bbytes)
-		}
+func TestPrettyJson(t *testing.T) {
+	names := []string{
+		"red",
+		"orange",
+		"yellow",
 	}
 
-	return pretty
+	line := PrettyJson(names)
+	assert.Assert(t, strings.Contains(line, ","))
+	xline := fmt.Sprintf("%v", names)
+	assert.Assert(t, !strings.Contains(xline, ","))
 }

@@ -123,7 +123,12 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	fields["header"] = d
 	log.WithFields(fields).Info("request starts")
 
-	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, rHeader, nil, common.RouteMqtt, fields)
+	// handle empty schema version header
+	if x := rHeader.Get(common.HeaderSchemaVersion); len(x) == 0 {
+		rHeader.Set(common.HeaderSchemaVersion, "none")
+	}
+
+	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, rHeader, common.RouteMqtt, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}

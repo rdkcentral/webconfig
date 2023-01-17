@@ -17,6 +17,11 @@
 */
 package common
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 const (
 	VersionChanged = iota + 1
 	BitmapChanged
@@ -123,4 +128,18 @@ func (d *RootDocument) Update(r *RootDocument) {
 	if len(r.Version) > 0 {
 		d.Version = r.Version
 	}
+}
+
+func (d *RootDocument) String() string {
+	m := d.ColumnMap()
+	bbytes, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", m)
+	}
+	return string(bbytes)
+}
+
+func (d *RootDocument) Clone() *RootDocument {
+	obj := *d
+	return &obj
 }
