@@ -85,6 +85,7 @@ type WebconfigServer struct {
 	kafkaEnabled              bool
 	upstreamEnabled           bool
 	appName                   string
+	validateMacEnabled        bool
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -224,6 +225,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
 	appName := conf.GetString("webconfig.app_name")
+	validateMacEnabled := conf.GetBoolean("webconfig.validate_device_id_as_mac_address", tokenApiEnabledDefault)
 
 	return &WebconfigServer{
 		Server: &http.Server{
@@ -248,6 +250,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		kafkaEnabled:              kafkaEnabled,
 		upstreamEnabled:           upstreamEnabled,
 		appName:                   appName,
+		validateMacEnabled:        validateMacEnabled,
 	}
 }
 
@@ -435,6 +438,14 @@ func (s *WebconfigServer) AppName() string {
 
 func (s *WebconfigServer) SetAppName(appName string) {
 	s.appName = appName
+}
+
+func (s *WebconfigServer) ValidateMacEnabled() bool {
+	return s.validateMacEnabled
+}
+
+func (s *WebconfigServer) SetValidateMacEnabled(validateMacEnabled bool) {
+	s.validateMacEnabled = validateMacEnabled
 }
 
 func (s *WebconfigServer) GetUpstreamConnector() *UpstreamConnector {

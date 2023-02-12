@@ -27,7 +27,7 @@ import (
 	"github.com/rdkcentral/webconfig/util"
 )
 
-func Validate(w http.ResponseWriter, r *http.Request, validateContent bool) (string, string, []byte, log.Fields, error) {
+func (s *WebconfigServer) Validate(w http.ResponseWriter, r *http.Request, validateContent bool) (string, string, []byte, log.Fields, error) {
 	var fields log.Fields
 
 	// check mac
@@ -35,15 +35,17 @@ func Validate(w http.ResponseWriter, r *http.Request, validateContent bool) (str
 	mac := params["mac"]
 	subdocId := params["subdoc_id"]
 	mac = strings.ToUpper(mac)
-	if !util.ValidateMac(mac) {
-		err := common.Http404Error{"invalid mac"}
-		return mac, subdocId, nil, nil, common.NewError(err)
+	if s.ValidateMacEnabled() {
+		if !util.ValidateMac(mac) {
+			err := *common.NewHttp400Error("invalid mac")
+			return mac, subdocId, nil, nil, common.NewError(err)
+		}
 	}
 
 	// check for safety, but it should not fail
 	xw, ok := w.(*XResponseWriter)
 	if !ok {
-		err := common.Http500Error{"responsewriter cast error"}
+		err := *common.NewHttp500Error("responsewriter cast error")
 		return mac, subdocId, nil, nil, common.NewError(err)
 	}
 	fields = xw.Audit()
@@ -58,13 +60,13 @@ func Validate(w http.ResponseWriter, r *http.Request, validateContent bool) (str
 	if contentType != "application/msgpack" {
 		// TODO (1) if we should validate this header
 		//      (2) if unexpected, return 400 or 415
-		err := common.Http400Error{"content-type not msgpack"}
+		err := *common.NewHttp400Error("content-type not msgpack")
 		return mac, subdocId, nil, nil, common.NewError(err)
 	}
 
 	bodyBytes := xw.BodyBytes()
 	if len(bodyBytes) == 0 {
-		err := common.Http400Error{"empty body"}
+		err := *common.NewHttp400Error("empty body")
 		return mac, subdocId, nil, nil, common.NewError(err)
 	}
 	return mac, subdocId, bodyBytes, fields, nil

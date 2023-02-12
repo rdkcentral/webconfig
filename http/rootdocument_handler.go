@@ -22,15 +22,20 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.Request) {
 	// ==== data integrity check ====
 	params := mux.Vars(r)
 	mac := params["mac"]
-	if len(mac) != 12 {
-		Error(w, http.StatusNotFound, nil)
-		return
+	if s.ValidateMacEnabled() {
+		if !util.ValidateMac(mac) {
+			err := *common.NewHttp400Error("invalid mac")
+			Error(w, http.StatusBadRequest, common.NewError(err))
+			return
+		}
 	}
 	mac = strings.ToUpper(mac)
 
