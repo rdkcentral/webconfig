@@ -89,3 +89,12 @@ func TestUnwrapAll(t *testing.T) {
 	assert.Equal(t, rhe.StatusCode, http.StatusNotFound)
 	assert.Equal(t, rhe.Message, "data not found")
 }
+
+func TestConstructor(t *testing.T) {
+	errp1 := NewHttp400Error("foo")
+	assert.Assert(t, errors.As(*errp1, Http400ErrorType))
+	errp2 := NewHttp404Error("bar")
+	assert.Assert(t, errors.As(*errp2, Http404ErrorType))
+	errp3 := NewHttp500Error("helloworld")
+	assert.Assert(t, errors.As(*errp3, Http500ErrorType))
+}

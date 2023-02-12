@@ -55,7 +55,7 @@ func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
 }
 
 func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, subdocId, _, _, err := Validate(w, r, false)
+	mac, subdocId, _, _, err := s.Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -89,7 +89,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 }
 
 func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, subdocId, bbytes, _, err := Validate(w, r, true)
+	mac, subdocId, bbytes, _, err := s.Validate(w, r, true)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -147,7 +147,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 }
 
 func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, subdocId, _, _, err := Validate(w, r, false)
+	mac, subdocId, _, _, err := s.Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {

@@ -37,6 +37,12 @@ func (e Http400Error) Error() string {
 	return e.Message
 }
 
+func NewHttp400Error(message string) *Http400Error {
+	return &Http400Error{
+		Message: message,
+	}
+}
+
 type Http404Error struct {
 	Message string
 }
@@ -45,12 +51,24 @@ func (e Http404Error) Error() string {
 	return e.Message
 }
 
+func NewHttp404Error(message string) *Http404Error {
+	return &Http404Error{
+		Message: message,
+	}
+}
+
 type Http500Error struct {
 	Message string
 }
 
 func (e Http500Error) Error() string {
 	return e.Message
+}
+
+func NewHttp500Error(message string) *Http500Error {
+	return &Http500Error{
+		Message: message,
+	}
 }
 
 type RemoteHttpError struct {
