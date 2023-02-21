@@ -52,10 +52,18 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	// ==== data integrity check ====
 	params := mux.Vars(r)
 	mac, ok := params["mac"]
-	if !ok || len(mac) != 12 {
+	if !ok {
 		Error(w, http.StatusNotFound, nil)
 		return
 	}
+	if s.ValidateMacEnabled() {
+		if !util.ValidateMac(mac) {
+			err := *common.NewHttp400Error("invalid mac")
+			Error(w, http.StatusBadRequest, common.NewError(err))
+			return
+		}
+	}
+
 	mac = strings.ToUpper(mac)
 	r.Header.Set(common.HeaderDeviceId, mac)
 
