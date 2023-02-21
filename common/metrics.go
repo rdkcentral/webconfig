@@ -20,7 +20,6 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	promemodel "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 )
 
 type StateCounter struct {
@@ -47,6 +45,7 @@ func (m *StateCounter) String() string {
 }
 
 type AppMetrics struct {
+	appName              string
 	urlPatternFn         func(string) string
 	counter              *prometheus.CounterVec
 	duration             *prometheus.HistogramVec
@@ -59,9 +58,8 @@ type AppMetrics struct {
 	stateFailure         *prometheus.GaugeVec
 	kafkaLag             *prometheus.SummaryVec
 	kafkaDuration        *prometheus.SummaryVec
+	eventCounter         *prometheus.CounterVec
 }
-
-const AppName = "webconfig"
 
 var (
 	urlPatterns = map[string]string{
@@ -86,11 +84,15 @@ func GetUrlPattern(url string) string {
 	return ""
 }
 
-func NewMetrics(args ...func(string) string) *AppMetrics {
+func NewMetrics(appName string, args ...func(string) string) *AppMetrics {
 	if appMetrics != nil {
 		return appMetrics
 	}
 
+	aName := appName
+	if aName == "" {
+		aName = "webconfig" // Fallback to the original value
+	}
 	var fn func(string) string
 	if len(args) > 0 {
 		fn = args[0]
@@ -99,6 +101,7 @@ func NewMetrics(args ...func(string) string) *AppMetrics {
 	}
 
 	appMetrics = &AppMetrics{
+		appName:      aName,
 		urlPatternFn: fn,
 		counter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -139,45 +142,52 @@ func NewMetrics(args ...func(string) string) *AppMetrics {
 		),
 		stateDeployed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "webconfig_state_deployed",
+				Name: aName + "_state_deployed",
 				Help: "A gauge for the number of cpes in deployed state per feature.",
 			},
 			[]string{"feature", "client"},
 		),
 		statePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "webconfig_state_pending_download",
+				Name: aName + "_state_pending_download",
 				Help: "A gauge for the number of cpes in pending_download state per feature.",
 			},
 			[]string{"feature", "client"},
 		),
 		stateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "webconfig_state_in_deployment",
+				Name: aName + "_state_in_deployment",
 				Help: "A gauge for the number of cpes in in_deployment state per feature.",
 			},
 			[]string{"feature", "client"},
 		),
 		stateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "webconfig_state_failure",
+				Name: aName + "_state_failure",
 				Help: "A gauge for the number of cpes in failure state per feature.",
 			},
 			[]string{"feature", "client"},
 		),
 		kafkaLag: prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
-				Name: "webconfig_kafka_lag",
+				Name: aName + "_kafka_lag",
 				Help: "A summary of kafka lag.",
 			},
 			[]string{"event", "client"},
 		),
 		kafkaDuration: prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
-				Name: "webconfig_kafka_duration",
+				Name: aName + "_kafka_duration",
 				Help: "A summary of kafka duration.",
 			},
 			[]string{"event", "client"},
+		),
+		eventCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: aName + "_event_types",
+				Help: "A counter for kafka event types",
+			},
+			[]string{"status", "event"}, // app name, kafka processing success/fail, event type (mqtt-get/set, webpa)
 		),
 	}
 	prometheus.MustRegister(
@@ -192,6 +202,7 @@ func NewMetrics(args ...func(string) string) *AppMetrics {
 		appMetrics.stateFailure,
 		appMetrics.kafkaLag,
 		appMetrics.kafkaDuration,
+		appMetrics.eventCounter,
 	)
 	return appMetrics
 }
@@ -200,10 +211,10 @@ func (m *AppMetrics) WebMetrics(next http.Handler) http.Handler {
 	GetUrlPattern := m.UrlPatternFn()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		promhttp.InstrumentHandlerInFlight(m.inFlight,
-			promhttp.InstrumentHandlerDuration(m.duration.MustCurryWith(prometheus.Labels{"app": AppName, "path": GetUrlPattern(r.URL.Path)}),
-				promhttp.InstrumentHandlerCounter(m.counter.MustCurryWith(prometheus.Labels{"app": AppName, "path": GetUrlPattern(r.URL.Path)}),
-					promhttp.InstrumentHandlerRequestSize(m.requestSize.MustCurryWith(prometheus.Labels{"app": AppName}),
-						promhttp.InstrumentHandlerResponseSize(m.responseSize.MustCurryWith(prometheus.Labels{"app": AppName}), next),
+			promhttp.InstrumentHandlerDuration(m.duration.MustCurryWith(prometheus.Labels{"app": m.appName, "path": GetUrlPattern(r.URL.Path)}),
+				promhttp.InstrumentHandlerCounter(m.counter.MustCurryWith(prometheus.Labels{"app": m.appName, "path": GetUrlPattern(r.URL.Path)}),
+					promhttp.InstrumentHandlerRequestSize(m.requestSize.MustCurryWith(prometheus.Labels{"app": m.appName}),
+						promhttp.InstrumentHandlerResponseSize(m.responseSize.MustCurryWith(prometheus.Labels{"app": m.appName}), next),
 					),
 				),
 			),
@@ -320,6 +331,11 @@ func (m *AppMetrics) ObserveKafkaDuration(eventName string, clientName string, d
 	m.kafkaDuration.With(labels).Observe(float64(duration))
 }
 
+func (m *AppMetrics) CountKafkaEvents(eventName string, status string) {
+	labels := prometheus.Labels{"event": eventName, "status": status}
+	m.eventCounter.With(labels).Inc()
+}
+
 func (m *AppMetrics) GetStateCounter(feature, client string) (*StateCounter, error) {
 	// REMINDER if a label is defined with 2 dimensions, then it must be referred
 	//          with 2 dimensions. Aggregation happens at prometheus level
@@ -426,39 +442,4 @@ func ParseSummary(metrics []*promemodel.Metric) map[string]int {
 		syMap[syKey] = int(m.GetSummary().GetSampleSum())
 	}
 	return syMap
-}
-
-func ParseMetricsResponse(r io.Reader) (*SimpleMetrics, error) {
-	var parser expfmt.TextParser
-	mf, err := parser.TextToMetricFamilies(r)
-	if err != nil {
-		return nil, NewError(err)
-	}
-
-	var deployed, pending, indeploy, failure, kafkaLag, kafkaDuration map[string]int
-
-	for k, v := range mf {
-		switch k {
-		case "webconfig_state_deployed":
-			deployed = ParseGauge(v.GetMetric())
-		case "webconfig_state_pending_download":
-			pending = ParseGauge(v.GetMetric())
-		case "webconfig_state_in_deployment":
-			indeploy = ParseGauge(v.GetMetric())
-		case "webconfig_state_failure":
-			failure = ParseGauge(v.GetMetric())
-		case "webconfig_kafka_lag":
-			kafkaLag = ParseSummary(v.GetMetric())
-		case "webconfig_kafka_duration":
-			kafkaDuration = ParseSummary(v.GetMetric())
-		}
-	}
-	return &SimpleMetrics{
-		Deployed:        deployed,
-		PendingDownload: pending,
-		InDeployment:    indeploy,
-		Failure:         failure,
-		KafkaLag:        kafkaLag,
-		KafkaDuration:   kafkaDuration,
-	}, nil
 }

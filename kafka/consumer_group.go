@@ -212,6 +212,11 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			// TODO try to read metricsAgent from fields["metrics_agent"]
 			metrics.ObserveKafkaLag(eventName, metricsAgent, lag)
 			metrics.ObserveKafkaDuration(eventName, metricsAgent, duration)
+			status := "success"
+			if err != nil {
+				status = "fail"
+			}
+			metrics.CountKafkaEvents(eventName, status)
 		}
 	}
 	return nil
