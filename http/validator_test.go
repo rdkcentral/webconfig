@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
@@ -255,4 +256,97 @@ func TestValidatorEnabled(t *testing.T) {
 	err = json.Unmarshal(rbytes, &getResp)
 	assert.NilError(t, err)
 	assert.Assert(t, len(getResp.Data.Version) == 0)
+}
+
+func TestValidatorWithLowerCase(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	server.SetValidateMacEnabled(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	lowerCpeMac := strings.ToLower(cpeMac)
+
+	// ==== step 1 setup lan subdoc ====
+	// post
+	subdocId := "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", lowerCpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// check the root doc version
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag1 := rdoc.Version
+
+	// ==== step 2 setup wan subdoc ====
+	// post
+	subdocId = "wan"
+	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", lowerCpeMac, subdocId)
+	wanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+	etag2 := rdoc.Version
+
+	assert.Assert(t, etag1 != etag2)
+
+	// ==== GET /config ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", lowerCpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	// etag := res.Header.Get(common.HeaderEtag)
+
+	// parse the actual data
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
 }
