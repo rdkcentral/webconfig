@@ -56,6 +56,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 		Error(w, http.StatusNotFound, nil)
 		return
 	}
+	mac = strings.ToUpper(mac)
 	if s.ValidateMacEnabled() {
 		if !util.ValidateMac(mac) {
 			err := *common.NewHttp400Error("invalid mac")
@@ -63,8 +64,6 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 			return
 		}
 	}
-
-	mac = strings.ToUpper(mac)
 	r.Header.Set(common.HeaderDeviceId, mac)
 
 	// ==== processing ====
