@@ -51,38 +51,20 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	fields["is_telemetry"] = true
 
 	rbytes, err := s.GetProfiles(urlSuffix, fields)
-	isProfileNotFound := false
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			if rherr.StatusCode == http.StatusNotFound {
-				isProfileNotFound = true
-				rbytes = nil
-			}
-
-		}
-		if !isProfileNotFound {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
-		}
-	}
-
-	// append profiles stored at webconfig
-	xbytes, err := s.AppendProfiles(mac, rbytes)
-	if err != nil {
-		if errors.Is(err, common.ProfileNotFound) {
-			if isProfileNotFound {
 				Error(w, http.StatusNotFound, nil)
 				return
 			}
-		} else {
-			// TODO eval if any error here should be ignored/masked, for now, we give ISE/500
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
+
 		}
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
 	}
 
-	mpart, err := util.TelemetryBytesToMultipart(xbytes)
+	mpart, err := util.TelemetryBytesToMultipart(rbytes)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
