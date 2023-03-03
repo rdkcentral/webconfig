@@ -394,7 +394,6 @@ const (
 )
 
 func TestSupplementaryApiNoDataInXconf(t *testing.T) {
-	t.Skip("SKIP telemetry testing for now")
 	log.SetOutput(ioutil.Discard)
 
 	server := NewWebconfigServer(sc, true)
