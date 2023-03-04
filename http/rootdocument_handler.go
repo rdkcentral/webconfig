@@ -18,6 +18,7 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -47,6 +48,49 @@ func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.
 			return
 		}
 		Error(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	WriteOkResponse(w, rootdoc)
+}
+
+func (s *WebconfigServer) PostRootDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	// ==== data integrity check ====
+	params := mux.Vars(r)
+	mac := params["mac"]
+	if s.ValidateMacEnabled() {
+		if !util.ValidateMac(mac) {
+			err := *common.NewHttp400Error("invalid mac")
+			Error(w, http.StatusBadRequest, common.NewError(err))
+			return
+		}
+	}
+	mac = strings.ToUpper(mac)
+
+	// ==== parse the post body ====
+	xw, ok := w.(*XResponseWriter)
+	if !ok {
+		err := *common.NewHttp500Error("responsewriter cast error")
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
+	}
+
+	bodyBytes := xw.BodyBytes()
+	if len(bodyBytes) == 0 {
+		err := *common.NewHttp400Error("empty body")
+		Error(w, http.StatusBadRequest, common.NewError(err))
+		return
+	}
+	var rootdoc *common.RootDocument
+	err := json.Unmarshal(bodyBytes, &rootdoc)
+	if err != nil {
+		Error(w, http.StatusBadRequest, common.NewError(err))
+		return
+	}
+
+	err = s.SetRootDocument(mac, rootdoc)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 

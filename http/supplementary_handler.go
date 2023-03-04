@@ -47,10 +47,23 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		return
 	}
 
-	urlSuffix := util.GetTelemetryQueryString(r.Header, mac)
+	// append the extra query_params if any
+	var queryParams string
+	rootdoc, err := s.GetRootDocument(mac)
+	if err != nil {
+		if !s.IsDbNotFound(err) {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+	}
+	if rootdoc != nil {
+		queryParams = rootdoc.QueryParams
+	}
+
+	urlSuffix := util.GetTelemetryQueryString(r.Header, mac, queryParams)
 	fields["is_telemetry"] = true
 
-	rbytes, err := s.GetProfiles(urlSuffix, fields)
+	rbytes, resHeader, err := s.GetProfiles(urlSuffix, fields)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
@@ -83,6 +96,12 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	rootVersion := util.GetRandomRootVersion()
 	w.Header().Set("Content-type", common.MultipartContentType)
 	w.Header().Set(common.HeaderEtag, rootVersion)
+
+	// help with unit tests
+	if x := resHeader.Get(common.HeaderReqUrl); len(x) > 0 {
+		w.Header().Set(common.HeaderReqUrl, x)
+	}
+
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(respBytes)
 }

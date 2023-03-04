@@ -113,6 +113,7 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 		}
 	}
 	sub3.HandleFunc("", s.GetRootDocumentHandler).Methods("GET")
+	sub3.HandleFunc("", s.PostRootDocumentHandler).Methods("POST")
 
 	sub4 := router.Path("/api/v1/device/{mac}/document").Subrouter()
 	if testOnly {

@@ -31,8 +31,8 @@ func (c *CassandraClient) GetRootDocument(cpeMac string) (*common.RootDocument, 
 	defer func() { <-c.concurrentQueries }()
 
 	var rd common.RootDocument
-	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version FROM root_document WHERE cpe_mac=?"
-	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version)
+	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,query_params FROM root_document WHERE cpe_mac=?"
+	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version, &rd.QueryParams)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
