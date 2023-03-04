@@ -24,9 +24,6 @@ import (
 	"gotest.tools/assert"
 )
 
-// firmware_version, model_name, partner_id, schema_version, version
-// rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
-
 func TestRootDocumentCompare(t *testing.T) {
 	bitmap := 123
 	version := "foo"
@@ -34,19 +31,18 @@ func TestRootDocumentCompare(t *testing.T) {
 	modelName := "bar"
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
-	// rootdoc2 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version)
+	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
 	rootdoc2 := rootdoc1.Clone()
 	enum := rootdoc1.Compare(rootdoc2)
 	assert.Equal(t, enum, RootDocumentEquals)
 
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version)
+	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "")
 	enum = rootdoc1.Compare(rootdoc3)
 	assert.Equal(t, enum, RootDocumentMetaChanged)
 
 	version4 := "3456"
-	rootdoc4 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version4)
+	rootdoc4 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version4, "")
 	enum = rootdoc1.Compare(rootdoc4)
 	assert.Equal(t, enum, RootDocumentVersionOnlyChanged)
 }
@@ -58,7 +54,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName1 := "TG4482"
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc1 := NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1)
+	rootdoc1 := NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "")
 
 	bitmap2 := 123
 	version2 := "bar"
@@ -66,7 +62,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName2 := "TG4482"
 	partnerId2 := "cox"
 	firmwareVersion2 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc2 := NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2)
+	rootdoc2 := NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "")
 
 	bitmap3 := 123
 	version3 := "bar"
@@ -74,7 +70,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName3 := "TG4482"
 	partnerId3 := "cox"
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3)
+	rootdoc3 := NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "")
 
 	rootdoc1.Update(rootdoc2)
 	assert.Equal(t, *rootdoc1, *rootdoc3)

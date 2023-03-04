@@ -66,7 +66,7 @@ func ValidateMac(mac string) bool {
 	return true
 }
 
-func GetTelemetryQueryString(header http.Header, mac string) string {
+func GetTelemetryQueryString(header http.Header, mac, queryParams string) string {
 	// build the query parameters in a fixed order
 	params := []string{}
 
@@ -85,7 +85,11 @@ func GetTelemetryQueryString(header http.Header, mac string) string {
 	params = append(params, fmt.Sprintf("estbMacAddress=%v", estbMacAddress))
 	params = append(params, fmt.Sprintf("ecmMacAddress=%v", mac))
 
-	return strings.Join(params, "&")
+	ret := strings.Join(params, "&")
+	if len(queryParams) > 0 && len(ret) > 0 {
+		ret += "&" + queryParams
+	}
+	return ret
 }
 
 func ValidatePokeQuery(values url.Values) (string, error) {

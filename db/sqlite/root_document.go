@@ -66,7 +66,7 @@ func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, err
 		version = ns5.String
 	}
 
-	return common.NewRootDocument(bitmap, firmware_version, model_name, partner_id, schema_version, version), nil
+	return common.NewRootDocument(bitmap, firmware_version, model_name, partner_id, schema_version, version, ""), nil
 }
 
 func (c *SqliteClient) insertRootDocumentVersion(cpeMac, version string) error {

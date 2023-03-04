@@ -98,6 +98,7 @@ const (
 	HeaderAuthorization              = "Authorization"
 	HeaderAuditid                    = "X-Auditid"
 	HeaderTransactionId              = "Transaction-Id"
+	HeaderReqUrl                     = "X-Req-Url"
 )
 
 // header X-System-Supported-Docs

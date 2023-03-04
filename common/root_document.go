@@ -35,10 +35,11 @@ type RootDocument struct {
 	PartnerId       string `json:"partner_id"`
 	SchemaVersion   string `json:"schema_version"`
 	Version         string `json:"version"`
+	QueryParams     string `json:"query_params"`
 }
 
 // (bitmap, firmware_version, model_name, partner_id, schema_version, version), nil
-func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version string) *RootDocument {
+func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params string) *RootDocument {
 	return &RootDocument{
 		Bitmap:          bitmap,
 		FirmwareVersion: firmwareVersion,
@@ -46,6 +47,7 @@ func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVe
 		PartnerId:       partnerId,
 		SchemaVersion:   schemaVersion,
 		Version:         version,
+		QueryParams:     query_params,
 	}
 }
 
@@ -57,6 +59,7 @@ func (d *RootDocument) ColumnMap() map[string]interface{} {
 		"partner_id":       d.PartnerId,
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
+		"query_params":     d.QueryParams,
 	}
 	return dict
 }
@@ -73,6 +76,7 @@ func (d *RootDocument) NonEmptyColumnMap() map[string]interface{} {
 		"partner_id":       d.PartnerId,
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
+		"query_params":     d.QueryParams,
 	}
 
 	for k, v := range tempDict {
@@ -127,6 +131,9 @@ func (d *RootDocument) Update(r *RootDocument) {
 	}
 	if len(r.Version) > 0 {
 		d.Version = r.Version
+	}
+	if len(r.QueryParams) > 0 {
+		d.QueryParams = r.QueryParams
 	}
 }
 
