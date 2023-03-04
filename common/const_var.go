@@ -82,6 +82,7 @@ const (
 	HeaderSubdocumentUpdatedTime     = "X-Subdocument-Updated-Time"
 	HeaderSubdocumentErrorCode       = "X-Subdocument-Error-Code"
 	HeaderSubdocumentErrorDetails    = "X-Subdocument-Error-Details"
+	HeaderSubdocumentExpiry          = "X-Subdocument-Expiry"
 	HeaderDeviceId                   = "Device-Id"
 	HeaderDocName                    = "Doc-Name"
 	HeaderUpstreamNewBitmap          = "X-Upstream-New-Bitmap"
@@ -95,6 +96,8 @@ const (
 	HeaderUpstreamOldPartnerId       = "X-Upstream-Old-Partner-Id"
 	HeaderUpstreamOldSchemaVersion   = "X-Upstream-Old-Schema-Version"
 	HeaderAuthorization              = "Authorization"
+	HeaderAuditid                    = "X-Auditid"
+	HeaderTransactionId              = "Transaction-Id"
 )
 
 // header X-System-Supported-Docs

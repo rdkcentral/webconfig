@@ -20,6 +20,7 @@ package cassandra
 import (
 	"crypto/rand"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -208,4 +209,68 @@ func TestBlockedSubdocIds(t *testing.T) {
 
 	tdbclient.SetBlockedSubdocIds([]string{})
 	assert.Equal(t, len(tdbclient.BlockedSubdocIds()), 0)
+}
+
+func TestExpirySubDocument(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// verify empty before start
+	fields := log.Fields{}
+	var err error
+	_, err = tdbclient.GetDocument(cpeMac)
+	assert.Assert(t, tdbclient.IsDbNotFound(err))
+
+	// prepare some subdocs
+	subdocIds := []string{"privatessid", "lan", "wan"}
+	for _, subdocId := range subdocIds {
+		srcBytes := util.RandomBytes(100, 150)
+		srcVersion := util.GetMurmur3Hash(srcBytes)
+		srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
+		srcState := common.PendingDownload
+		srcSubdoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
+		err = tdbclient.SetSubDocument(cpeMac, subdocId, srcSubdoc, fields)
+		assert.NilError(t, err)
+	}
+
+	// read the document
+	doc, err := tdbclient.GetDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, doc.Length() == len(subdocIds))
+
+	// add an expiry-type but not-yet-expired subdoc
+	srcBytes := util.RandomBytes(100, 150)
+	now := time.Now()
+	nowTs := int(now.UnixNano() / 1000000)
+	futureT := now.AddDate(0, 0, 2)
+	futureTs := int(futureT.UnixNano() / 1000000)
+	srcUpdatedTime := nowTs
+	srcVersion := strconv.Itoa(nowTs)
+	srcState := common.PendingDownload
+	srcSubdoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
+	srcSubdoc.SetExpiry(&futureTs)
+	err = tdbclient.SetSubDocument(cpeMac, "mesh", srcSubdoc, fields)
+	assert.NilError(t, err)
+
+	// read the document
+	doc, err = tdbclient.GetDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, doc.Length() == len(subdocIds)+1)
+
+	// set an expired subdoc
+	srcBytes = util.RandomBytes(100, 150)
+	past := now.Add(time.Duration(-1) * time.Hour)
+	pastTs := int(past.UnixNano() / 1000000)
+	srcVersion = strconv.Itoa(nowTs)
+
+	srcUpdatedTime = nowTs
+	srcState = common.PendingDownload
+	srcSubdoc = common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
+	srcSubdoc.SetExpiry(&pastTs)
+	err = tdbclient.SetSubDocument(cpeMac, "gwrestore", srcSubdoc, fields)
+	assert.NilError(t, err)
+
+	// read the document
+	doc, err = tdbclient.GetDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, doc.Length() == len(subdocIds)+1)
 }

@@ -95,7 +95,14 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	}
 
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
-	rootCmpEnum := cloudRootDocument.Compare(deviceRootDocument)
+	var rootCmpEnum int
+	// mget fakes no meta change so that meta are not updated
+	if rHeader.Get("User-Agent") == "mget" {
+		rootCmpEnum = common.RootDocumentVersionOnlyChanged
+	} else {
+		rootCmpEnum = cloudRootDocument.Compare(deviceRootDocument)
+	}
+
 	switch rootCmpEnum {
 	case common.RootDocumentEquals:
 		// create an empty "document"
