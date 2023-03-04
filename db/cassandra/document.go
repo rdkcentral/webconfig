@@ -26,35 +26,20 @@ import (
 	"github.com/rdkcentral/webconfig/db"
 )
 
-/*
-	stmt := "SELECT version,bitmap FROM root_document WHERE cpe_mac=?"
-	if err := c.Query(stmt, cpeMac).Scan(version, bitmap); err != nil {
-		return common.NewError(err)
-	}
-	return nil
-type SubDocument struct {
-    payload        []byte
-    params       *string
-    version      *string
-    state        *int
-    updatedTime  *int
-    errorCode    *int
-    errorDetails *string
-}
-*/
-
+// NOTE this
 func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {
 	var err error
 	var payload []byte
 	var version, errorDetails string
 	var state, errorCode int
-	var updatedTime time.Time
+	var updatedTime, expiry time.Time
+	var updatedTimeTsPtr, expiryTsPtr *int
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt := "SELECT payload,version,state,updated_time,error_code,error_details FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
-	if err := c.Query(stmt, cpeMac, groupId).Scan(&payload, &version, &state, &updatedTime, &errorCode, &errorDetails); err != nil {
+	stmt := "SELECT payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
+	if err := c.Query(stmt, cpeMac, groupId).Scan(&payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry); err != nil {
 		return nil, common.NewError(err)
 	}
 
@@ -68,8 +53,19 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 			return nil, common.NewError(err)
 		}
 	}
-	ts := int(updatedTime.UnixNano() / 1000000)
-	subdoc := common.NewSubDocument(payload, &version, &state, &ts, &errorCode, &errorDetails)
+
+	if x := int(updatedTime.UnixNano() / 1000000); x > 0 {
+		updatedTimeTsPtr = &x
+	}
+
+	subdoc := common.NewSubDocument(payload, &version, &state, updatedTimeTsPtr, &errorCode, &errorDetails)
+	if x := int(expiry.UnixNano() / 1000000); x > 0 {
+		expiryTsPtr = &x
+	}
+	if expiryTsPtr != nil {
+		subdoc.SetExpiry(expiryTsPtr)
+	}
+
 	return subdoc, nil
 }
 
@@ -130,6 +126,15 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columns = append(columns, "error_details")
 		values = append(values, subdoc.ErrorDetails())
 	}
+	if subdoc.Expiry() != nil {
+		columns = append(columns, "expiry")
+		utime := int64(*subdoc.Expiry())
+		if utime < 0 {
+			err := fmt.Errorf("invalid expiry: utime=%v, *subdoc.Expiry()=%v", utime, *subdoc.Expiry())
+			return common.NewError(err)
+		}
+		values = append(values, &utime)
+	}
 	stmt := fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
 
 	c.concurrentQueries <- true
@@ -171,23 +176,30 @@ func (c *CassandraClient) DeleteDocument(cpeMac string) error {
 	return nil
 }
 
-func (c *CassandraClient) GetDocument(cpeMac string) (*common.Document, error) {
+func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Document, error) {
+	var includeExpiry bool
+	if len(args) > 0 {
+		includeExpiry = args[0]
+	}
+
 	doc := common.NewDocument(nil)
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details FROM xpc_group_config WHERE cpe_mac=?"
+	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=?"
 	iter := c.Query(stmt, cpeMac).Iter()
 
+	now := time.Now()
 	for {
 		var err error
 		var payload []byte
 		var groupId, version, errorDetails string
 		var state, errorCode int
-		var updatedTime time.Time
+		var updatedTime, expiry time.Time
+		var updatedTimeTsPtr *int
 
-		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails) {
+		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry) {
 			break
 		}
 
@@ -202,9 +214,21 @@ func (c *CassandraClient) GetDocument(cpeMac string) (*common.Document, error) {
 			}
 		}
 
-		ts := int(updatedTime.UnixNano() / 1000000)
+		if x := int(updatedTime.UnixNano() / 1000000); x > 0 {
+			updatedTimeTsPtr = &x
+		}
 
-		subdoc := common.NewSubDocument(payload, &version, &state, &ts, &errorCode, &errorDetails)
+		subdoc := common.NewSubDocument(payload, &version, &state, updatedTimeTsPtr, &errorCode, &errorDetails)
+		if x := int(expiry.UnixNano() / 1000000); x > 0 {
+			// eval subdocs with expiry
+			if !includeExpiry {
+				if expiry.Before(now) {
+					continue
+				}
+			}
+			subdoc.SetExpiry(&x)
+		}
+
 		doc.SetSubDocument(groupId, subdoc)
 	}
 

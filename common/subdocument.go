@@ -29,6 +29,7 @@ type SubDocument struct {
 	updatedTime  *int
 	errorCode    *int
 	errorDetails *string
+	expiry       *int
 }
 
 func NewSubDocument(payload []byte, version *string, state *int, updatedTime *int, errorCode *int, errorDetails *string) *SubDocument {
@@ -133,6 +134,14 @@ func (d *SubDocument) SetErrorDetails(errorDetails *string) {
 	d.errorDetails = errorDetails
 }
 
+func (d *SubDocument) Expiry() *int {
+	return d.expiry
+}
+
+func (d *SubDocument) SetExpiry(expiry *int) {
+	d.expiry = expiry
+}
+
 func (d *SubDocument) Equals(tdoc *SubDocument) error {
 	if d.HasPayload() && tdoc.HasPayload() {
 		if !bytes.Equal(d.Payload(), tdoc.Payload()) {
@@ -219,5 +228,18 @@ func (d *SubDocument) Equals(tdoc *SubDocument) error {
 			return NewError(err)
 		}
 	}
+
+	if d.Expiry() != nil && tdoc.Expiry() != nil {
+		if *d.Expiry() != *tdoc.Expiry() {
+			err := fmt.Errorf("*d.Expiry()[%v] != *tdoc.Expiry()[%v]", *d.Expiry(), *tdoc.Expiry())
+			return NewError(err)
+		}
+	} else {
+		if d.Expiry() != tdoc.Expiry() {
+			err := fmt.Errorf("d.Expiry()[%v] != tdoc.Expiry()[%v]", d.Expiry(), tdoc.Expiry())
+			return NewError(err)
+		}
+	}
+
 	return nil
 }

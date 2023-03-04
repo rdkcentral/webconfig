@@ -107,10 +107,14 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 }
 
 func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route string, fields log.Fields) (int, http.Header, []byte, error) {
+	fields["for_device"] = true
+	fields["is_primary"] = true
+
 	c := s.DatabaseClient
 	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
+	userAgent := rHeader.Get("User-Agent")
 
 	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
 	if uconn == nil {
@@ -137,7 +141,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		}
 
 		// skip updating states
-		userAgent := rHeader.Get("User-Agent")
 		if userAgent != "mget" {
 			if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -173,6 +176,13 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		respStatus = http.StatusOK
 	}
 
+	// mget ==> no upstream
+	if userAgent == "mget" {
+		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderEtag, document.RootVersion())
+		return http.StatusOK, respHeader, respBytes, nil
+	}
+
 	if !postUpstream {
 		// update states to InDeployment before the final response
 		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
@@ -190,6 +200,15 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	upstreamHeader := make(http.Header)
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
+	if itf, ok := fields["audit_id"]; ok {
+		auditId := itf.(string)
+		if len(auditId) > 0 {
+			upstreamHeader.Set(common.HeaderAuditid, auditId)
+		}
+	}
+	if x := rHeader.Get(common.HeaderTransactionId); len(x) > 0 {
+		upstreamHeader.Set(common.HeaderTransactionId, x)
+	}
 
 	if s.TokenManager != nil {
 		token := rHeader.Get("Authorization")
