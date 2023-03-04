@@ -585,12 +585,17 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 		_, ok := fields["response"]
 		if !ok {
 			response := xw.Response()
-			var itf interface{}
-			err := json.Unmarshal([]byte(response), &itf)
-			if err != nil {
-				err1 := common.NewError(err)
+			if len(response) > 0 {
+				var itf interface{}
+				err := json.Unmarshal([]byte(response), &itf)
+				if err != nil {
+					err1 := common.NewError(err)
+					fields["response"] = ObfuscatedMap
+					fields["response_text"] = err1.Error()
+				}
+			} else {
 				fields["response"] = ObfuscatedMap
-				fields["response_text"] = err1.Error()
+				fields["response_text"] = ""
 			}
 		}
 	}
