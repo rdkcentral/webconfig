@@ -45,12 +45,14 @@ func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
 	if subdoc.UpdatedTime() != nil {
 		w.Header().Set(common.HeaderSubdocumentUpdatedTime, strconv.Itoa(*subdoc.UpdatedTime()))
 	}
-
 	if subdoc.ErrorCode() != nil {
 		w.Header().Set(common.HeaderSubdocumentErrorCode, strconv.Itoa(*subdoc.ErrorCode()))
 	}
 	if subdoc.ErrorDetails() != nil {
 		w.Header().Set(common.HeaderSubdocumentErrorDetails, *subdoc.ErrorDetails())
+	}
+	if subdoc.Expiry() != nil {
+		w.Header().Set(common.HeaderSubdocumentExpiry, strconv.Itoa(*subdoc.Expiry()))
 	}
 }
 
@@ -67,7 +69,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
@@ -77,7 +79,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 			Error(w, http.StatusNotFound, nil)
 		} else {
 			LogError(w, err)
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
@@ -101,7 +103,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
@@ -115,22 +117,38 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		}
 	}
 
-	version := util.GetMurmur3Hash(bbytes)
+	// handle version header
+	version := r.Header.Get(common.HeaderSubdocumentVersion)
+	if len(version) == 0 {
+		version = util.GetMurmur3Hash(bbytes)
+	}
+
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	state := common.PendingDownload
 	subdoc := common.NewSubDocument(bbytes, &version, &state, &updatedTime, nil, nil)
 
+	// handle expiry header
+	expiryTmsStr := r.Header.Get(common.HeaderSubdocumentExpiry)
+	if len(expiryTmsStr) > 0 {
+		expiryTms, err := strconv.Atoi(expiryTmsStr)
+		if err != nil {
+			Error(w, http.StatusBadRequest, common.NewError(err))
+			return
+		}
+		subdoc.SetExpiry(&expiryTms)
+	}
+
 	for _, deviceId := range deviceIds {
 		err = s.SetSubDocument(deviceId, subdocId, subdoc)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
 
 		// update the root version
-		doc, err := s.GetDocument(deviceId)
+		doc, err := s.GetDocument(deviceId, true)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
 
@@ -138,7 +156,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		newRootVersion := db.HashRootVersion(doc.VersionMap())
 		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
 	}
@@ -159,7 +177,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
@@ -168,7 +186,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
@@ -179,10 +197,10 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, http.StatusInternalServerError, err)
+				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
 		} else {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
@@ -190,7 +208,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 
@@ -214,7 +232,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
@@ -225,10 +243,10 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, http.StatusInternalServerError, err)
+				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
 		} else {
-			Error(w, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
@@ -236,7 +254,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 

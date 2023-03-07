@@ -23,9 +23,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
@@ -49,6 +52,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := ioutil.ReadAll(res.Body)
+	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -72,7 +76,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -81,7 +85,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -107,6 +111,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := ioutil.ReadAll(res.Body)
+	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -135,7 +140,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -162,7 +167,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req, err = http.NewRequest("DELETE", url, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -171,7 +176,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -180,7 +185,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -213,6 +218,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := ioutil.ReadAll(res.Body)
+	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -243,7 +249,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -264,4 +270,346 @@ func TestPostWithDeviceId(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Assert(t, len(rdoc.Version) > 0)
 	}
+}
+
+func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 use epochNow as version ====
+	// post
+	subdocId := "gwrestore"
+	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	gwrestoreBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	// prepare the version header
+	now := time.Now()
+	reqHeaderVersion := strconv.Itoa(int(now.Unix()))
+	req.Header.Set(common.HeaderSubdocumentVersion, reqHeaderVersion)
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", gwrestoreUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
+	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
+
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, gwrestoreBytes)
+
+	// check the root doc version
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 2 use epochNow as version and set a future expiry ====
+	// post
+	subdocId = "remotedebugger"
+	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	remotedebuggerBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	// prepare the version header
+	reqHeaderVersion = strconv.Itoa(int(now.Unix()))
+	req.Header.Set(common.HeaderSubdocumentVersion, reqHeaderVersion)
+
+	// prepare a future expiry header
+	futureT := now.AddDate(0, 0, 2)
+	reqHeaderExpiry := strconv.Itoa(int(futureT.UnixNano() / 1000000))
+	req.Header.Set(common.HeaderSubdocumentExpiry, reqHeaderExpiry)
+
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", remotedebuggerUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+
+	resHeaderVersion = res.Header.Get(common.HeaderSubdocumentVersion)
+	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
+	resHeaderExpiry := res.Header.Get(common.HeaderSubdocumentExpiry)
+	assert.Equal(t, reqHeaderExpiry, resHeaderExpiry)
+
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, remotedebuggerBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 3 add a regular subdoc ====
+	// post
+	subdocId = "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 4 get document ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 3)
+	etag := res.Header.Get(common.HeaderEtag)
+
+	subdocVersions := []string{etag}
+	mpart, ok := mparts["gwrestore"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, gwrestoreBytes)
+	subdocVersions = append(subdocVersions, mpart.Version)
+
+	mpart, ok = mparts["remotedebugger"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, remotedebuggerBytes)
+	subdocVersions = append(subdocVersions, mpart.Version)
+
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	subdocVersions = append(subdocVersions, mpart.Version)
+
+	// ==== step 5 get document again ====
+	// ==== cal GET /config with if-none-match ====
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,gwrestore,remotedebugger,lan", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	ifnonematch := strings.Join(subdocVersions, ",")
+	req.Header.Set(common.HeaderIfNoneMatch, ifnonematch)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+}
+
+func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 use epochNow as version ====
+	// post
+	subdocId := "gwrestore"
+	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	gwrestoreBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	// prepare a version header
+	now := time.Now()
+	reqHeaderVersion := strconv.Itoa(int(now.Unix()))
+	req.Header.Set(common.HeaderSubdocumentVersion, reqHeaderVersion)
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", gwrestoreUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
+	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
+
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, gwrestoreBytes)
+
+	// check the root doc version
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 2 use epochNow as version and set a future expiry ====
+	// post
+	subdocId = "remotedebugger"
+	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	remotedebuggerBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	// prepare the version header
+	reqHeaderVersion = strconv.Itoa(int(now.Unix()))
+	req.Header.Set(common.HeaderSubdocumentVersion, reqHeaderVersion)
+
+	// prepare an past expiry header
+	futureT := now.Add(time.Duration(-1) * time.Hour)
+	reqHeaderExpiry := strconv.Itoa(int(futureT.UnixNano() / 1000000))
+	req.Header.Set(common.HeaderSubdocumentExpiry, reqHeaderExpiry)
+
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", remotedebuggerUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+
+	resHeaderVersion = res.Header.Get(common.HeaderSubdocumentVersion)
+	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
+	resHeaderExpiry := res.Header.Get(common.HeaderSubdocumentExpiry)
+	assert.Equal(t, reqHeaderExpiry, resHeaderExpiry)
+
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, remotedebuggerBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 3 add a regular subdoc ====
+	// post
+	subdocId = "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// check the root doc version
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, len(rdoc.Version) > 0)
+
+	// ==== step 4 get document ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag := res.Header.Get(common.HeaderEtag)
+
+	subdocVersions := []string{etag}
+	mpart, ok := mparts["gwrestore"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, gwrestoreBytes)
+	subdocVersions = append(subdocVersions, mpart.Version)
+
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	subdocVersions = append(subdocVersions, mpart.Version)
+
+	// ==== step 5 get document again ====
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,gwrestore,lan", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	ifnonematch := strings.Join(subdocVersions, ",")
+	req.Header.Set(common.HeaderIfNoneMatch, ifnonematch)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+}
+
+func TestBadHeaderExpiryHandler(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 2 use epochNow as version and set a future expiry ====
+	// post
+	subdocId := "remotedebugger"
+	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	remotedebuggerBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	// manage version and expiry headers
+	now := time.Now()
+	reqHeaderVersion := strconv.Itoa(int(now.Unix()))
+	req.Header.Set(common.HeaderSubdocumentVersion, reqHeaderVersion)
+	futureT := now.AddDate(0, 0, 2)
+	reqHeaderExpiry := strconv.Itoa(int(futureT.UnixNano()/1000000)) + "xxx"
+	req.Header.Set(common.HeaderSubdocumentExpiry, reqHeaderExpiry)
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }

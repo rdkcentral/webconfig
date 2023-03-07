@@ -126,6 +126,13 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		logHeader.Set("Authorization", "****")
 	}
 
+	var userAgent string
+	if itf, ok := baseFields["user_agent"]; ok {
+		if x := itf.(string); len(x) > 0 {
+			userAgent = x
+		}
+	}
+
 	tfields := util.CopyLogFields(baseFields)
 	tfields["logger"] = loggerName
 	tfields[fmt.Sprintf("%v_method", loggerName)] = method
@@ -158,11 +165,14 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	} else {
 		startMessage = fmt.Sprintf("%v starts", loggerName)
 	}
-	log.WithFields(fields).Info(startMessage)
-	if len(longBody) > 0 {
-		dfields := util.CopyLogFields(fields)
-		dfields[bodyKey] = longBody
-		log.WithFields(dfields).Trace(startMessage)
+
+	if userAgent != "mget" {
+		log.WithFields(fields).Info(startMessage)
+		if len(longBody) > 0 {
+			dfields := util.CopyLogFields(fields)
+			dfields[bodyKey] = longBody
+			log.WithFields(dfields).Trace(startMessage)
+		}
 	}
 
 	startTime := time.Now()
@@ -187,7 +197,9 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 	if err != nil {
 		fields[errorKey] = err.Error()
-		log.WithFields(fields).Info(endMessage)
+		if userAgent != "mget" {
+			log.WithFields(fields).Info(endMessage)
+		}
 		return nil, nil, common.NewError(err), true
 	}
 	if res.Body != nil {
@@ -198,7 +210,9 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	rbytes, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		fields[errorKey] = err.Error()
-		log.WithFields(fields).Info(endMessage)
+		if userAgent != "mget" {
+			log.WithFields(fields).Info(endMessage)
+		}
 		return nil, nil, common.NewError(err), false
 	}
 
@@ -222,11 +236,13 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	} else {
 		fields[fmt.Sprintf("%v_response", loggerName)] = resp
 	}
-	log.WithFields(fields).Info(endMessage)
-	if len(longResponse) > 0 {
-		dfields := util.CopyLogFields(fields)
-		dfields[responseKey] = longResponse
-		log.WithFields(dfields).Trace(endMessage)
+	if userAgent != "mget" {
+		log.WithFields(fields).Info(endMessage)
+		if len(longResponse) > 0 {
+			dfields := util.CopyLogFields(fields)
+			dfields[responseKey] = longResponse
+			log.WithFields(dfields).Trace(endMessage)
+		}
 	}
 
 	// check if there is any customized statusHandler

@@ -222,7 +222,7 @@ func (c *SqliteClient) DeleteDocument(cpeMac string) error {
 	return nil
 }
 
-func (c *SqliteClient) GetDocument(cpeMac string) (*common.Document, error) {
+func (c *SqliteClient) GetDocument(cpeMac string, args ...bool) (*common.Document, error) {
 	Document := common.NewDocument(nil)
 
 	c.concurrentQueries <- true
