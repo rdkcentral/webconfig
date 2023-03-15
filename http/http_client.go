@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -199,6 +200,15 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		fields[errorKey] = err.Error()
 		if userAgent != "mget" {
 			log.WithFields(fields).Info(endMessage)
+		}
+		if ue, ok := err.(*neturl.Error); ok {
+			if ue.Timeout() {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusGatewayTimeout,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
 		}
 		return nil, nil, common.NewError(err), true
 	}
