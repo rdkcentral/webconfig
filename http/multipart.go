@@ -200,6 +200,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	upstreamHeader := make(http.Header)
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
+	oldEtag := document.RootVersion()
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
 		if len(auditId) > 0 {
@@ -253,7 +254,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
-	if x := upstreamRespHeader.Get(common.HeaderStoreUpstreamResponse); x == "true" {
+	if upstreamRespEtag != oldEtag {
 		// `document` is the document BEFORE sending upstream
 		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalMparts, document)
 		if err != nil {
