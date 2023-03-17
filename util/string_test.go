@@ -144,3 +144,18 @@ func TestIsValidUTF8(t *testing.T) {
 	b2 := RandomBytes(100, 150)
 	assert.Assert(t, !IsValidUTF8(b2))
 }
+
+func TestTelemetryQueryWithWanMac(t *testing.T) {
+	header := http.Header{}
+	header.Set(common.HeaderProfileVersion, "2.0")
+	header.Set(common.HeaderModelName, "TG1682G")
+	header.Set(common.HeaderPartnerID, "comcast")
+	header.Set(common.HeaderAccountID, "1234567890")
+	header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+	mac := "567890ABCDEF"
+	header.Set(common.HeaderWanMac, "567890ABCDEF")
+	qstr := GetTelemetryQueryString(header, mac, "")
+
+	expected := "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDEF"
+	assert.Equal(t, qstr, expected)
+}

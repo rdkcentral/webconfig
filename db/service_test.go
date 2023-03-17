@@ -39,7 +39,7 @@ func TestHashRootVersion(t *testing.T) {
 	root := HashRootVersion(doc.VersionMap())
 	assert.Equal(t, root, "0")
 
-	// if some documents have payload/version, calculated root becomes non "0"
+	// if some documents have payload/version, the calculated root becomes non "0"
 	bbytes = []byte("hello world")
 	version := "12345"
 	subdoc = common.NewSubDocument(bbytes, &version, nil, &tt, nil, nil)
