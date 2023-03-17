@@ -99,6 +99,7 @@ const (
 	HeaderAuditid                    = "X-Auditid"
 	HeaderTransactionId              = "Transaction-Id"
 	HeaderReqUrl                     = "X-Req-Url"
+	HeaderWanMac                     = "X-System-Wan-Mac"
 )
 
 // header X-System-Supported-Docs
