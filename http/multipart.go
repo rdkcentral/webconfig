@@ -162,7 +162,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		}
 	}
 	if document == nil {
-		rootDocument := common.NewRootDocument(0, "", "", "", "", "")
+		rootDocument := common.NewRootDocument(0, "", "", "", "", "", "")
 		document = common.NewDocument(rootDocument)
 	}
 
@@ -263,7 +263,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 
 	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag)
+	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)

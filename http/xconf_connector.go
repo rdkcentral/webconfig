@@ -20,6 +20,7 @@ package http
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 
 	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
@@ -61,11 +62,11 @@ func (c *XconfConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *XconfConnector) GetProfiles(urlSuffix string, fields log.Fields) ([]byte, error) {
+func (c *XconfConnector) GetProfiles(urlSuffix string, fields log.Fields) ([]byte, http.Header, error) {
 	url := fmt.Sprintf(xconfUrlTemplate, c.XconfHost(), urlSuffix)
-	rbytes, _, err := c.DoWithRetries("GET", url, nil, nil, fields, c.ServiceName())
+	rbytes, resHeader, err := c.DoWithRetries("GET", url, nil, nil, fields, c.ServiceName())
 	if err != nil {
-		return rbytes, owcommon.NewError(err)
+		return rbytes, resHeader, owcommon.NewError(err)
 	}
-	return rbytes, nil
+	return rbytes, resHeader, nil
 }

@@ -59,7 +59,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
 
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "")
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
 
 	// ==== parse mac ====
 	mac := rHeader.Get(common.HeaderDeviceId)

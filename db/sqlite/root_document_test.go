@@ -71,7 +71,7 @@ func TestRootDocumentDb(t *testing.T) {
 	// set by a RootDocument
 	version4 := "indigo violet"
 	bitmap4 := 67
-	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4)
+	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4, "")
 	err = tdbclient.SetRootDocument(cpeMac, rdoc4)
 	assert.NilError(t, err)
 	fetched, err := tdbclient.GetRootDocument(cpeMac)
@@ -147,7 +147,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName1 := "TG4482"
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
-	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1)
+	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "")
 
 	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
 	assert.NilError(t, err)
@@ -163,7 +163,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName2 := "TG4482"
 	partnerId2 := "cox"
 	firmwareVersion2 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2)
+	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "")
 
 	err = tdbclient.SetRootDocument(cpeMac, rootdoc2)
 	assert.NilError(t, err)
@@ -175,7 +175,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName3 := "TG4482"
 	partnerId3 := "cox"
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3)
+	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "")
 
 	tgtRootdoc3, err := tdbclient.GetRootDocument(cpeMac)
 	assert.NilError(t, err)

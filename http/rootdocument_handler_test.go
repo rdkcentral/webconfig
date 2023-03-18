@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/vmihailenco/msgpack/v4"
 	"github.com/rdkcentral/webconfig/common"
@@ -71,7 +73,7 @@ func TestRootDocumentHandler(t *testing.T) {
 
 	expectedBitmap1, err := util.GetCpeBitmap(supportedDocs1)
 	assert.NilError(t, err)
-	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "")
+	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)
 
 	// ==== step 2 build lan subdoc ====
@@ -181,6 +183,46 @@ func TestRootDocumentHandler(t *testing.T) {
 	err = json.Unmarshal(rbytes, &getResp)
 	assert.NilError(t, err)
 
-	expectedRootdoc = common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag)
+	expectedRootdoc = common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, "")
 	assert.Equal(t, getResp.Data, *expectedRootdoc)
+}
+
+func TestPostRootDocumentHandler(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 POST /rootdocument ====
+	bitmap1 := 32479
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+	etag := strconv.Itoa(int(time.Now().Unix()))
+	queryParams1 := "stormReadyWifi=true&cellularMode=true"
+	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1)
+	bbytes, err := json.Marshal(srcDoc1)
+	assert.NilError(t, err)
+
+	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
+	req, err := http.NewRequest("POST", rootdocUrl, bytes.NewReader(bbytes))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// ==== step 2 GET /rootdocument ====
+	req, err = http.NewRequest("GET", rootdocUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+
+	var getResp HttGetRootDocumentResponse
+	err = json.Unmarshal(rbytes, &getResp)
+	assert.NilError(t, err)
+
+	assert.Equal(t, getResp.Data, *srcDoc1)
 }

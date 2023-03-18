@@ -66,7 +66,7 @@ func ValidateMac(mac string) bool {
 	return true
 }
 
-func GetTelemetryQueryString(header http.Header, mac string) string {
+func GetTelemetryQueryString(header http.Header, mac, queryParams string) string {
 	// build the query parameters in a fixed order
 	params := []string{}
 
@@ -81,11 +81,36 @@ func GetTelemetryQueryString(header http.Header, mac string) string {
 		params = append(params, fmt.Sprintf("%v=%v", pairs[0], header.Get(pairs[1])))
 	}
 
-	estbMacAddress := GetEstbMacAddress(mac)
-	params = append(params, fmt.Sprintf("estbMacAddress=%v", estbMacAddress))
-	params = append(params, fmt.Sprintf("ecmMacAddress=%v", mac))
+	// eval if this broadband device
+	headerWanMac := header.Get(common.HeaderWanMac)
+	if len(headerWanMac) > 0 {
+		headerWanMac = strings.ToUpper(headerWanMac)
+		params = append(params, fmt.Sprintf("estbMacAddress=%v", headerWanMac))
+		if GetMacDiff(headerWanMac, mac) == 2 {
+			params = append(params, fmt.Sprintf("ecmMacAddress=%v", mac))
+		}
+	} else {
+		estbMacAddress := GetEstbMacAddress(mac)
+		params = append(params, fmt.Sprintf("estbMacAddress=%v", estbMacAddress))
+		params = append(params, fmt.Sprintf("ecmMacAddress=%v", mac))
+	}
 
-	return strings.Join(params, "&")
+	ret := strings.Join(params, "&")
+	if len(queryParams) > 0 && len(ret) > 0 {
+		ret += "&" + queryParams
+	}
+	return ret
+}
+
+func GetMacDiff(wanMac, mac string) int {
+	var wanMacVal, macVal int
+	if x, err := strconv.ParseInt(wanMac, 16, 64); err == nil {
+		wanMacVal = int(x)
+	}
+	if x, err := strconv.ParseInt(mac, 16, 64); err == nil {
+		macVal = int(x)
+	}
+	return wanMacVal - macVal
 }
 
 func ValidatePokeQuery(values url.Values) (string, error) {
