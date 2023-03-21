@@ -64,6 +64,10 @@ var (
 		"X-System-Product-Class",
 		"X-System-Schema-Version",
 	}
+	wifiSubdocIds = []string{
+		"privatessid",
+		"homessid",
+	}
 )
 
 type WebconfigServer struct {
@@ -578,7 +582,32 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 
 	url := r.URL.String()
 	fields := xw.Audit()
-	if strings.Contains(url, "/config") || (strings.Contains(url, "/document") && r.Method == "GET") || (url == "/api/v1/token" && r.Method == "POST") {
+	if strings.Contains(url, "/config") {
+		var isTelemetry bool
+		if itf, ok := fields["is_telemetry"]; ok {
+			isTelemetry = itf.(bool)
+		}
+
+		if isTelemetry {
+			fields["response"] = ObfuscatedMap
+			fields["response_text"] = "****"
+		} else {
+			switch xw.Status() {
+			case http.StatusOK:
+				rbytes := []byte(xw.Response())
+				resHeader := xw.ResponseWriter.Header()
+				if mpdict, err := util.ParseMultipartsForLogging(rbytes, resHeader, wifiSubdocIds); err == nil {
+					fields["response"] = mpdict
+				}
+			case http.StatusNotModified:
+				fields["response"] = ObfuscatedMap
+				fields["response_text"] = ""
+			default:
+				fields["response"] = ObfuscatedMap
+				fields["response_text"] = "****"
+			}
+		}
+	} else if (strings.Contains(url, "/document") && r.Method == "GET") || (url == "/api/v1/token" && r.Method == "POST") {
 		fields["response"] = ObfuscatedMap
 		fields["response_text"] = "****"
 	} else {
