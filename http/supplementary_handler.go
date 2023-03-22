@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
@@ -32,10 +33,11 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	// ==== data integrity check ====
 	params := mux.Vars(r)
 	mac, ok := params["mac"]
-	if !ok || len(mac) != 12 {
+	if !ok {
 		Error(w, http.StatusNotFound, nil)
 		return
 	}
+	mac = strings.ToUpper(mac)
 
 	// ==== processing ====
 	var fields log.Fields
