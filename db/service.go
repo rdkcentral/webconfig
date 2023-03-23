@@ -333,14 +333,15 @@ func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart,
 		errorCode := 0
 		errorDetails := ""
 		newSubdoc := common.NewSubDocument(mpart.Bytes, &mpart.Version, &newState, &updatedTime, &errorCode, &errorDetails)
-		oldState := *subdoc.State()
+		var oldState int
+		if subdoc != nil && subdoc.State() != nil {
+			oldState = *subdoc.State()
+		}
 		metricsAgent := ""
 		err := c.SetSubDocument(cpeMac, mpart.Name, newSubdoc, oldState, metricsAgent)
 		if err != nil {
 			return common.NewError(err)
 		}
-		// SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
-		// c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, metricsAgent); err != nil {
 	}
 
 	return nil
