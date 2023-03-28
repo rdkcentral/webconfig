@@ -97,7 +97,8 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	if d.ModelName != r.ModelName {
 		return RootDocumentMetaChanged
 	}
-	if d.PartnerId != r.PartnerId {
+	// only real non-empty differences is considered changed
+	if len(d.PartnerId) > 0 && len(r.PartnerId) > 0 && d.PartnerId != r.PartnerId {
 		return RootDocumentMetaChanged
 	}
 	if d.SchemaVersion != r.SchemaVersion {

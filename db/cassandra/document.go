@@ -219,6 +219,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 		}
 
 		subdoc := common.NewSubDocument(payload, &version, &state, updatedTimeTsPtr, &errorCode, &errorDetails)
+		// REMINDER, need this operation to detect if the "expiry" column is null/empty
 		if x := int(expiry.UnixNano() / 1000000); x > 0 {
 			// eval subdocs with expiry
 			if !includeExpiry {
