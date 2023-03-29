@@ -114,7 +114,10 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	var password string
-	encryptedPassword := dbconf.GetString("encrypted_password")
+	encryptedPassword := os.Getenv("ENCRYPTED_PASSWORD")
+	if len(encryptedPassword) == 0 {
+		encryptedPassword = dbconf.GetString("encrypted_password")
+	}
 	user := dbconf.GetString("user")
 	isSslEnabled := dbconf.GetBoolean("is_ssl_enabled")
 
