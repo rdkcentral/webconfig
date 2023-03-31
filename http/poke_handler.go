@@ -94,7 +94,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 
 			// TODO, we can build/filter it again for blocked subdocs if needed
 
-			mbytes, err := document.HttpBytes()
+			mbytes, err := document.HttpBytes(fields)
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 				return

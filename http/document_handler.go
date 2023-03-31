@@ -122,10 +122,20 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 	if len(version) == 0 {
 		version = util.GetMurmur3Hash(bbytes)
 	}
+	state := common.PendingDownload
+	statePtr := &state
+	if x := r.Header.Get(common.HeaderSubdocumentState); len(x) > 0 {
+		if x == "null" {
+			statePtr = nil
+		} else {
+			if i, err := strconv.Atoi(x); err == nil {
+				statePtr = &i
+			}
+		}
+	}
 
 	updatedTime := int(time.Now().UnixNano() / 1000000)
-	state := common.PendingDownload
-	subdoc := common.NewSubDocument(bbytes, &version, &state, &updatedTime, nil, nil)
+	subdoc := common.NewSubDocument(bbytes, &version, statePtr, &updatedTime, nil, nil)
 
 	// handle expiry header
 	expiryTmsStr := r.Header.Get(common.HeaderSubdocumentExpiry)
@@ -138,8 +148,17 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		subdoc.SetExpiry(&expiryTms)
 	}
 
+	oldState := 0
+	if x := r.Header.Get(common.HeaderSubdocumentOldState); len(x) > 0 {
+		if i, err := strconv.Atoi(x); err == nil {
+			oldState = i
+		}
+	}
+
+	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
+
 	for _, deviceId := range deviceIds {
-		err = s.SetSubDocument(deviceId, subdocId, subdoc)
+		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, metricsAgent)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return

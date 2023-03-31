@@ -111,8 +111,11 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 		fields["metrics_agent"] = x
 		m.MetricsAgent = &x
 	}
+	var transactionId string
 	if x := rHeader.Get("Transaction-ID"); len(x) > 0 {
 		fields["transaction_id"] = x
+		fields["trace_id"] = x
+		transactionId = x
 	}
 
 	// remote sensitive headers
@@ -134,6 +137,9 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	}
 
 	fields["status"] = status
+	if len(transactionId) > 0 {
+		respHeader.Set("Transaction-ID", transactionId)
+	}
 
 	mqttBytes := common.BuildPayloadAsHttp(status, respHeader, respBytes)
 	_, err = c.PostMqtt(cpeMac, mqttBytes, fields)

@@ -18,9 +18,13 @@
 package common
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 // deviceRootDocument is use to stored the data from device headers in the GET call
@@ -163,7 +167,7 @@ func (d *Document) Bytes() ([]byte, error) {
 	return bbytes, nil
 }
 
-func (d *Document) HttpBytes() ([]byte, error) {
+func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 	// build the http stream
 	mparts := []Multipart{}
 	for subdocId, subdoc := range d.docmap {
@@ -185,6 +189,21 @@ func (d *Document) HttpBytes() ([]byte, error) {
 	header := make(http.Header)
 	header.Set("Content-type", MultipartContentType)
 	header.Set("Etag", rootVersion)
+
+	var traceId string
+	if itf, ok := fields["trace_id"]; ok {
+		traceId = itf.(string)
+	}
+	if len(traceId) == 0 {
+		traceId = uuid.New().String()
+	}
+	t := time.Now().UnixNano() / 1000
+	transactionId := fmt.Sprintf("%s_____%015x", traceId, t)
+	appName := fields["app_name"]
+	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, appName)
+	header.Set("Transaction-Id", transactionId)
+	header.Set("X-Webpa-Transaction-Id", transactionId)
+	header.Set("X-Moneytrace", xmoney)
 
 	bbytes, err := WriteMultipartBytes(mparts)
 	if err != nil {

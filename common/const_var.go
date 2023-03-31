@@ -83,6 +83,8 @@ const (
 	HeaderSubdocumentErrorCode       = "X-Subdocument-Error-Code"
 	HeaderSubdocumentErrorDetails    = "X-Subdocument-Error-Details"
 	HeaderSubdocumentExpiry          = "X-Subdocument-Expiry"
+	HeaderSubdocumentOldState        = "X-Subdocument-Old-State"
+	HeaderSubdocumentMetricsAgent    = "X-Subdocument-Metrics-Agent"
 	HeaderDeviceId                   = "Device-Id"
 	HeaderDocName                    = "Doc-Name"
 	HeaderUpstreamNewBitmap          = "X-Upstream-New-Bitmap"
