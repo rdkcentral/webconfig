@@ -217,7 +217,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			upstreamHeader.Set("Authorization", token)
 		} else {
 			token = s.Generate(mac, 86400)
-			rHeader.Set("Authorization", "Bearer "+token)
+			upstreamHeader.Set("Authorization", "Bearer "+token)
 		}
 	}
 
