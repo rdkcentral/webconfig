@@ -22,7 +22,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
@@ -158,6 +157,7 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -203,6 +203,7 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -248,6 +249,7 @@ func TestBitmapParsing(t *testing.T) {
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -293,6 +295,7 @@ func TestParseVoiceService(t *testing.T) {
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -306,14 +309,8 @@ func TestManualBitmap(t *testing.T) {
 }
 
 func TestParseSupportedDocsWithNewGroups(t *testing.T) {
-	// get the max metadata group_id
-	var maxMetadataGroupId int
-	for mgid := range common.SupportedDocsBitMaskMap {
-		if mgid > maxMetadataGroupId {
-			maxMetadataGroupId = mgid
-		}
-	}
-	xBitValue := (maxMetadataGroupId << 24) + 1
+	cellularBitGroupId := 14
+	xBitValue := (cellularBitGroupId << 24) + 1
 	ss := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,218103809,234881025"
 	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v,%v", ss, xBitValue)
 
@@ -354,6 +351,7 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -397,6 +395,7 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	}
 
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -429,6 +428,51 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 		"wan":             true,
 		"wanfailover":     true,
 		"wanmanager":      true,
+		"xdns":            true,
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	for subdocId, enabled := range expectedEnabled {
+		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
+		assert.Equal(t, parsedEnabled, enabled)
+	}
+
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	expectedEnabled["gwfailover"] = false
+	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+}
+
+func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,218103809,251658241"
+
+	// build expected
+	expectedEnabled := map[string]bool{
+		"advsecurity":     true,
+		"aker":            true,
+		"bridge":          false,
+		"cellularconfig":  false,
+		"gwfailover":      true,
+		"homessid":        true,
+		"hotspot":         true,
+		"interfacereport": false,
+		"lan":             true,
+		"macbinding":      true,
+		"mesh":            true,
+		"moca":            true,
+		"portforwarding":  true,
+		"privatessid":     true,
+		"radio":           false,
+		"radioreport":     false,
+		"statusreport":    false,
+		"telcovoice":      false,
+		"telcovoip":       false,
+		"telemetry":       true,
+		"trafficreport":   false,
+		"voiceservice":    true,
+		"wan":             true,
+		"wanfailover":     true,
+		"wanmanager":      false,
 		"xdns":            true,
 	}
 
