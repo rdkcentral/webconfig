@@ -169,6 +169,9 @@ var (
 		14: {
 			{1, 24},
 		},
+		15: {
+			{1, 26},
+		},
 	}
 )
 
@@ -199,6 +202,7 @@ var (
 		"wanfailover":     23,
 		"cellularconfig":  24,
 		"telcovoice":      25,
+		"gwfailover":      26,
 	}
 )
 

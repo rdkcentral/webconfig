@@ -105,6 +105,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	assert.NilError(t, err)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
 
 	// ==== step 2 add lan data ====
@@ -285,5 +286,6 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
 	expectedEnabled["cellularconfig"] = false
+	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
 }
