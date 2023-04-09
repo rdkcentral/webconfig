@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 )
@@ -72,6 +73,7 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *common.SubDocument, vargs ...interface{}) error {
 	var oldState int
 	metricsAgent := "default"
+	var fields log.Fields
 	for _, varg := range vargs {
 		switch ty := varg.(type) {
 		case int:
@@ -80,6 +82,8 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 			if len(ty) > 0 {
 				metricsAgent = ty
 			}
+		case log.Fields:
+			fields = ty
 		}
 	}
 	var newStatePtr *int
@@ -147,7 +151,7 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if newStatePtr != nil {
-			c.UpdateStateMetrics(oldState, *newStatePtr, groupId, metricsAgent)
+			c.UpdateStateMetrics(oldState, *newStatePtr, groupId, metricsAgent, cpeMac, fields)
 		}
 	}
 	return nil

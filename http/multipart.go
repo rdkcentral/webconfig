@@ -142,7 +142,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 		// skip updating states
 		if userAgent != "mget" {
-			if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
+			if err := db.UpdateDocumentStateIndeployment(c, mac, document, fields); err != nil {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 			}
 		}
@@ -185,7 +185,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	if !postUpstream {
 		// update states to InDeployment before the final response
-		if err := db.UpdateDocumentStateIndeployment(c, mac, document); err != nil {
+		if err := db.UpdateDocumentStateIndeployment(c, mac, document, fields); err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
@@ -256,7 +256,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	if upstreamRespEtag != oldEtag {
 		// `document` is the document BEFORE sending upstream
-		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalMparts, document)
+		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalMparts, document, fields)
 		if err != nil {
 			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 		}

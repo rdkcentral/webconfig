@@ -57,7 +57,7 @@ func UpdateStatesInBatch(c DatabaseClient, cpeMac, metricsAgent string, fields l
 		newState := common.InDeployment
 		updatedTime := int(time.Now().UnixNano() / 1000000)
 		subdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, nil, nil)
-		err := c.SetSubDocument(cpeMac, subdocId, subdoc, fields, oldState, metricsAgent)
+		err := c.SetSubDocument(cpeMac, subdocId, subdoc, fields, oldState, metricsAgent, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
