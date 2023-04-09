@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	log.SetOutput(ioutil.Discard)
 
-	tmetrics = common.NewMetrics("webconfigcommon")
+	tmetrics = common.NewMetrics(sc.Config)
 	tdbclient.SetMetrics(tmetrics)
 
 	returnCode := m.Run()

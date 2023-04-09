@@ -91,7 +91,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 }
 
 func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, subdocId, bbytes, _, err := s.Validate(w, r, true)
+	mac, subdocId, bbytes, fields, err := s.Validate(w, r, true)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -158,7 +158,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
 
 	for _, deviceId := range deviceIds {
-		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, metricsAgent)
+		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, metricsAgent, fields)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return

@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 )
@@ -152,13 +153,18 @@ func (c *SqliteClient) updateSubDocument(cpeMac string, groupId string, doc *com
 
 func (c *SqliteClient) SetSubDocument(cpeMac string, groupId string, doc *common.SubDocument, vargs ...interface{}) error {
 	var oldState int
-	client := "default"
+	metricsAgent := "default"
+	var fields log.Fields
 	for _, varg := range vargs {
 		switch ty := varg.(type) {
 		case int:
 			oldState = ty
 		case string:
-			client = ty
+			if len(ty) > 0 {
+				metricsAgent = ty
+			}
+		case log.Fields:
+			fields = ty
 		}
 	}
 
@@ -184,7 +190,7 @@ func (c *SqliteClient) SetSubDocument(cpeMac string, groupId string, doc *common
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if doc.State() != nil {
-			c.UpdateStateMetrics(oldState, *doc.State(), groupId, client)
+			c.UpdateStateMetrics(oldState, *doc.State(), groupId, metricsAgent, cpeMac, fields)
 		}
 	}
 	return nil

@@ -534,6 +534,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if x := r.Header.Get("X-Webconfig-Transaction-Id"); len(x) > 0 {
 		fields["webconfig_transaction_id"] = x
 	}
+	if x := r.Header.Get(common.HeaderSourceAppName); len(x) > 0 {
+		fields["src_app_name"] = x
+	}
 
 	// add cpemac or csid in loggings
 	params := mux.Vars(r)
