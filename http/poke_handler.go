@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -139,6 +140,12 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			WriteResponseBytes(w, nil, http.StatusNoContent)
 			return
 		}
+		pendingSubdocs := []string{}
+		for subdocId := range document.StateMap() {
+			pendingSubdocs = append(pendingSubdocs, subdocId)
+		}
+		sort.Strings(pendingSubdocs)
+		fields["pending_subdocs"] = strings.Join(pendingSubdocs, ".")
 	}
 
 	// handle tokens
