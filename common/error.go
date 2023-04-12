@@ -90,7 +90,9 @@ var (
 func NewError(err error) error {
 	_, file, line, _ := runtime.Caller(1)
 	filename := filepath.Base(file)
-	return fmt.Errorf("%v[%v]  %w", filename, line, err)
+	fulldir := filepath.Dir(file)
+	dir := filepath.Base(fulldir)
+	return fmt.Errorf("%v/%v[%v]  %w", dir, filename, line, err)
 }
 
 func UnwrapAll(wrappedErr error) error {
