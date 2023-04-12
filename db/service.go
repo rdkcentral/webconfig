@@ -103,6 +103,16 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		rootCmpEnum = cloudRootDocument.Compare(deviceRootDocument)
 	}
 
+	if isDiff := cloudRootDocument.IsDifferent(deviceRootDocument); isDiff {
+		// need to update rootDoc meta
+		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
+		clonedRootDoc := deviceRootDocument.Clone()
+		clonedRootDoc.Version = ""
+		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
+			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		}
+	}
+
 	switch rootCmpEnum {
 	case common.RootDocumentEquals:
 		// create an empty "document"
@@ -132,13 +142,6 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		}
 		document.SetRootDocument(cloudRootDocument)
 
-		// need to update rootDoc meta
-		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
-		clonedRootDoc := deviceRootDocument.Clone()
-		clonedRootDoc.Version = ""
-		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
-		}
 		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, true, nil
 	}
 
