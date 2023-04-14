@@ -102,6 +102,7 @@ const (
 	HeaderTransactionId              = "Transaction-Id"
 	HeaderReqUrl                     = "X-Req-Url"
 	HeaderWanMac                     = "X-System-Wan-Mac"
+	HeaderSourceAppName              = "X-Source-App-Name"
 )
 
 // header X-System-Supported-Docs

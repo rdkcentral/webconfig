@@ -103,6 +103,16 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		rootCmpEnum = cloudRootDocument.Compare(deviceRootDocument)
 	}
 
+	if isDiff := cloudRootDocument.IsDifferent(deviceRootDocument); isDiff {
+		// need to update rootDoc meta
+		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
+		clonedRootDoc := deviceRootDocument.Clone()
+		clonedRootDoc.Version = ""
+		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
+			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		}
+	}
+
 	switch rootCmpEnum {
 	case common.RootDocumentEquals:
 		// create an empty "document"
@@ -132,13 +142,6 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		}
 		document.SetRootDocument(cloudRootDocument)
 
-		// need to update rootDoc meta
-		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
-		clonedRootDoc := deviceRootDocument.Clone()
-		clonedRootDoc.Version = ""
-		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
-		}
 		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, true, nil
 	}
 
@@ -256,7 +259,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 				if itf, ok := fields["metrics_agent"]; ok {
 					metricsAgent = itf.(string)
 				}
-				if err := c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, metricsAgent); err != nil {
+				if err := c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, metricsAgent, fields); err != nil {
 					return common.NewError(err)
 				}
 			}
@@ -311,14 +314,14 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		metricsAgent = *m.MetricsAgent
 	}
 
-	err = c.SetSubDocument(cpeMac, targetGroupId, newSubdoc, oldState, metricsAgent)
+	err = c.SetSubDocument(cpeMac, targetGroupId, newSubdoc, oldState, metricsAgent, fields)
 	if err != nil {
 		return common.NewError(err)
 	}
 	return nil
 }
 
-func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart, subdoc *common.SubDocument) error {
+func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart, subdoc *common.SubDocument, fields log.Fields) error {
 	changed := false
 	if subdoc == nil {
 		changed = true
@@ -338,7 +341,7 @@ func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart,
 			oldState = *subdoc.State()
 		}
 		metricsAgent := ""
-		err := c.SetSubDocument(cpeMac, mpart.Name, newSubdoc, oldState, metricsAgent)
+		err := c.SetSubDocument(cpeMac, mpart.Name, newSubdoc, oldState, metricsAgent, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
@@ -347,7 +350,7 @@ func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart,
 	return nil
 }
 
-func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, mparts []common.Multipart, d *common.Document) error {
+func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, mparts []common.Multipart, d *common.Document, fields log.Fields) error {
 	newRootVersion := upstreamRespEtag
 	if d.RootVersion() == newRootVersion {
 		return nil
@@ -361,7 +364,7 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 	// need to set "state" to proper values like the download is complete
 	for _, mpart := range mparts {
 		subdoc := d.SubDocument(mpart.Name)
-		err := UpdateSubDocument(c, cpeMac, &mpart, subdoc)
+		err := UpdateSubDocument(c, cpeMac, &mpart, subdoc, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
@@ -370,7 +373,7 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 }
 
 // this d should be a "filtered" document for download
-func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.Document) error {
+func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.Document, fields log.Fields) error {
 	// skip version, payload change
 	newState := common.InDeployment
 	metricsAgent := ""
@@ -384,7 +387,7 @@ func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.
 		}
 		newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 		oldState := *subdoc.State()
-		err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent)
+		err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent, fields)
 		if err != nil {
 			return common.NewError(err)
 		}

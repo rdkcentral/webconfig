@@ -89,4 +89,12 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	enabled = false
 	server.SetValidateMacEnabled(enabled)
 	assert.Equal(t, server.ValidateMacEnabled(), enabled)
+
+	// validate valid partners
+	validPartners := []string{"vendor1", "partner2", "company3"}
+	server.SetValidPartners(validPartners)
+	assert.DeepEqual(t, server.ValidPartners(), validPartners)
+	validPartners = []string{"name3", "name4", "name5"}
+	server.SetValidPartners(validPartners)
+	assert.DeepEqual(t, server.ValidPartners(), validPartners)
 }

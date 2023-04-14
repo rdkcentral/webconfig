@@ -90,6 +90,7 @@ type WebconfigServer struct {
 	upstreamEnabled           bool
 	appName                   string
 	validateMacEnabled        bool
+	validPartners             []string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -230,6 +231,11 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
 	appName := conf.GetString("webconfig.app_name")
 	validateMacEnabled := conf.GetBoolean("webconfig.validate_device_id_as_mac_address", tokenApiEnabledDefault)
+	configValidPartners := conf.GetStringList("webconfig.valid_partners")
+	validPartners := []string{}
+	for _, p := range configValidPartners {
+		validPartners = append(validPartners, strings.ToLower(p))
+	}
 
 	return &WebconfigServer{
 		Server: &http.Server{
@@ -255,6 +261,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		upstreamEnabled:           upstreamEnabled,
 		appName:                   appName,
 		validateMacEnabled:        validateMacEnabled,
+		validPartners:             validPartners,
 	}
 }
 
@@ -305,6 +312,11 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 
 			if ok, partnerId, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
+				if err := s.ValidatePartner(partnerId); err != nil {
+					fields := xw.Audit()
+					fields["src_partner"] = partnerId
+					partnerId = "unknown"
+				}
 				xw.SetPartnerId(partnerId)
 			} else {
 				xw.LogDebug(r, "token", fmt.Sprintf("CpeMiddleware() VerifyCpeToken()=false, err=%v", err))
@@ -467,6 +479,29 @@ func (s *WebconfigServer) NotLoggedHeaders() []string {
 	return s.notLoggedHeaders
 }
 
+func (s *WebconfigServer) ValidPartners() []string {
+	return s.validPartners
+}
+
+func (s *WebconfigServer) SetValidPartners(validPartners []string) {
+	s.validPartners = validPartners
+}
+
+func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
+	// if no valid partners are configured, all partners are accepted/validated
+	if len(s.validPartners) == 0 {
+		return nil
+	}
+
+	partner := strings.ToLower(parsedPartner)
+	for _, p := range s.validPartners {
+		if partner == p {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid partner")
+}
+
 func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
 	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
@@ -533,6 +568,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	if x := r.Header.Get("X-Webconfig-Transaction-Id"); len(x) > 0 {
 		fields["webconfig_transaction_id"] = x
+	}
+	if x := r.Header.Get(common.HeaderSourceAppName); len(x) > 0 {
+		fields["src_app_name"] = x
 	}
 
 	// add cpemac or csid in loggings

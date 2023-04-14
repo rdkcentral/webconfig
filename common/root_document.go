@@ -113,6 +113,25 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	return RootDocumentEquals
 }
 
+func (d *RootDocument) IsDifferent(r *RootDocument) bool {
+	if d.Bitmap != r.Bitmap {
+		return true
+	}
+	if d.FirmwareVersion != r.FirmwareVersion {
+		return true
+	}
+	if d.ModelName != r.ModelName {
+		return true
+	}
+	if d.PartnerId != r.PartnerId {
+		return true
+	}
+	if d.SchemaVersion != r.SchemaVersion {
+		return true
+	}
+	return false
+}
+
 // update in place
 func (d *RootDocument) Update(r *RootDocument) {
 	if r.Bitmap > 0 {

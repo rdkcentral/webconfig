@@ -79,3 +79,21 @@ func TestRootDocumentUpdate(t *testing.T) {
 	line := rootdoc1.String()
 	assert.Assert(t, !strings.Contains(line, "map["))
 }
+
+func TestRootDocumentIsDifferent(t *testing.T) {
+	bitmap := 123
+	version := "foo"
+	schemaVersion := "33554433-1.3,33554434-1.3"
+	modelName := "bar"
+	partnerId := "cox"
+	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
+	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc2 := rootdoc1.Clone()
+	isDiff := rootdoc1.IsDifferent(rootdoc2)
+	assert.Assert(t, !isDiff)
+
+	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
+	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "")
+	isDiff = rootdoc1.IsDifferent(rootdoc3)
+	assert.Assert(t, isDiff)
+}

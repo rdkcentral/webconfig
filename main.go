@@ -96,7 +96,7 @@ func main() {
 	var metrics *common.AppMetrics
 	if server.MetricsEnabled() {
 		router.Handle("/metrics", promhttp.Handler())
-		metrics = common.NewMetrics(server.GetString("webconfig.app_name"))
+		metrics = common.NewMetrics(sc.Config)
 		server.SetMetrics(metrics)
 		handler := metrics.WebMetrics(router)
 		server.Handler = handler

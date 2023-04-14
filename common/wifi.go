@@ -75,17 +75,26 @@ func (w *EmbeddedPrivateWifi) GetSimpleWifi(version string) *SimpleWifi {
 		sw.Ssid6g = &w.Ssid6g.Ssid
 	}
 	if w.Security2g != nil {
-		ss := w.Security2g.Passphrase[:4] + "****"
+		ss := w.Security2g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass2g = &ss
 		sw.Mode2g = &w.Security2g.Mode
 	}
 	if w.Security5g != nil {
-		ss := w.Security5g.Passphrase[:4] + "****"
+		ss := w.Security5g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass5g = &ss
 		sw.Mode5g = &w.Security5g.Mode
 	}
 	if w.Security6g != nil {
-		ss := w.Security6g.Passphrase[:4] + "****"
+		ss := w.Security6g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass6g = &ss
 		sw.Mode6g = &w.Security6g.Mode
 	}
@@ -118,17 +127,26 @@ func (w *EmbeddedHomeWifi) GetSimpleWifi(version string) *SimpleWifi {
 		sw.Ssid6g = &w.Ssid6g.Ssid
 	}
 	if w.Security2g != nil {
-		ss := w.Security2g.Passphrase[:4] + "****"
+		ss := w.Security2g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass2g = &ss
 		sw.Mode2g = &w.Security2g.Mode
 	}
 	if w.Security5g != nil {
-		ss := w.Security5g.Passphrase[:4] + "****"
+		ss := w.Security5g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass5g = &ss
 		sw.Mode5g = &w.Security5g.Mode
 	}
 	if w.Security6g != nil {
-		ss := w.Security6g.Passphrase[:4] + "****"
+		ss := w.Security6g.Passphrase
+		if len(ss) > 4 {
+			ss = ss[:4] + "****"
+		}
 		sw.Pass6g = &ss
 		sw.Mode6g = &w.Security6g.Mode
 	}
