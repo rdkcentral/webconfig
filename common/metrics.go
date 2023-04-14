@@ -65,6 +65,10 @@ type AppMetrics struct {
 	watchedStatePendingDownload *prometheus.GaugeVec
 	watchedStateInDeployment    *prometheus.GaugeVec
 	watchedStateFailure         *prometheus.GaugeVec
+	counterDeployed             *prometheus.CounterVec
+	counterPendingDownload      *prometheus.CounterVec
+	counterInDeployment         *prometheus.CounterVec
+	counterFailure              *prometheus.CounterVec
 	watchedCpes                 []string
 	logrusLevel                 log.Level
 }
@@ -230,6 +234,35 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 			},
 			[]string{"feature", "client"},
 		),
+		counterDeployed: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: appName + "_counter_deployed",
+				Help: "A counter for the times of cpes in deployed state per feature.",
+			},
+			[]string{"feature", "client"},
+		),
+
+		counterPendingDownload: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: appName + "_counter_pending_download",
+				Help: "A gauge for the times of cpes in pending_download state per feature.",
+			},
+			[]string{"feature", "client"},
+		),
+		counterInDeployment: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: appName + "_counter_in_deployment",
+				Help: "A gauge for the times of cpes in in_deployment state per feature.",
+			},
+			[]string{"feature", "client"},
+		),
+		counterFailure: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: appName + "_counter_failure",
+				Help: "A gauge for the times of cpes in failure state per feature.",
+			},
+			[]string{"feature", "client"},
+		),
 		watchedCpes: watchedCpes,
 		logrusLevel: logrusLevel,
 	}
@@ -287,6 +320,7 @@ func (m *AppMetrics) DeployedInc(feature string, client string, isWatchedCpe boo
 	if isWatchedCpe {
 		m.watchedStateDeployed.With(labels).Inc()
 	}
+	m.counterDeployed.With(labels).Inc()
 }
 
 func (m *AppMetrics) DeployedDec(feature string, client string, isWatchedCpe bool) {
@@ -312,6 +346,7 @@ func (m *AppMetrics) PendingDownloadInc(feature string, client string, isWatched
 	if isWatchedCpe {
 		m.watchedStatePendingDownload.With(labels).Inc()
 	}
+	m.counterPendingDownload.With(labels).Inc()
 }
 
 func (m *AppMetrics) PendingDownloadDec(feature string, client string, isWatchedCpe bool) {
@@ -337,6 +372,7 @@ func (m *AppMetrics) InDeploymentInc(feature string, client string, isWatchedCpe
 	if isWatchedCpe {
 		m.watchedStateInDeployment.With(labels).Inc()
 	}
+	m.counterInDeployment.With(labels).Inc()
 }
 
 func (m *AppMetrics) InDeploymentDec(feature string, client string, isWatchedCpe bool) {
@@ -362,6 +398,7 @@ func (m *AppMetrics) FailureInc(feature string, client string, isWatchedCpe bool
 	if isWatchedCpe {
 		m.watchedStateFailure.With(labels).Inc()
 	}
+	m.counterFailure.With(labels).Inc()
 }
 
 func (m *AppMetrics) FailureDec(feature string, client string, isWatchedCpe bool) {
@@ -395,27 +432,29 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 	}
 
 	// decrease the old state gauge
-	switch oldState {
-	case Deployed:
-		// m.DeployedDec(feature, client, isWatchedCpe)
-	case PendingDownload:
-		m.PendingDownloadDec(feature, client, isWatchedCpe)
-	case InDeployment:
-		m.InDeploymentDec(feature, client, isWatchedCpe)
-	case Failure:
-		// m.FailureDec(feature, client, isWatchedCpe)
-	}
+	if oldState != newState {
+		switch oldState {
+		case Deployed:
+			// m.DeployedDec(feature, client, isWatchedCpe)
+		case PendingDownload:
+			m.PendingDownloadDec(feature, client, isWatchedCpe)
+		case InDeployment:
+			m.InDeploymentDec(feature, client, isWatchedCpe)
+		case Failure:
+			// m.FailureDec(feature, client, isWatchedCpe)
+		}
 
-	// increase the new state gauge
-	switch newState {
-	case Deployed:
-		m.DeployedInc(feature, client, isWatchedCpe)
-	case PendingDownload:
-		m.PendingDownloadInc(feature, client, isWatchedCpe)
-	case InDeployment:
-		m.InDeploymentInc(feature, client, isWatchedCpe)
-	case Failure:
-		m.FailureInc(feature, client, isWatchedCpe)
+		// increase the new state gauge
+		switch newState {
+		case Deployed:
+			m.DeployedInc(feature, client, isWatchedCpe)
+		case PendingDownload:
+			m.PendingDownloadInc(feature, client, isWatchedCpe)
+		case InDeployment:
+			m.InDeploymentInc(feature, client, isWatchedCpe)
+		case Failure:
+			m.FailureInc(feature, client, isWatchedCpe)
+		}
 	}
 
 	// copy the fields for logging
@@ -512,7 +551,7 @@ func (m *AppMetrics) GetStateCountsAsFields(feature, client string) log.Fields {
 	}
 	pm = &promemodel.Metric{}
 	if err := m.stateFailure.With(labels).Write(pm); err == nil {
-		sfields["state_failuer_count"] = int(pm.Gauge.GetValue())
+		sfields["state_failure_count"] = int(pm.Gauge.GetValue())
 	}
 
 	// watched list
@@ -530,7 +569,25 @@ func (m *AppMetrics) GetStateCountsAsFields(feature, client string) log.Fields {
 	}
 	pm = &promemodel.Metric{}
 	if err := m.watchedStateFailure.With(labels).Write(pm); err == nil {
-		sfields["watched_state_failuer_count"] = int(pm.Gauge.GetValue())
+		sfields["watched_state_failure_count"] = int(pm.Gauge.GetValue())
+	}
+
+	// counter
+	pm = &promemodel.Metric{}
+	if err := m.counterDeployed.With(labels).Write(pm); err == nil {
+		sfields["counter_deployed"] = int(pm.Counter.GetValue())
+	}
+	pm = &promemodel.Metric{}
+	if err := m.counterPendingDownload.With(labels).Write(pm); err == nil {
+		sfields["counter_pending"] = int(pm.Counter.GetValue())
+	}
+	pm = &promemodel.Metric{}
+	if err := m.counterInDeployment.With(labels).Write(pm); err == nil {
+		sfields["counter_indeployment"] = int(pm.Counter.GetValue())
+	}
+	pm = &promemodel.Metric{}
+	if err := m.counterFailure.With(labels).Write(pm); err == nil {
+		sfields["counter_failure"] = int(pm.Counter.GetValue())
 	}
 
 	return sfields
