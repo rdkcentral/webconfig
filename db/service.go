@@ -321,50 +321,38 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	return nil
 }
 
-func UpdateSubDocument(c DatabaseClient, cpeMac string, mpart *common.Multipart, subdoc *common.SubDocument, fields log.Fields) error {
-	changed := false
-	if subdoc == nil {
-		changed = true
-	} else {
-		if *subdoc.Version() != mpart.Version {
-			changed = true
-		}
+func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, fields log.Fields) error {
+	var oldState int
+	if oldSubdoc != nil && oldSubdoc.State() != nil {
+		oldState = *oldSubdoc.State()
 	}
-	if changed {
-		newState := common.InDeployment
-		updatedTime := int(time.Now().UnixNano() / 1000000)
-		errorCode := 0
-		errorDetails := ""
-		newSubdoc := common.NewSubDocument(mpart.Bytes, &mpart.Version, &newState, &updatedTime, &errorCode, &errorDetails)
-		var oldState int
-		if subdoc != nil && subdoc.State() != nil {
-			oldState = *subdoc.State()
-		}
-		metricsAgent := ""
-		err := c.SetSubDocument(cpeMac, mpart.Name, newSubdoc, oldState, metricsAgent, fields)
+
+	updatedTime := int(time.Now().UnixNano() / 1000000)
+	newSubdoc.SetUpdatedTime(&updatedTime)
+	newState := common.InDeployment
+	newSubdoc.SetState(&newState)
+	metricsAgent := "default"
+	err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent, fields)
+	if err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, fields log.Fields) error {
+
+	newRootVersion := upstreamRespEtag
+	if d.RootVersion() != newRootVersion {
+		err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
 		if err != nil {
 			return common.NewError(err)
 		}
 	}
 
-	return nil
-}
-
-func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, mparts []common.Multipart, d *common.Document, fields log.Fields) error {
-	newRootVersion := upstreamRespEtag
-	if d.RootVersion() == newRootVersion {
-		return nil
-	}
-
-	err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
-	if err != nil {
-		return common.NewError(err)
-	}
-
 	// need to set "state" to proper values like the download is complete
-	for _, mpart := range mparts {
-		subdoc := d.SubDocument(mpart.Name)
-		err := UpdateSubDocument(c, cpeMac, &mpart, subdoc, fields)
+	for subdocId, newSubdoc := range newDoc.Items() {
+		oldSubdoc := d.SubDocument(subdocId)
+		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
