@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -41,21 +40,32 @@ type Consumer struct {
 	ratelimitMessagesPerSecond int
 	appName                    string
 	clusterName                string
+	offsetEnum                 int64
+	topicPartitionsMap         map[string][]int32
 }
 
-func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics, clusterName string) *Consumer {
+func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics, clusterName string, offsetEnum int64, topicPartitionsMap map[string][]int32) *Consumer {
 	return &Consumer{
 		WebconfigServer:            s,
 		Ready:                      make(chan bool),
 		ratelimitMessagesPerSecond: ratelimitMessagesPerSecond,
 		appName:                    s.AppName(),
 		clusterName:                clusterName,
+		offsetEnum:                 offsetEnum,
+		topicPartitionsMap:         topicPartitionsMap,
 	}
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
-func (c *Consumer) Setup(sarama.ConsumerGroupSession) error {
+func (c *Consumer) Setup(session sarama.ConsumerGroupSession) error {
 	// Mark the consumer as ready
+	if c.topicPartitionsMap != nil {
+		for topic, partitions := range c.topicPartitionsMap {
+			for _, p := range partitions {
+				session.ResetOffset(topic, p, c.offsetEnum, "")
+			}
+		}
+	}
 	close(c.Ready)
 	return nil
 }
@@ -158,19 +168,20 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	rl := ratelimit.New(c.ratelimitMessagesPerSecond, ratelimit.WithoutSlack) // per second, no slack.
 	for message := range claim.Messages() {
 		rl.Take()
-		// log.Printf("%v\n", string(message.Value))
 		lag := int(time.Since(message.Timestamp).Nanoseconds() / 1000000)
 		start := time.Now()
 		auditId := util.GetAuditId()
 
 		fields := log.Fields{
-			"logger":       "kafka",
-			"app_name":     c.AppName(),
-			"kafka_lag":    lag,
-			"kafka_key":    message.Key,
-			"topic":        message.Topic,
-			"audit_id":     auditId,
-			"cluster_name": c.ClusterName(),
+			"logger":          "kafka",
+			"app_name":        c.AppName(),
+			"kafka_lag":       lag,
+			"kafka_key":       message.Key,
+			"topic":           message.Topic,
+			"audit_id":        auditId,
+			"cluster_name":    c.ClusterName(),
+			"kafka_partition": message.Partition,
+			"kafka_offset":    message.Offset,
 		}
 
 		var err error
@@ -234,165 +245,4 @@ func (c *Consumer) AppName() string {
 
 func (c *Consumer) ClusterName() string {
 	return c.clusterName
-}
-
-type KafkaConsumerGroup struct {
-	sarama.ConsumerGroup
-	db.DatabaseClient
-	consumer *Consumer
-	topics   []string
-}
-
-func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer, m *common.AppMetrics) (*KafkaConsumerGroup, error) {
-	enabled := conf.GetBoolean("webconfig.kafka.enabled")
-	if !enabled {
-		return nil, nil
-	}
-	brokersStr := conf.GetString("webconfig.kafka.brokers")
-	if len(brokersStr) == 0 {
-		return nil, common.NewError(fmt.Errorf("no brokers in configs"))
-	}
-	topicsStr := conf.GetString("webconfig.kafka.topics")
-	if len(topicsStr) == 0 {
-		return nil, common.NewError(fmt.Errorf("no topics in configs"))
-	}
-	topics := strings.Split(topicsStr, ",")
-	group := conf.GetString("webconfig.kafka.consumer_group")
-	if conf.GetBoolean("use_random_consumer_group") {
-		group = fmt.Sprintf("webconfig_%v", time.Now().Unix())
-	}
-
-	assignor := conf.GetString("webconfig.kafka.assignor", "roundrobin")
-	oldest := conf.GetBoolean("webconfig.kafka.oldest")
-	ratelimitMessagesPerSecond := int(conf.GetInt32("webconfig.kafka.ratelimit.messages_per_second"))
-	sconfig := sarama.NewConfig()
-
-	switch assignor {
-	case "sticky":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
-	case "roundrobin":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
-	case "range":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
-	default:
-		return nil, common.NewError(fmt.Errorf("Unrecognized consumer group partition assignor: %s", assignor))
-	}
-
-	if oldest {
-		sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-	}
-
-	consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, "root")
-
-	client, err := sarama.NewConsumerGroup(strings.Split(brokersStr, ","), group, sconfig)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating consumer group client: %v", err)
-	}
-
-	return &KafkaConsumerGroup{
-		ConsumerGroup:  client,
-		DatabaseClient: s.DatabaseClient,
-		consumer:       consumer,
-		topics:         topics,
-	}, nil
-}
-
-func (g *KafkaConsumerGroup) Topics() []string {
-	return g.topics
-}
-
-func (g *KafkaConsumerGroup) Consumer() *Consumer {
-	return g.consumer
-}
-
-func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, m *common.AppMetrics) ([]*KafkaConsumerGroup, error) {
-	rootGroup, err := NewKafkaConsumerGroup(sc.Config, s, m)
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-
-	if rootGroup == nil {
-		return nil, nil
-	}
-
-	kcgroups := []*KafkaConsumerGroup{
-		rootGroup,
-	}
-
-	clusterNames := sc.KafkaClusterNames()
-	for _, clusterName := range clusterNames {
-		prefix := "webconfig.kafka.clusters." + clusterName
-		enabled := sc.GetBoolean(prefix + ".enabled")
-		if !enabled {
-			continue
-		}
-
-		brokersStr := sc.GetString(prefix + ".brokers")
-		if len(brokersStr) == 0 {
-			return nil, common.NewError(fmt.Errorf("no brokers in configs"))
-		}
-		topicsStr := sc.GetString(prefix + ".topics")
-		if len(topicsStr) == 0 {
-			return nil, common.NewError(fmt.Errorf("no topics in configs"))
-		}
-		topics := strings.Split(topicsStr, ",")
-		group := sc.GetString(prefix + ".consumer_group")
-		if sc.GetBoolean(prefix + ".use_random_consumer_group") {
-			group = fmt.Sprintf("webconfig_%v", time.Now().Unix())
-		}
-
-		assignor := sc.GetString(prefix+".assignor", "roundrobin")
-		oldest := sc.GetBoolean(prefix + ".oldest")
-		ratelimitMessagesPerSecond := int(sc.GetInt32(prefix + ".ratelimit.messages_per_second"))
-		sconfig := sarama.NewConfig()
-
-		switch assignor {
-		case "sticky":
-			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
-		case "roundrobin":
-			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
-		case "range":
-			sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
-		default:
-			return nil, common.NewError(fmt.Errorf("Unrecognized consumer group partition assignor: %s", assignor))
-		}
-
-		if oldest {
-			sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-		}
-
-		consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, clusterName)
-
-		client, err := sarama.NewConsumerGroup(strings.Split(brokersStr, ","), group, sconfig)
-		if err != nil {
-			return nil, fmt.Errorf("Error creating consumer group client: %v", err)
-		}
-
-		kcgroup := KafkaConsumerGroup{
-			ConsumerGroup:  client,
-			DatabaseClient: s.DatabaseClient,
-			consumer:       consumer,
-			topics:         topics,
-		}
-		kcgroups = append(kcgroups, &kcgroup)
-	}
-
-	return kcgroups, nil
-}
-
-func getEventName(message *sarama.ConsumerMessage) string {
-	if len(message.Headers) > 0 {
-		for _, h := range message.Headers {
-			if string(h.Key) == "rpt" {
-				switch string(h.Value) {
-				case "x/fr/get":
-					return "mqtt-get"
-				case "x/fr/poke":
-					return "mqtt-state"
-				}
-			}
-		}
-		return "unknown"
-	}
-	return "webpa-state"
 }
