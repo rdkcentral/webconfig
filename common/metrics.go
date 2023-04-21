@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/go-akka/configuration"
@@ -190,7 +191,7 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_kafka_lag",
 				Help: "A summary of kafka lag.",
 			},
-			[]string{"event", "client"},
+			[]string{"event", "client", "partition"},
 		),
 		kafkaDuration: prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
@@ -204,7 +205,8 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_event_types",
 				Help: "A counter for kafka event types",
 			},
-			[]string{"status", "event"}, // app name, kafka processing success/fail, event type (mqtt-get/set, webpa)
+			// app name, kafka processing success/fail, event type (mqtt-get/set, webpa)
+			[]string{"status", "event", "partition"},
 		),
 		watchedStateDeployed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -283,6 +285,10 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 		appMetrics.watchedStatePendingDownload,
 		appMetrics.watchedStateInDeployment,
 		appMetrics.watchedStateFailure,
+		appMetrics.counterDeployed,
+		appMetrics.counterPendingDownload,
+		appMetrics.counterInDeployment,
+		appMetrics.counterFailure,
 	)
 	return appMetrics
 }
@@ -483,8 +489,12 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 	log.WithFields(tfields).Log(m.logrusLevel, "OK")
 }
 
-func (m *AppMetrics) ObserveKafkaLag(eventName string, clientName string, lag int) {
-	labels := prometheus.Labels{"event": eventName, "client": clientName}
+func (m *AppMetrics) ObserveKafkaLag(eventName string, clientName string, lag int, partition int32) {
+	labels := prometheus.Labels{
+		"event":     eventName,
+		"client":    clientName,
+		"partition": strconv.Itoa(int(partition)),
+	}
 	m.kafkaLag.With(labels).Observe(float64(lag))
 }
 
@@ -493,8 +503,12 @@ func (m *AppMetrics) ObserveKafkaDuration(eventName string, clientName string, d
 	m.kafkaDuration.With(labels).Observe(float64(duration))
 }
 
-func (m *AppMetrics) CountKafkaEvents(eventName string, status string) {
-	labels := prometheus.Labels{"event": eventName, "status": status}
+func (m *AppMetrics) CountKafkaEvents(eventName string, status string, partition int32) {
+	labels := prometheus.Labels{
+		"event":     eventName,
+		"status":    status,
+		"partition": strconv.Itoa(int(partition)),
+	}
 	m.eventCounter.With(labels).Inc()
 }
 
