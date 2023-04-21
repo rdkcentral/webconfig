@@ -172,11 +172,12 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		start := time.Now()
 		auditId := util.GetAuditId()
 
+		kafkaKey := string(message.Key)
 		fields := log.Fields{
 			"logger":          "kafka",
 			"app_name":        c.AppName(),
 			"kafka_lag":       lag,
-			"kafka_key":       message.Key,
+			"kafka_key":       kafkaKey,
 			"topic":           message.Topic,
 			"audit_id":        auditId,
 			"cluster_name":    c.ClusterName(),
@@ -227,13 +228,13 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				metricsAgent = *m.MetricsAgent
 			}
 			// TODO try to read metricsAgent from fields["metrics_agent"]
-			metrics.ObserveKafkaLag(eventName, metricsAgent, lag)
+			metrics.ObserveKafkaLag(eventName, metricsAgent, lag, message.Partition)
 			metrics.ObserveKafkaDuration(eventName, metricsAgent, duration)
 			status := "success"
 			if err != nil {
 				status = "fail"
 			}
-			metrics.CountKafkaEvents(eventName, status)
+			metrics.CountKafkaEvents(eventName, status, message.Partition)
 		}
 	}
 	return nil
