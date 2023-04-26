@@ -213,28 +213,28 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_watched_state_deployed",
 				Help: "A gauge for the number of watched cpes in deployed state per feature.",
 			},
-			[]string{"feature", "client"},
+			[]string{"feature", "client", "mac"},
 		),
 		watchedStatePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_pending_download",
 				Help: "A gauge for the number of watched cpes in pending_download state per feature.",
 			},
-			[]string{"feature", "client"},
+			[]string{"feature", "client", "mac"},
 		),
 		watchedStateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_in_deployment",
 				Help: "A gauge for the number of watched cpes in in_deployment state per feature.",
 			},
-			[]string{"feature", "client"},
+			[]string{"feature", "client", "mac"},
 		),
 		watchedStateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_failure",
 				Help: "A gauge for the number of watched cpes in failure state per feature.",
 			},
-			[]string{"feature", "client"},
+			[]string{"feature", "client", "mac"},
 		),
 		counterDeployed: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -320,106 +320,118 @@ func (m *AppMetrics) UrlPatternFn() func(string) string {
 }
 
 // deployed(1)
-func (m *AppMetrics) DeployedInc(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) DeployedInc(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateDeployed.With(labels).Inc()
 	if isWatchedCpe {
-		m.watchedStateDeployed.With(labels).Inc()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateDeployed.With(mlabels).Inc()
 	}
 	m.counterDeployed.With(labels).Inc()
 }
 
-func (m *AppMetrics) DeployedDec(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) DeployedDec(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateDeployed.With(labels).Dec()
 	if isWatchedCpe {
-		m.watchedStateDeployed.With(labels).Dec()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateDeployed.With(mlabels).Dec()
 	}
 }
 
-func (m *AppMetrics) DeployedSet(feature string, client string, v float64, isWatchedCpe bool) {
+func (m *AppMetrics) DeployedSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateDeployed.With(labels).Set(v)
 	if isWatchedCpe {
-		m.watchedStateDeployed.With(labels).Set(v)
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateDeployed.With(mlabels).Set(v)
 	}
 }
 
 // pending_download(2)
-func (m *AppMetrics) PendingDownloadInc(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) PendingDownloadInc(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.statePendingDownload.With(labels).Inc()
 	if isWatchedCpe {
-		m.watchedStatePendingDownload.With(labels).Inc()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStatePendingDownload.With(mlabels).Inc()
 	}
 	m.counterPendingDownload.With(labels).Inc()
 }
 
-func (m *AppMetrics) PendingDownloadDec(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) PendingDownloadDec(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.statePendingDownload.With(labels).Dec()
 	if isWatchedCpe {
-		m.watchedStatePendingDownload.With(labels).Dec()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStatePendingDownload.With(mlabels).Dec()
 	}
 }
 
-func (m *AppMetrics) PendingDownloadSet(feature string, client string, v float64, isWatchedCpe bool) {
+func (m *AppMetrics) PendingDownloadSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.statePendingDownload.With(labels).Set(v)
 	if isWatchedCpe {
-		m.watchedStatePendingDownload.With(labels).Set(v)
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStatePendingDownload.With(mlabels).Set(v)
 	}
 }
 
 // in_deployment(3)
-func (m *AppMetrics) InDeploymentInc(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) InDeploymentInc(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateInDeployment.With(labels).Inc()
 	if isWatchedCpe {
-		m.watchedStateInDeployment.With(labels).Inc()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateInDeployment.With(mlabels).Inc()
 	}
 	m.counterInDeployment.With(labels).Inc()
 }
 
-func (m *AppMetrics) InDeploymentDec(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) InDeploymentDec(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateInDeployment.With(labels).Dec()
 	if isWatchedCpe {
-		m.watchedStateInDeployment.With(labels).Dec()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateInDeployment.With(mlabels).Dec()
 	}
 }
 
-func (m *AppMetrics) InDeploymentSet(feature string, client string, v float64, isWatchedCpe bool) {
+func (m *AppMetrics) InDeploymentSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateInDeployment.With(labels).Set(v)
 	if isWatchedCpe {
-		m.watchedStateInDeployment.With(labels).Set(v)
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateInDeployment.With(mlabels).Set(v)
 	}
 }
 
 // failure(4)
-func (m *AppMetrics) FailureInc(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) FailureInc(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateFailure.With(labels).Inc()
 	if isWatchedCpe {
-		m.watchedStateFailure.With(labels).Inc()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateFailure.With(mlabels).Inc()
 	}
 	m.counterFailure.With(labels).Inc()
 }
 
-func (m *AppMetrics) FailureDec(feature string, client string, isWatchedCpe bool) {
+func (m *AppMetrics) FailureDec(feature, client, cpeMac string, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateFailure.With(labels).Dec()
 	if isWatchedCpe {
-		m.watchedStateFailure.With(labels).Dec()
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateFailure.With(mlabels).Dec()
 	}
 }
 
-func (m *AppMetrics) FailureSet(feature string, client string, v float64, isWatchedCpe bool) {
+func (m *AppMetrics) FailureSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	m.stateFailure.With(labels).Set(v)
 	if isWatchedCpe {
-		m.watchedStateFailure.With(labels).Set(v)
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		m.watchedStateFailure.With(mlabels).Set(v)
 	}
 }
 
@@ -443,9 +455,9 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 		case Deployed:
 			// m.DeployedDec(feature, client, isWatchedCpe)
 		case PendingDownload:
-			m.PendingDownloadDec(feature, client, isWatchedCpe)
+			m.PendingDownloadDec(feature, client, cpeMac, isWatchedCpe)
 		case InDeployment:
-			m.InDeploymentDec(feature, client, isWatchedCpe)
+			m.InDeploymentDec(feature, client, cpeMac, isWatchedCpe)
 		case Failure:
 			// m.FailureDec(feature, client, isWatchedCpe)
 		}
@@ -453,13 +465,13 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 		// increase the new state gauge
 		switch newState {
 		case Deployed:
-			m.DeployedInc(feature, client, isWatchedCpe)
+			m.DeployedInc(feature, client, cpeMac, isWatchedCpe)
 		case PendingDownload:
-			m.PendingDownloadInc(feature, client, isWatchedCpe)
+			m.PendingDownloadInc(feature, client, cpeMac, isWatchedCpe)
 		case InDeployment:
-			m.InDeploymentInc(feature, client, isWatchedCpe)
+			m.InDeploymentInc(feature, client, cpeMac, isWatchedCpe)
 		case Failure:
-			m.FailureInc(feature, client, isWatchedCpe)
+			m.FailureInc(feature, client, cpeMac, isWatchedCpe)
 		}
 	}
 
@@ -481,7 +493,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 		tfields[k] = v
 	}
 
-	sfields := m.GetStateCountsAsFields(feature, client)
+	sfields := m.GetStateCountsAsFields(feature, client, cpeMac)
 	for k, v := range sfields {
 		tfields[k] = v
 	}
@@ -547,7 +559,7 @@ func (m *AppMetrics) GetStateCounter(feature, client string) (*StateCounter, err
 	return &sc, nil
 }
 
-func (m *AppMetrics) GetStateCountsAsFields(feature, client string) log.Fields {
+func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string) log.Fields {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	sfields := make(log.Fields)
 
@@ -569,20 +581,21 @@ func (m *AppMetrics) GetStateCountsAsFields(feature, client string) log.Fields {
 	}
 
 	// watched list
+	mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 	pm = &promemodel.Metric{}
-	if err := m.watchedStateDeployed.With(labels).Write(pm); err == nil {
+	if err := m.watchedStateDeployed.With(mlabels).Write(pm); err == nil {
 		sfields["watched_state_deployed_count"] = int(pm.Gauge.GetValue())
 	}
 	pm = &promemodel.Metric{}
-	if err := m.watchedStatePendingDownload.With(labels).Write(pm); err == nil {
+	if err := m.watchedStatePendingDownload.With(mlabels).Write(pm); err == nil {
 		sfields["watched_state_pending_count"] = int(pm.Gauge.GetValue())
 	}
 	pm = &promemodel.Metric{}
-	if err := m.watchedStateInDeployment.With(labels).Write(pm); err == nil {
+	if err := m.watchedStateInDeployment.With(mlabels).Write(pm); err == nil {
 		sfields["watched_state_indeployment_count"] = int(pm.Gauge.GetValue())
 	}
 	pm = &promemodel.Metric{}
-	if err := m.watchedStateFailure.With(labels).Write(pm); err == nil {
+	if err := m.watchedStateFailure.With(mlabels).Write(pm); err == nil {
 		sfields["watched_state_failure_count"] = int(pm.Gauge.GetValue())
 	}
 
