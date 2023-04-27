@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
+	"github.com/rdkcentral/webconfig/common"
 	owcommon "github.com/rdkcentral/webconfig/common"
 )
 
@@ -68,6 +69,21 @@ func (c *UpstreamConnector) ServiceName() string {
 
 func (c *UpstreamConnector) PostUpstream(mac string, header http.Header, bbytes []byte, fields log.Fields) ([]byte, http.Header, error) {
 	url := c.UpstreamHost() + fmt.Sprintf(c.upstreamUrlTemplate, mac)
+
+	if itf, ok := fields["audit_id"]; ok {
+		auditId := itf.(string)
+		if len(auditId) > 0 {
+			header.Set(common.HeaderAuditid, auditId)
+		}
+	}
+
+	if itf, ok := fields["app_name"]; ok {
+		appName := itf.(string)
+		if len(appName) > 0 {
+			header.Set(common.HeaderSourceAppName, appName)
+		}
+	}
+
 	rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)

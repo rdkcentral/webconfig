@@ -200,7 +200,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	upstreamHeader := make(http.Header)
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
-	oldEtag := document.RootVersion()
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
 		if len(auditId) > 0 {
@@ -254,14 +253,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
-	if upstreamRespEtag != oldEtag {
-		// `document` is the document BEFORE sending upstream
-		err := db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalMparts, document, fields)
-		if err != nil {
-			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
-		}
-	}
-
 	// filter by versionMap and filter by blockedIds
 	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
@@ -269,6 +260,12 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)
 	for _, subdocId := range c.BlockedSubdocIds() {
 		finalFilteredDocument.DeleteSubDocument(subdocId)
+	}
+
+	// update states based on the final document
+	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalFilteredDocument, document, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 	}
 
 	// 304
