@@ -493,7 +493,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 		tfields[k] = v
 	}
 
-	sfields := m.GetStateCountsAsFields(feature, client, cpeMac)
+	sfields := m.GetStateCountsAsFields(feature, client, cpeMac, isWatchedCpe)
 	for k, v := range sfields {
 		tfields[k] = v
 	}
@@ -559,7 +559,7 @@ func (m *AppMetrics) GetStateCounter(feature, client string) (*StateCounter, err
 	return &sc, nil
 }
 
-func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string) log.Fields {
+func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string, isWatchedCpe bool) log.Fields {
 	labels := prometheus.Labels{"feature": feature, "client": client}
 	sfields := make(log.Fields)
 
@@ -581,22 +581,24 @@ func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string) log.
 	}
 
 	// watched list
-	mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
-	pm = &promemodel.Metric{}
-	if err := m.watchedStateDeployed.With(mlabels).Write(pm); err == nil {
-		sfields["watched_state_deployed_count"] = int(pm.Gauge.GetValue())
-	}
-	pm = &promemodel.Metric{}
-	if err := m.watchedStatePendingDownload.With(mlabels).Write(pm); err == nil {
-		sfields["watched_state_pending_count"] = int(pm.Gauge.GetValue())
-	}
-	pm = &promemodel.Metric{}
-	if err := m.watchedStateInDeployment.With(mlabels).Write(pm); err == nil {
-		sfields["watched_state_indeployment_count"] = int(pm.Gauge.GetValue())
-	}
-	pm = &promemodel.Metric{}
-	if err := m.watchedStateFailure.With(mlabels).Write(pm); err == nil {
-		sfields["watched_state_failure_count"] = int(pm.Gauge.GetValue())
+	if isWatchedCpe {
+		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
+		pm = &promemodel.Metric{}
+		if err := m.watchedStateDeployed.With(mlabels).Write(pm); err == nil {
+			sfields["watched_state_deployed_count"] = int(pm.Gauge.GetValue())
+		}
+		pm = &promemodel.Metric{}
+		if err := m.watchedStatePendingDownload.With(mlabels).Write(pm); err == nil {
+			sfields["watched_state_pending_count"] = int(pm.Gauge.GetValue())
+		}
+		pm = &promemodel.Metric{}
+		if err := m.watchedStateInDeployment.With(mlabels).Write(pm); err == nil {
+			sfields["watched_state_indeployment_count"] = int(pm.Gauge.GetValue())
+		}
+		pm = &promemodel.Metric{}
+		if err := m.watchedStateFailure.With(mlabels).Write(pm); err == nil {
+			sfields["watched_state_failure_count"] = int(pm.Gauge.GetValue())
+		}
 	}
 
 	// counter
