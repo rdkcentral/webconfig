@@ -102,7 +102,7 @@ curl http://localhost:9000/api/v1/version
 ### Write data into DB
 The POST API is designed to accept binary input "Content-type: application/msgpack". A "group_id" is mandatory in the query parameter to specify the subdoc the input is meant for. Most programming languages supports HTTP would accept binary data as POST body. The example uses curl and reads the binary data from a file.
 ```shell
-curl -s -i "http://localhost:9000/api/v1/device/010203040506/document?group_id=privatessid" -H 'Content-type: application/msgpack' --data-binary @privatessid.bin -X POST
+curl -s -i "http://localhost:9000/api/v1/device/010203040506/document/privatessid" -H 'Content-type: application/msgpack' --data-binary @privatessid.bin -X POST
 HTTP/1.1 200 OK
 Content-Type: application/json
 Date: Wed, 14 Oct 2020 22:58:21 GMT
@@ -114,7 +114,7 @@ Content-Length: 29
 ### Verify data in DB
 The GET API read binary data in the response. The "group_id" is mandatory in the query parameter. For simplicity, the binary output is saved as a file. We can compare the 2 files to verify.
 ```shell
-curl -s -i "http://localhost:9000/api/v1/device/010203040506/document?group_id=privatessid" > result.bin
+curl -s -i "http://localhost:9000/api/v1/device/010203040506/document/privatessid" > result.bin
 
 cmp privatessid.bin result.bin
 ```
