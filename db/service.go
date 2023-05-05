@@ -251,7 +251,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		errorDetails := ""
 		for groupId, oldSubdoc := range doc.Items() {
 			// fix the bad condition when updated_time is negative
-			if oldSubdoc.State() != nil && *oldSubdoc.State() != common.Deployed || oldSubdoc.UpdatedTime() != nil && *oldSubdoc.UpdatedTime() < 0 {
+			if oldSubdoc.NeedsUpdateForHttp304() {
 				newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 				oldState := *oldSubdoc.State()
 
@@ -273,8 +273,14 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	}
 
 	state := common.Failure
+	errorCodePtr := m.ErrorCode
+	errorDetailsPtr := m.ErrorDetails
 	if *m.ApplicationStatus == "success" {
 		state = common.Deployed
+		errorCode := 0
+		errorCodePtr = &errorCode
+		errorDetails := ""
+		errorDetailsPtr = &errorDetails
 	} else if *m.ApplicationStatus == "pending" {
 		return nil
 	}
@@ -306,7 +312,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		}
 	}
 
-	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, m.ErrorCode, m.ErrorDetails)
+	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, errorCodePtr, errorDetailsPtr)
 
 	// metricsAgent handling
 	var metricsAgent string
