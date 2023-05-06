@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 // NOTE this
@@ -180,10 +181,18 @@ func (c *CassandraClient) DeleteDocument(cpeMac string) error {
 	return nil
 }
 
-func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Document, error) {
+func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (*common.Document, error) {
 	var includeExpiry bool
-	if len(args) > 0 {
-		includeExpiry = args[0]
+	var fields log.Fields
+	if len(xargs) > 0 {
+		for _, v := range xargs {
+			switch t := v.(type) {
+			case bool:
+				includeExpiry = t
+			case log.Fields:
+				fields = t
+			}
+		}
 	}
 
 	doc := common.NewDocument(nil)
@@ -193,6 +202,8 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 
 	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=?"
 	iter := c.Query(stmt, cpeMac).Iter()
+
+	rowDescMap := make(util.Dict)
 
 	now := time.Now()
 	for {
@@ -206,6 +217,20 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry) {
 			break
 		}
+
+		// build the logging obj
+		rowDesc := util.Dict{
+			"version":     version,
+			"state":       state,
+			"payload_len": len(payload),
+		}
+		if !updatedTime.IsZero() {
+			rowDesc["updated_time"] = updatedTime.Format(common.LoggingTimeFormat)
+		}
+		if !expiry.IsZero() {
+			rowDesc["expiry"] = expiry.Format(common.LoggingTimeFormat)
+		}
+		rowDescMap[groupId] = rowDesc
 
 		if len(payload) == 0 {
 			continue
@@ -224,17 +249,23 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 
 		subdoc := common.NewSubDocument(payload, &version, &state, updatedTimeTsPtr, &errorCode, &errorDetails)
 		// REMINDER, need this operation to detect if the "expiry" column is null/empty
-		if x := int(expiry.UnixNano() / 1000000); x > 0 {
-			// eval subdocs with expiry
-			if !includeExpiry {
-				if expiry.Before(now) {
-					continue
+		if !expiry.IsZero() {
+			if x := int(expiry.UnixNano() / 1000000); x > 0 {
+				// eval subdocs with expiry
+				if !includeExpiry {
+					if expiry.Before(now) {
+						continue
+					}
 				}
+				subdoc.SetExpiry(&x)
 			}
-			subdoc.SetExpiry(&x)
 		}
 
 		doc.SetSubDocument(groupId, subdoc)
+	}
+
+	if fields != nil {
+		fields["document"] = rowDescMap
 	}
 
 	if doc.Length() == 0 {
