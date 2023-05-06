@@ -30,7 +30,7 @@ type DatabaseClient interface {
 	SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
 	DeleteSubDocument(string, string) error
 
-	GetDocument(string, ...bool) (*common.Document, error)
+	GetDocument(string, ...interface{}) (*common.Document, error)
 	SetDocument(string, *common.Document) error
 	DeleteDocument(string) error
 

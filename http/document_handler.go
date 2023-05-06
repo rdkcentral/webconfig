@@ -165,7 +165,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		}
 
 		// update the root version
-		doc, err := s.GetDocument(deviceId, true)
+		doc, err := s.GetDocument(deviceId, true, fields)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return

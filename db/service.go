@@ -122,7 +122,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// meta unchanged but subdoc versions change ==> new configs
 		// getDoc, then filter
-		document, err := c.GetDocument(mac)
+		document, err := c.GetDocument(mac, fields)
 		if err != nil {
 			// 404 should be included here
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
@@ -135,7 +135,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		return filteredDocument, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream
-		document, err := c.GetDocument(mac)
+		document, err := c.GetDocument(mac, fields)
 		if err != nil {
 			// 404 should be included here
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)

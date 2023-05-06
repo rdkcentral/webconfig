@@ -621,29 +621,36 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	url := r.URL.String()
 	fields := xw.Audit()
 	if strings.Contains(url, "/config") {
+		rbytes := []byte(xw.Response())
 		var isTelemetry bool
 		if itf, ok := fields["is_telemetry"]; ok {
 			isTelemetry = itf.(bool)
 		}
 
-		if isTelemetry {
-			fields["response"] = ObfuscatedMap
-			fields["response_text"] = "****"
-		} else {
-			switch xw.Status() {
-			case http.StatusOK:
-				rbytes := []byte(xw.Response())
-				resHeader := xw.ResponseWriter.Header()
-				if mpdict, err := util.ParseMultipartsForLogging(rbytes, resHeader, wifiSubdocIds); err == nil {
-					fields["response"] = mpdict
-				}
-			case http.StatusNotModified:
-				fields["response"] = ObfuscatedMap
-				fields["response_text"] = ""
-			default:
-				fields["response"] = ObfuscatedMap
-				fields["response_text"] = "****"
+		if !isTelemetry && xw.Status() == http.StatusOK {
+			resHeader := xw.ResponseWriter.Header()
+			if mpdict, err := util.ParseMultipartsForLogging(rbytes, resHeader, wifiSubdocIds); err == nil {
+				fields["response"] = mpdict
 			}
+		} else {
+			res_itf, res_text := GetResponseLogObjs(rbytes)
+			fields["response"] = res_itf
+			fields["response_text"] = res_text
+		}
+
+		var doc_map util.Dict
+		if itf, ok := fields["document"]; ok {
+			if d, ok := itf.(util.Dict); ok {
+				doc_map = d
+			}
+		}
+		if len(doc_map) > 0 {
+			tfields := util.CopyLogFields(fields)
+			tfields["logger"] = "doc"
+			log.WithFields(tfields).Debug("details")
+		}
+		if xw.Status() < 500 {
+			delete(fields, "document")
 		}
 	} else if (strings.Contains(url, "/document") && r.Method == "GET") || (url == "/api/v1/token" && r.Method == "POST") {
 		fields["response"] = ObfuscatedMap
@@ -717,4 +724,21 @@ func (xw *XResponseWriter) LogInfo(r *http.Request, logger string, message strin
 
 func (xw *XResponseWriter) LogWarn(r *http.Request, logger string, message string) {
 	xw.logMessage(logger, message, LevelWarn)
+}
+
+func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
+	if len(rbytes) == 0 {
+		return EmptyMap, ""
+	}
+
+	if !util.IsValidUTF8(rbytes) {
+		return ObfuscatedMap, "****"
+	}
+
+	var itf interface{}
+	err := json.Unmarshal(rbytes, &itf)
+	if err != nil {
+		return BadJsonResponseMap, string(rbytes)
+	}
+	return itf, ""
 }
