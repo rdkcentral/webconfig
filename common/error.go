@@ -106,3 +106,11 @@ func UnwrapAll(wrappedErr error) error {
 	}
 	return err
 }
+
+func GetCaller() string {
+	_, file, line, _ := runtime.Caller(1)
+	filename := filepath.Base(file)
+	fulldir := filepath.Dir(file)
+	dir := filepath.Base(fulldir)
+	return fmt.Sprintf("%v/%v[%v]", dir, filename, line)
+}
