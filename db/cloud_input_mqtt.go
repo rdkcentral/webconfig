@@ -28,7 +28,8 @@ import (
 // (2) need to handle root doc version, my guess is another subdoc as "root"
 // (3) args is for s.BlockedSubdocIds()
 func BuildMqttSendDocument(c DatabaseClient, cpeMac string, fields log.Fields) (*common.Document, error) {
-	document, err := c.GetDocument(cpeMac)
+	fields["src_caller"] = common.GetCaller()
+	document, err := c.GetDocument(cpeMac, fields)
 	if err != nil {
 		// 404 should be included here
 		return nil, common.NewError(err)

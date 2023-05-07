@@ -241,7 +241,8 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		}
 
 		// process 304
-		doc, err := c.GetDocument(cpeMac)
+		fields["src_caller"] = common.GetCaller()
+		doc, err := c.GetDocument(cpeMac, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
