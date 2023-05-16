@@ -65,6 +65,14 @@ func TestPokeHandler(t *testing.T) {
 	_, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
+
+	// ==== poke telemetry expect 200 ====
+	url = fmt.Sprintf("/api/v1/device/%v/poke?doc=telemetry", lowerCpeMac)
+	req, err = http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 }
 
 func TestPokeHandlerWithCpe(t *testing.T) {
