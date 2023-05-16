@@ -88,6 +88,7 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 		return nil, common.NewError(err)
 	}
 
+	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
 	err = db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
 	if err != nil {
@@ -109,6 +110,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	rHeader.Set(common.HeaderDeviceId, cpeMac)
 
 	// TODO parse themis token and extract mac
+	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
 	if len(params) > 0 {
 		fields["path"] = fmt.Sprintf("/api/v1/device/%v/config?group_id=%v", cpeMac, params)

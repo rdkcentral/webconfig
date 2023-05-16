@@ -133,6 +133,10 @@ func (w *XResponseWriter) Token() string {
 	return w.token
 }
 
+func (w *XResponseWriter) SetToken(token string) {
+	w.token = token
+}
+
 func (w *XResponseWriter) TraceId() string {
 	return w.AuditData("trace_id")
 }
