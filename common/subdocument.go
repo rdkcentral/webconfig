@@ -243,3 +243,23 @@ func (d *SubDocument) Equals(tdoc *SubDocument) error {
 
 	return nil
 }
+
+func (d *SubDocument) NeedsUpdateForHttp304() bool {
+	if d.updatedTime != nil && *d.updatedTime < 0 {
+		return true
+	}
+
+	if d.state != nil {
+		if *d.state != Deployed {
+			return true
+		}
+		// if state == Deployed
+		if d.errorCode != nil && *d.errorCode != 0 {
+			return true
+		}
+		if d.errorDetails != nil && len(*d.errorDetails) > 0 {
+			return true
+		}
+	}
+	return false
+}

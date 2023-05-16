@@ -158,6 +158,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
 
 	for _, deviceId := range deviceIds {
+		fields["src_caller"] = common.GetCaller()
 		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, metricsAgent, fields)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
@@ -165,7 +166,8 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		}
 
 		// update the root version
-		doc, err := s.GetDocument(deviceId, true)
+		fields["src_caller"] = common.GetCaller()
+		doc, err := s.GetDocument(deviceId, true, fields)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
@@ -184,7 +186,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 }
 
 func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, subdocId, _, _, err := s.Validate(w, r, false)
+	mac, subdocId, _, fields, err := s.Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -211,7 +213,8 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 	}
 
 	// update the root version
-	doc, err := s.GetDocument(mac)
+	fields["src_caller"] = common.GetCaller()
+	doc, err := s.GetDocument(mac, fields)
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
@@ -246,6 +249,15 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// get fields
+	xw, ok := w.(*XResponseWriter)
+	if !ok {
+		err := *common.NewHttp500Error("responsewriter cast error")
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
+	}
+	fields := xw.Audit()
+
 	err := s.DeleteDocument(mac)
 	if err != nil {
 		if s.IsDbNotFound(err) {
@@ -257,7 +269,8 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 	}
 
 	// update the root version
-	doc, err := s.GetDocument(mac)
+	fields["src_caller"] = common.GetCaller()
+	doc, err := s.GetDocument(mac, fields)
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)

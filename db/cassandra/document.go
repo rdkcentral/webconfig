@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 // NOTE this
@@ -70,7 +71,7 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 	return subdoc, nil
 }
 
-func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *common.SubDocument, vargs ...interface{}) error {
+func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *common.SubDocument, vargs ...interface{}) (fnerr error) {
 	var oldState int
 	metricsAgent := "default"
 	var fields log.Fields
@@ -87,6 +88,24 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		}
 	}
 	var newStatePtr *int
+	var stmt string
+	columnMap := util.Dict{
+		"cpe_mac":  cpeMac,
+		"group_id": groupId,
+	}
+	defer func() {
+		var tfields log.Fields
+		if fields == nil {
+			tfields = make(log.Fields)
+		} else {
+			tfields = util.CopyLogFields(fields)
+		}
+		tfields["logger"] = "xdb"
+		columnMap["stmt"] = stmt
+		tfields["query"] = columnMap
+		tfields["func_err"] = fnerr
+		log.WithFields(tfields).Debug("SetSubDocument()")
+	}()
 
 	// build the statement and avoid unnecessary fields/columns
 	columns := []string{"cpe_mac", "group_id"}
@@ -100,18 +119,22 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 				return common.NewError(err)
 			}
 			values = append(values, encbytes)
+			columnMap["payload_len"] = len(encbytes)
 		} else {
 			values = append(values, subdoc.Payload())
+			columnMap["payload_len"] = len(subdoc.Payload())
 		}
 	}
 	if subdoc.Version() != nil {
 		columns = append(columns, "version")
 		values = append(values, subdoc.Version())
+		columnMap["version"] = subdoc.Version()
 	}
 	if subdoc.State() != nil {
 		columns = append(columns, "state")
 		values = append(values, subdoc.State())
 		newStatePtr = subdoc.State()
+		columnMap["state"] = subdoc.State()
 	}
 	if subdoc.UpdatedTime() != nil {
 		columns = append(columns, "updated_time")
@@ -121,14 +144,17 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 			return common.NewError(err)
 		}
 		values = append(values, &utime)
+		columnMap["updated_time"] = utime
 	}
 	if subdoc.ErrorCode() != nil {
 		columns = append(columns, "error_code")
 		values = append(values, subdoc.ErrorCode())
+		columnMap["error_code"] = subdoc.ErrorCode()
 	}
 	if subdoc.ErrorDetails() != nil {
 		columns = append(columns, "error_details")
 		values = append(values, subdoc.ErrorDetails())
+		columnMap["error_details"] = subdoc.ErrorDetails()
 	}
 	if subdoc.Expiry() != nil {
 		columns = append(columns, "expiry")
@@ -138,8 +164,9 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 			return common.NewError(err)
 		}
 		values = append(values, &utime)
+		columnMap["expiry"] = utime
 	}
-	stmt := fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
+	stmt = fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
@@ -180,10 +207,18 @@ func (c *CassandraClient) DeleteDocument(cpeMac string) error {
 	return nil
 }
 
-func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Document, error) {
+func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndoc *common.Document, fnerr error) {
 	var includeExpiry bool
-	if len(args) > 0 {
-		includeExpiry = args[0]
+	var fields log.Fields
+	if len(xargs) > 0 {
+		for _, v := range xargs {
+			switch t := v.(type) {
+			case bool:
+				includeExpiry = t
+			case log.Fields:
+				fields = t
+			}
+		}
 	}
 
 	doc := common.NewDocument(nil)
@@ -193,6 +228,23 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 
 	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=?"
 	iter := c.Query(stmt, cpeMac).Iter()
+	rmap := make(util.Dict)
+	defer func() {
+		var tfields log.Fields
+		if fields == nil {
+			tfields = make(log.Fields)
+		} else {
+			tfields = util.CopyLogFields(fields)
+		}
+		tfields["logger"] = "xdb"
+		tfields["query_stmt"] = stmt
+		tfields["query_result"] = rmap
+		tfields["func_err"] = fnerr
+		delete(tfields, "document")
+		delete(tfields, "header")
+		delete(fields, "src_caller")
+		log.WithFields(tfields).Debug("GetDocument()")
+	}()
 
 	now := time.Now()
 	for {
@@ -206,6 +258,21 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry) {
 			break
 		}
+
+		// build the logging obj
+		row := util.Dict{
+			"version":     version,
+			"state":       state,
+			"payload_len": len(payload),
+		}
+		if !updatedTime.IsZero() {
+			row["updated_time"] = updatedTime.Format(common.LoggingTimeFormat)
+		}
+		if !expiry.IsZero() {
+			row["expiry"] = expiry.Format(common.LoggingTimeFormat)
+		}
+		row["payload_len"] = len(payload)
+		rmap[groupId] = row
 
 		if len(payload) == 0 {
 			continue
@@ -224,17 +291,23 @@ func (c *CassandraClient) GetDocument(cpeMac string, args ...bool) (*common.Docu
 
 		subdoc := common.NewSubDocument(payload, &version, &state, updatedTimeTsPtr, &errorCode, &errorDetails)
 		// REMINDER, need this operation to detect if the "expiry" column is null/empty
-		if x := int(expiry.UnixNano() / 1000000); x > 0 {
-			// eval subdocs with expiry
-			if !includeExpiry {
-				if expiry.Before(now) {
-					continue
+		if !expiry.IsZero() {
+			if x := int(expiry.UnixNano() / 1000000); x > 0 {
+				// eval subdocs with expiry
+				if !includeExpiry {
+					if expiry.Before(now) {
+						continue
+					}
 				}
+				subdoc.SetExpiry(&x)
 			}
-			subdoc.SetExpiry(&x)
 		}
 
 		doc.SetSubDocument(groupId, subdoc)
+	}
+
+	if fields != nil {
+		fields["document"] = rmap
 	}
 
 	if doc.Length() == 0 {

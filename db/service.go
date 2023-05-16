@@ -122,7 +122,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// meta unchanged but subdoc versions change ==> new configs
 		// getDoc, then filter
-		document, err := c.GetDocument(mac)
+		document, err := c.GetDocument(mac, fields)
 		if err != nil {
 			// 404 should be included here
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
@@ -135,7 +135,7 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		return filteredDocument, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream
-		document, err := c.GetDocument(mac)
+		document, err := c.GetDocument(mac, fields)
 		if err != nil {
 			// 404 should be included here
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
@@ -241,7 +241,8 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		}
 
 		// process 304
-		doc, err := c.GetDocument(cpeMac)
+		fields["src_caller"] = common.GetCaller()
+		doc, err := c.GetDocument(cpeMac, fields)
 		if err != nil {
 			return common.NewError(err)
 		}
@@ -251,7 +252,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		errorDetails := ""
 		for groupId, oldSubdoc := range doc.Items() {
 			// fix the bad condition when updated_time is negative
-			if oldSubdoc.State() != nil && *oldSubdoc.State() != common.Deployed || oldSubdoc.UpdatedTime() != nil && *oldSubdoc.UpdatedTime() < 0 {
+			if oldSubdoc.NeedsUpdateForHttp304() {
 				newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 				oldState := *oldSubdoc.State()
 
@@ -273,8 +274,14 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	}
 
 	state := common.Failure
+	errorCodePtr := m.ErrorCode
+	errorDetailsPtr := m.ErrorDetails
 	if *m.ApplicationStatus == "success" {
 		state = common.Deployed
+		errorCode := 0
+		errorCodePtr = &errorCode
+		errorDetails := ""
+		errorDetailsPtr = &errorDetails
 	} else if *m.ApplicationStatus == "pending" {
 		return nil
 	}
@@ -306,7 +313,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		}
 	}
 
-	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, m.ErrorCode, m.ErrorDetails)
+	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, errorCodePtr, errorDetailsPtr)
 
 	// metricsAgent handling
 	var metricsAgent string

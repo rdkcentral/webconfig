@@ -28,8 +28,12 @@ import (
 
 var (
 	ObfuscatedMap = map[string]string{
-		// "x": "****",
+		"msgpack": "****",
 	}
+	BadJsonResponseMap = map[string]string{
+		"bad_json": "****",
+	}
+	EmptyMap = map[string]string{}
 )
 
 type XResponseWriter struct {
