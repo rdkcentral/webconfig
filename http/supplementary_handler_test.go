@@ -458,7 +458,7 @@ func TestSupplementaryWithExtraQueryParams(t *testing.T) {
 	partner1 := "comcast"
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	etag := strconv.Itoa(int(time.Now().Unix()))
-	queryParams1 := "stormReadyWifi=true&cellularMode=true"
+	queryParams1 := "stormReadyWifi=true"
 	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1)
 	bbytes, err := json.Marshal(srcDoc1)
 	assert.NilError(t, err)

@@ -132,7 +132,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName1 := "TG4482"
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
-	queryParams1 := "stormReadyWifi=true&cellularMode=true"
+	queryParams1 := "stormReadyWifi=true"
 	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, queryParams1)
 
 	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
