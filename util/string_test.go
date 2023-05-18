@@ -74,9 +74,9 @@ func TestTelemetryQuery(t *testing.T) {
 	assert.Equal(t, qstr, expected)
 
 	// with queryParams
-	queryParams := "stormReadyWifi=true&cellularMode=true"
+	queryParams := "stormReadyWifi=true"
 	qstr = GetTelemetryQueryString(header, mac, queryParams)
-	expected = "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF&stormReadyWifi=true&cellularMode=true"
+	expected = "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF&stormReadyWifi=true"
 	assert.Equal(t, qstr, expected)
 }
 
