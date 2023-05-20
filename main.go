@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Shopify/sarama"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
@@ -89,6 +90,9 @@ func main() {
 		logLevel = parsed
 	}
 	log.SetLevel(logLevel)
+
+	// setup sarama logger
+	sarama.Logger = log.StandardLogger()
 
 	// setup router
 	router := server.GetRouter(false)
