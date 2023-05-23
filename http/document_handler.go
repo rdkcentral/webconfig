@@ -169,8 +169,12 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		fields["src_caller"] = common.GetCaller()
 		doc, err := s.GetDocument(deviceId, true, fields)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
+			if s.IsDbNotFound(err) {
+				doc = common.NewDocument(nil)
+			} else {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
 		}
 
 		doc.SetSubDocument(subdocId, subdoc)

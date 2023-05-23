@@ -145,7 +145,7 @@ func (d *SubDocument) SetExpiry(expiry *int) {
 func (d *SubDocument) Equals(tdoc *SubDocument) error {
 	if d.HasPayload() && tdoc.HasPayload() {
 		if !bytes.Equal(d.Payload(), tdoc.Payload()) {
-			err := fmt.Errorf("d.Payload() != tdoc.Payload()")
+			err := fmt.Errorf("d.Payload() != tdoc.Payload(), len(d.Payload())=%v, len(tdoc.Payload())=%v", len(d.payload), len(tdoc.payload))
 			return NewError(err)
 		}
 	} else {
