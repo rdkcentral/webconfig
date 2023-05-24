@@ -62,7 +62,13 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		queryParams = rootdoc.QueryParams
 	}
 
-	urlSuffix := util.GetTelemetryQueryString(r.Header, mac, queryParams)
+	// partner handling
+	partnerId := r.Header.Get(common.HeaderPartnerID)
+	if err := s.ValidatePartner(partnerId); err != nil {
+		partnerId = ""
+	}
+
+	urlSuffix := util.GetTelemetryQueryString(r.Header, mac, queryParams, partnerId)
 	fields["is_telemetry"] = true
 
 	rbytes, resHeader, err := s.GetProfiles(urlSuffix, fields)
