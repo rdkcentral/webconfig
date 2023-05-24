@@ -68,15 +68,15 @@ func TestTelemetryQuery(t *testing.T) {
 	header.Set(common.HeaderAccountID, "1234567890")
 	header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
 	mac := "567890ABCDEF"
-	qstr := GetTelemetryQueryString(header, mac, "")
+	qstr := GetTelemetryQueryString(header, mac, "", "comcast")
 
-	expected := "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF"
+	expected := "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF"
 	assert.Equal(t, qstr, expected)
 
 	// with queryParams
 	queryParams := "stormReadyWifi=true"
-	qstr = GetTelemetryQueryString(header, mac, queryParams)
-	expected = "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF&stormReadyWifi=true"
+	qstr = GetTelemetryQueryString(header, mac, queryParams, "comcast")
+	expected = "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF&stormReadyWifi=true"
 	assert.Equal(t, qstr, expected)
 }
 
@@ -154,8 +154,8 @@ func TestTelemetryQueryWithWanMac(t *testing.T) {
 	header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
 	mac := "567890ABCDEF"
 	header.Set(common.HeaderWanMac, "567890ABCDEF")
-	qstr := GetTelemetryQueryString(header, mac, "")
+	qstr := GetTelemetryQueryString(header, mac, "", "comcast")
 
-	expected := "env=PROD&version=2.0&model=TG1682G&partnerId=comcast&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDEF"
+	expected := "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDEF"
 	assert.Equal(t, qstr, expected)
 }
