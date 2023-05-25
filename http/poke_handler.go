@@ -46,6 +46,8 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
 	// parse and validate query param "doc"
+	// /poke?doc=telemetry
+	// /poke?cpe_action=true
 	pokeStr, err := util.ValidatePokeQuery(queryParams)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err)
@@ -125,8 +127,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pokes through cpe_action API can bypass this "smart" poke
-	_, ok = queryParams["cpe_action"]
-	if !ok {
+	if len(queryParams) == 0 {
 		document, err := db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
 		if err != nil {
 			if s.IsDbNotFound(err) {

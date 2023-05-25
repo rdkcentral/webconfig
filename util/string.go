@@ -32,7 +32,6 @@ var (
 	telemetryFields = [][]string{
 		{"version", common.HeaderProfileVersion},
 		{"model", common.HeaderModelName},
-		{"partnerId", common.HeaderPartnerID},
 		{"accountId", common.HeaderAccountID},
 		{"firmwareVersion", common.HeaderFirmwareVersion},
 	}
@@ -66,7 +65,7 @@ func ValidateMac(mac string) bool {
 	return true
 }
 
-func GetTelemetryQueryString(header http.Header, mac, queryParams string) string {
+func GetTelemetryQueryString(header http.Header, mac, queryParams, partnerId string) string {
 	// build the query parameters in a fixed order
 	params := []string{}
 
@@ -75,6 +74,11 @@ func GetTelemetryQueryString(header http.Header, mac, queryParams string) string
 		params = append(params, "env=PROD")
 	} else if strings.Contains(firmwareVersion, "DEV") {
 		params = append(params, "env=DEV")
+	}
+
+	// special handling for partner
+	if len(partnerId) > 0 {
+		params = append(params, fmt.Sprintf("%v=%v", "partnerId", partnerId))
 	}
 
 	for _, pairs := range telemetryFields {

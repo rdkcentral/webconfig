@@ -475,7 +475,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	assert.Equal(t, res.StatusCode, http.StatusServiceUnavailable)
 
 	// ==== GET /config reset schema version ====
 	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
@@ -484,7 +484,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	assert.Equal(t, res.StatusCode, http.StatusServiceUnavailable)
 
 	// ==== GET /config but with header changes with mock ====
 	upstreamMockServer := httptest.NewServer(
@@ -651,7 +651,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	fields = make(log.Fields)
 	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.Assert(t, err != nil)
-	assert.Equal(t, status, http.StatusInternalServerError)
+	assert.Equal(t, status, http.StatusServiceUnavailable)
 
 	// ==== GET /config reset schema version ====
 	kHeader = make(http.Header)
@@ -659,7 +659,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	fields = make(log.Fields)
 	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.Assert(t, err != nil)
-	assert.Equal(t, status, http.StatusInternalServerError)
+	assert.Equal(t, status, http.StatusServiceUnavailable)
 
 	// ==== GET /config but with header changes with mock ====
 	upstreamMockServer := httptest.NewServer(

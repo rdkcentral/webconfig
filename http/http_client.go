@@ -22,7 +22,9 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -180,6 +182,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 	// the core http call
 	res, err := c.Client.Do(req)
+	// err should be *url.Error
 
 	tdiff := time.Now().Sub(startTime)
 	duration := tdiff.Nanoseconds() / 1000000
@@ -202,6 +205,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 			log.WithFields(fields).Info(endMessage)
 		}
 		if ue, ok := err.(*neturl.Error); ok {
+			innerErr := ue.Err
 			if ue.Timeout() {
 				rherr := common.RemoteHttpError{
 					Message:    ue.Error(),
@@ -209,6 +213,21 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 				}
 				return nil, nil, common.NewError(rherr), true
 			}
+			if errors.Is(innerErr, io.EOF) {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusBadGateway,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
+			if _, ok := innerErr.(*net.OpError); ok {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusServiceUnavailable,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
+			// Unknown err still appear as 500
 		}
 		return nil, nil, common.NewError(err), true
 	}

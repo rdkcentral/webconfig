@@ -273,6 +273,17 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 			xw.SetAuditData("metrics_agent", metricsAgent)
 		}
 
+		authorization := r.Header.Get("Authorization")
+		if len(authorization) > 0 {
+			elements := strings.Split(authorization, " ")
+			if len(elements) == 2 && elements[0] == "Bearer" {
+				token := elements[1]
+				if len(token) > 0 {
+					xw.SetToken(token)
+				}
+			}
+		}
+
 		if r.Method == "POST" {
 			if r.Body != nil {
 				if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
@@ -581,6 +592,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		mac := params["gid"]
 		mac = strings.ToUpper(mac)
 		fields["cpemac"] = mac
+		fields["cpe_mac"] = mac
 	case "configset":
 		csid := params["gid"]
 		csid = strings.ToLower(csid)
@@ -589,6 +601,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if mac, ok := params["mac"]; ok {
 		mac = strings.ToUpper(mac)
 		fields["cpemac"] = mac
+		fields["cpe_mac"] = mac
 	}
 
 	xwriter := NewXResponseWriter(w, time.Now(), token, fields)

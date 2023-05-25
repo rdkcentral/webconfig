@@ -20,7 +20,7 @@ CREATE KEYSPACE IF NOT EXISTS webconfig WITH replication = {'class': 'SimpleStra
 
 USE webconfig;
 
-CREATE TABLE root_document ( cpe_mac text PRIMARY KEY, bitmap bigint, firmware_version text, model_name text, partner_id text, schema_version text, version text);
+CREATE TABLE root_document ( cpe_mac text PRIMARY KEY, bitmap bigint, firmware_version text, model_name text, partner_id text, query_params text, schema_version text, version text);
 
-CREATE TABLE xpc_group_config ( cpe_mac text, group_id text, error_code int, error_details text, params text, payload blob, state int, updated_time timestamp, version text, PRIMARY KEY (cpe_mac, group_id)) WITH CLUSTERING ORDER BY (group_id ASC);
+CREATE TABLE xpc_group_config ( cpe_mac text, group_id text, error_code int, error_details text, expiry timestamp, params text, payload blob, state int, updated_time timestamp, version text, PRIMARY KEY (cpe_mac, group_id)) WITH CLUSTERING ORDER BY (group_id ASC);
 
