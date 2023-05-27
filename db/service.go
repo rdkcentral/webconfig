@@ -19,6 +19,7 @@ package db
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -63,15 +64,26 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 
 	// ==== parse mac ====
 	mac := rHeader.Get(common.HeaderDeviceId)
-	// if len(mac) != 12 {
-	// 	err := common.NewError(fmt.Errorf("Ill-formatted mac %v", mac))
-	// 	return nil, nil, deviceRootDocument, nil, false, common.NewError(err)
-	// }
+
+	var document *common.Document
 
 	// get version map
-	deviceVersionMap, err := parseVersionMap(rHeader, fieldsDict)
+	deviceVersionMap, versions, err := parseVersionMap(rHeader)
 	if err != nil {
-		return nil, nil, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		var gvmErr common.GroupVersionMismatchError
+		if errors.As(err, &gvmErr) {
+			// log a warning
+			log.WithFields(fields).Warn(gvmErr.Error())
+
+			document, err = c.GetDocument(mac, fields)
+			if err != nil {
+				// TODO what about 404 should be included here
+				return nil, nil, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			}
+			deviceVersionMap = RebuildDeviceVersionMap(versions, document.VersionMap())
+		} else {
+			return nil, nil, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		}
 	}
 
 	// ==== update the deviceRootDocument.Version  ====
@@ -122,10 +134,12 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// meta unchanged but subdoc versions change ==> new configs
 		// getDoc, then filter
-		document, err := c.GetDocument(mac, fields)
-		if err != nil {
-			// 404 should be included here
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		if document == nil {
+			document, err = c.GetDocument(mac, fields)
+			if err != nil {
+				// 404 should be included here
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			}
 		}
 		document.SetRootDocument(cloudRootDocument)
 		filteredDocument := document.FilterForGet(deviceVersionMap)
@@ -135,10 +149,12 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		return filteredDocument, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream
-		document, err := c.GetDocument(mac, fields)
-		if err != nil {
-			// 404 should be included here
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		if document == nil {
+			document, err = c.GetDocument(mac, fields)
+			if err != nil {
+				// 404 should be included here
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			}
 		}
 		document.SetRootDocument(cloudRootDocument)
 
@@ -181,27 +197,28 @@ func GetSetColumnsStr(columns []string) string {
 }
 
 // deviceVersionMap := parseVersionMap(rHeader, d)
-func parseVersionMap(rHeader http.Header, fieldsDict util.Dict) (map[string]string, error) {
+func parseVersionMap(rHeader http.Header) (map[string]string, []string, error) {
 	deviceVersionMap := make(map[string]string)
 
 	queryStr := rHeader.Get(common.HeaderDocName)
 	subdocIds := strings.Split(queryStr, ",")
 	if len(queryStr) == 0 {
-		return deviceVersionMap, nil
+		return deviceVersionMap, nil, nil
 	}
 
 	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
 	versions := strings.Split(ifNoneMatch, ",")
 
 	if len(subdocIds) != len(versions) {
-		err := fmt.Errorf("group_id=%v  IF-NONE-MATCH=%v", queryStr, ifNoneMatch)
-		return nil, common.NewError(err)
+		msg := fmt.Sprintf("numbers of elements mismatched  group_id=%v  IF-NONE-MATCH=%v", queryStr, ifNoneMatch)
+		gvmErr := common.NewGroupVersionMismatchError(msg)
+		return nil, versions, common.NewError(*gvmErr)
 	}
 
 	for i, subdocId := range subdocIds {
 		deviceVersionMap[subdocId] = versions[i]
 	}
-	return deviceVersionMap, nil
+	return deviceVersionMap, nil, nil
 }
 
 func HashRootVersion(itf interface{}) string {
@@ -347,7 +364,6 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 }
 
 func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, fields log.Fields) error {
-
 	newRootVersion := upstreamRespEtag
 	if d.RootVersion() != newRootVersion {
 		err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
@@ -388,4 +404,20 @@ func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.
 		}
 	}
 	return nil
+}
+
+func RebuildDeviceVersionMap(versions []string, cloudVersionMap map[string]string) map[string]string {
+	revCloudMap := make(map[string]string)
+	for k, v := range cloudVersionMap {
+		revCloudMap[v] = k
+	}
+	m := map[string]string{
+		"root": versions[0],
+	}
+	for _, v := range versions {
+		if subdocId, ok := revCloudMap[v]; ok {
+			m[subdocId] = v
+		}
+	}
+	return m
 }

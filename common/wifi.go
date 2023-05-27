@@ -51,28 +51,34 @@ type EmbeddedPrivateWifi struct {
 }
 
 type SimpleWifi struct {
-	Ssid2g  *string `json:"ssid_2g,omitempty"`
-	Pass2g  *string `json:"pass_2g,omitempty"`
-	Mode2g  *string `json:"mode_2g,omitempty"`
-	Ssid5g  *string `json:"ssid_5g,omitempty"`
-	Pass5g  *string `json:"pass_5g,omitempty"`
-	Mode5g  *string `json:"mode_5g,omitempty"`
-	Ssid6g  *string `json:"ssid_6g,omitempty"`
-	Pass6g  *string `json:"pass_6g,omitempty"`
-	Mode6g  *string `json:"mode_6g,omitempty"`
-	Version *string `json:"version,omitempty"`
+	Enabled2g *bool   `json:"enabled_2g,omitempty"`
+	Ssid2g    *string `json:"ssid_2g,omitempty"`
+	Pass2g    *string `json:"pass_2g,omitempty"`
+	Mode2g    *string `json:"mode_2g,omitempty"`
+	Enabled5g *bool   `json:"enabled_5g,omitempty"`
+	Ssid5g    *string `json:"ssid_5g,omitempty"`
+	Pass5g    *string `json:"pass_5g,omitempty"`
+	Mode5g    *string `json:"mode_5g,omitempty"`
+	Enabled6g *bool   `json:"enabled_6g,omitempty"`
+	Ssid6g    *string `json:"ssid_6g,omitempty"`
+	Pass6g    *string `json:"pass_6g,omitempty"`
+	Mode6g    *string `json:"mode_6g,omitempty"`
+	Version   *string `json:"version,omitempty"`
 }
 
 func (w *EmbeddedPrivateWifi) GetSimpleWifi(version string) *SimpleWifi {
 	var sw SimpleWifi
 	if w.Ssid2g != nil {
 		sw.Ssid2g = &w.Ssid2g.Ssid
+		sw.Enabled2g = &w.Ssid2g.Enable
 	}
 	if w.Ssid5g != nil {
 		sw.Ssid5g = &w.Ssid5g.Ssid
+		sw.Enabled5g = &w.Ssid5g.Enable
 	}
 	if w.Ssid6g != nil {
 		sw.Ssid6g = &w.Ssid6g.Ssid
+		sw.Enabled6g = &w.Ssid6g.Enable
 	}
 	if w.Security2g != nil {
 		ss := w.Security2g.Passphrase
@@ -119,13 +125,17 @@ func (w *EmbeddedHomeWifi) GetSimpleWifi(version string) *SimpleWifi {
 	var sw SimpleWifi
 	if w.Ssid2g != nil {
 		sw.Ssid2g = &w.Ssid2g.Ssid
+		sw.Enabled2g = &w.Ssid2g.Enable
 	}
 	if w.Ssid5g != nil {
 		sw.Ssid5g = &w.Ssid5g.Ssid
+		sw.Enabled5g = &w.Ssid5g.Enable
 	}
 	if w.Ssid6g != nil {
 		sw.Ssid6g = &w.Ssid6g.Ssid
+		sw.Enabled6g = &w.Ssid6g.Enable
 	}
+
 	if w.Security2g != nil {
 		ss := w.Security2g.Passphrase
 		if len(ss) > 4 {
