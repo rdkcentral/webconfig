@@ -80,6 +80,20 @@ func (e RemoteHttpError) Error() string {
 	return fmt.Sprintf("Http%v %v", e.StatusCode, e.Message)
 }
 
+type GroupVersionMismatchError struct {
+	message string
+}
+
+func (e GroupVersionMismatchError) Error() string {
+	return e.message
+}
+
+func NewGroupVersionMismatchError(message string) *GroupVersionMismatchError {
+	return &GroupVersionMismatchError{
+		message: message,
+	}
+}
+
 var (
 	Http400ErrorType    = &Http400Error{}
 	Http404ErrorType    = &Http404Error{}
