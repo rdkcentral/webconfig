@@ -243,6 +243,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 		delete(tfields, "document")
 		delete(tfields, "header")
 		delete(fields, "src_caller")
+		delete(fields, "document")
 		log.WithFields(tfields).Debug("GetDocument()")
 	}()
 
