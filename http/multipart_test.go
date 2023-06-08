@@ -732,3 +732,124 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	assert.Assert(t, ok)
 	assert.DeepEqual(t, mpart.Bytes, wanBytes)
 }
+
+func TestMultipartConfigMismatch(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+	assert.NilError(t, err)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== GET /config ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	etag := res.Header.Get(common.HeaderEtag)
+
+	// parse the actual data
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanMpartVersion := mpart.Version
+
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanMpartVersion := mpart.Version
+	_ = wanMpartVersion
+
+	// ==== cal GET /config with if-none-match ====
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	header1 := "NONE," + lanMpartVersion
+	req.Header.Set(common.HeaderIfNoneMatch, header1)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// ==== cal GET /config with if-none-match ====
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	header2 := "NONE,123"
+	req.Header.Set(common.HeaderIfNoneMatch, header2)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// ==== cal GET /config with if-none-match ====
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	header3 := etag + ",123"
+	req.Header.Set(common.HeaderIfNoneMatch, header3)
+	res = ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+}

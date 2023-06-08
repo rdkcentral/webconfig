@@ -227,6 +227,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 			if err != nil {
 				return transactionId, common.NewError(err)
 			}
+			return transactionId, nil
 		}
 		return transactionId, common.NewError(err)
 	}

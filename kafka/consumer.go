@@ -168,8 +168,19 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	// The `ConsumeClaim` itself is called within a goroutine, see:
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	rl := ratelimit.New(c.ratelimitMessagesPerSecond, ratelimit.WithoutSlack) // per second, no slack.
-	for message := range claim.Messages() {
+
+	msgch := claim.Messages()
+	var message *sarama.ConsumerMessage
+	for {
 		rl.Take()
+		select {
+		case <-session.Context().Done():
+			return nil
+		case message = <-msgch:
+			if message == nil {
+				break
+			}
+		}
 		lag := int(time.Since(message.Timestamp).Nanoseconds() / 1000000)
 		start := time.Now()
 		auditId := util.GetAuditId()

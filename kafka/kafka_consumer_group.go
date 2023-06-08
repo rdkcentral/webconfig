@@ -85,11 +85,11 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 
 	switch assignor {
 	case "sticky":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+		sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.BalanceStrategySticky}
 	case "roundrobin":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+		sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.BalanceStrategyRoundRobin}
 	case "range":
-		sconfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.BalanceStrategyRange}
 	default:
 		return nil, common.NewError(fmt.Errorf("Unrecognized consumer group partition assignor: %s", assignor))
 	}
