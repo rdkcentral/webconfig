@@ -43,7 +43,7 @@ func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.
 	// ==== read the rootdoc from db ====
 	rootdoc, err := s.GetRootDocument(mac)
 	if err != nil {
-		if !s.IsDbNotFound(err) {
+		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 			return
 		}
