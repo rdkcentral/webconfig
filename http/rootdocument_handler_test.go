@@ -45,11 +45,20 @@ func TestRootDocumentHandler(t *testing.T) {
 	router := server.GetRouter(true)
 	cpeMac := util.GenerateRandomCpeMac()
 
+	// ==== step 0 GET /rootdocument and expect 404 ====
+	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
+	req, err := http.NewRequest("GET", rootdocUrl, nil)
+	req.Header.Set("Content-Type", "application/json")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = ioutil.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
 	// ==== step 1 GET /config device ====
 	// boots up but with out data in db
 	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
-
-	req, err := http.NewRequest("GET", configUrl, nil)
+	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 
 	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
@@ -62,8 +71,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	req.Header.Set(common.HeaderModelName, modelName1)
 	req.Header.Set(common.HeaderPartnerID, partner1)
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
-
-	res := ExecuteRequest(req, router).Result()
+	res = ExecuteRequest(req, router).Result()
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -169,7 +177,6 @@ func TestRootDocumentHandler(t *testing.T) {
 	assert.Equal(t, len(parameters), 1)
 
 	// ==== step 5 GET /rootdocument ====
-	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
 	req, err = http.NewRequest("GET", rootdocUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()

@@ -169,85 +169,84 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	rl := ratelimit.New(c.ratelimitMessagesPerSecond, ratelimit.WithoutSlack) // per second, no slack.
 
-	msgch := claim.Messages()
-	var message *sarama.ConsumerMessage
 	for {
 		rl.Take()
 		select {
-		case <-session.Context().Done():
-			return nil
-		case message = <-msgch:
+		case message := <-claim.Messages():
 			if message == nil {
 				break
 			}
-		}
-		lag := int(time.Since(message.Timestamp).Nanoseconds() / 1000000)
-		start := time.Now()
-		auditId := util.GetAuditId()
 
-		kafkaKey := string(message.Key)
-		fields := log.Fields{
-			"logger":          "kafka",
-			"app_name":        c.AppName(),
-			"kafka_lag":       lag,
-			"kafka_key":       kafkaKey,
-			"topic":           message.Topic,
-			"audit_id":        auditId,
-			"cluster_name":    c.ClusterName(),
-			"kafka_partition": message.Partition,
-			"kafka_offset":    message.Offset,
-		}
+			lag := int(time.Since(message.Timestamp).Nanoseconds() / 1000000)
+			start := time.Now()
+			auditId := util.GetAuditId()
 
-		var err error
-		var logMessage string
-		var m *common.EventMessage
-
-		eventName := getEventName(message)
-		switch eventName {
-		case "mqtt-get":
-			m, err = c.handleGetMessage(message.Value, fields)
-			logMessage = "request ends"
-		case "mqtt-state":
-			header, bbytes := util.ParseHttp(message.Value)
-			fields["destination"] = header.Get("Destination")
-			m, err = c.handleNotification(bbytes, fields)
-			logMessage = "ok"
-		case "webpa-state":
-			m, err = c.handleNotification(message.Value, fields)
-			logMessage = "ok"
-		}
-
-		session.MarkMessage(message, "")
-		duration := int(time.Since(start).Nanoseconds() / 1000000)
-		fields["duration"] = duration
-
-		if err != nil {
-			if c.IsDbNotFound(err) {
-				log.WithFields(fields).Trace("db not found")
-			} else {
-				fields["error"] = err.Error()
-				fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
-				log.WithFields(fields).Error("errors")
+			kafkaKey := string(message.Key)
+			fields := log.Fields{
+				"logger":          "kafka",
+				"app_name":        c.AppName(),
+				"kafka_lag":       lag,
+				"kafka_key":       kafkaKey,
+				"topic":           message.Topic,
+				"audit_id":        auditId,
+				"cluster_name":    c.ClusterName(),
+				"kafka_partition": message.Partition,
+				"kafka_offset":    message.Offset,
 			}
-		} else {
-			log.WithFields(fields).Info(logMessage)
-		}
 
-		// build metrics dimensions and update metrics
-		metrics := c.WebconfigServer.Metrics()
-		if metrics != nil && m != nil {
-			metricsAgent := "default"
-			if m.MetricsAgent != nil {
-				metricsAgent = *m.MetricsAgent
+			var err error
+			var logMessage string
+			var m *common.EventMessage
+
+			eventName := getEventName(message)
+			switch eventName {
+			case "mqtt-get":
+				m, err = c.handleGetMessage(message.Value, fields)
+				logMessage = "request ends"
+			case "mqtt-state":
+				header, bbytes := util.ParseHttp(message.Value)
+				fields["destination"] = header.Get("Destination")
+				m, err = c.handleNotification(bbytes, fields)
+				logMessage = "ok"
+			case "webpa-state":
+				m, err = c.handleNotification(message.Value, fields)
+				logMessage = "ok"
 			}
-			// TODO try to read metricsAgent from fields["metrics_agent"]
-			metrics.ObserveKafkaLag(eventName, metricsAgent, lag, message.Partition)
-			metrics.ObserveKafkaDuration(eventName, metricsAgent, duration)
-			status := "success"
+
+			session.MarkMessage(message, "")
+			duration := int(time.Since(start).Nanoseconds() / 1000000)
+			fields["duration"] = duration
+
 			if err != nil {
-				status = "fail"
+				if c.IsDbNotFound(err) {
+					log.WithFields(fields).Trace("db not found")
+				} else {
+					fields["error"] = err.Error()
+					fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
+					log.WithFields(fields).Error("errors")
+				}
+			} else {
+				log.WithFields(fields).Info(logMessage)
 			}
-			metrics.CountKafkaEvents(eventName, status, message.Partition)
+
+			// build metrics dimensions and update metrics
+			metrics := c.WebconfigServer.Metrics()
+			if metrics != nil && m != nil {
+				metricsAgent := "default"
+				if m.MetricsAgent != nil {
+					metricsAgent = *m.MetricsAgent
+				}
+				// TODO try to read metricsAgent from fields["metrics_agent"]
+				metrics.ObserveKafkaLag(eventName, metricsAgent, lag, message.Partition)
+				metrics.ObserveKafkaDuration(eventName, metricsAgent, duration)
+				status := "success"
+				if err != nil {
+					status = "fail"
+				}
+				metrics.CountKafkaEvents(eventName, status, message.Partition)
+			}
+		case <-session.Context().Done():
+			return nil
 		}
 	}
 	return nil
