@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/go-akka/configuration"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
@@ -35,8 +35,6 @@ import (
 
 const (
 	EncodingKeyId = "webconfig_key"
-	// sermo lib
-	JwtLibIdDefault = 2
 )
 
 type ThemisClaims struct {
@@ -47,7 +45,7 @@ type ThemisClaims struct {
 	Trust        string   `json:"trust"`
 	Uuid         string   `json:"uuid"`
 	Capabilities []string `json:"capabilities"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 type VerifyFunc func(map[string]*rsa.PublicKey, []string, []string, ...string) (bool, string, error)
@@ -100,7 +98,6 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 		}
 	}
 
-	// default to sermo_jose verifier
 	return &TokenManager{
 		encodeKey:       encodeKey,
 		decodeKeys:      decodeKeys,
@@ -151,8 +148,6 @@ func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
 		partner = vargs[0]
 	}
 
-	utcnow := time.Now().Unix()
-
 	claims := ThemisClaims{
 		KeyId:        kid,
 		Mac:          mac,
@@ -161,13 +156,13 @@ func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
 		Trust:        trust,
 		Uuid:         capUuid,
 		Capabilities: capabilities,
-		StandardClaims: jwt.StandardClaims{
-			Audience:  "XMiDT",
-			ExpiresAt: utcnow + ttl,
-			Id:        uuid.New().String(),
-			IssuedAt:  utcnow,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{"XMiDT"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ID:        uuid.New().String(),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "themis",
-			NotBefore: utcnow,
+			NotBefore: jwt.NewNumericDate(time.Now()),
 			Subject:   "client:supplied",
 		},
 	}
