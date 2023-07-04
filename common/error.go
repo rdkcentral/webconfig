@@ -128,3 +128,10 @@ func GetCaller() string {
 	dir := filepath.Base(fulldir)
 	return fmt.Sprintf("%v/%v[%v]", dir, filename, line)
 }
+
+type NoCapabilitiesError struct {
+}
+
+func (e NoCapabilitiesError) Error() string {
+	return "no required capabilities"
+}
