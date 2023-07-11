@@ -18,6 +18,7 @@
 package http
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -52,6 +53,7 @@ const (
 	deviceApiTokenAuthEnabledDefault = true
 	tokenApiEnabledDefault           = false
 	activeDriverDefault              = "cassandra"
+	defaultJwksEnabled               = false
 )
 
 var (
@@ -74,6 +76,7 @@ type WebconfigServer struct {
 	*http.Server
 	db.DatabaseClient
 	*security.TokenManager
+	*security.JwksManager
 	*common.ServerConfig
 	*WebpaConnector
 	*XconfConnector
@@ -91,6 +94,7 @@ type WebconfigServer struct {
 	appName                   string
 	validateMacEnabled        bool
 	validPartners             []string
+	jwksEnabled               bool
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -187,6 +191,16 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		dbclient = GetDatabaseClient(sc)
 	}
 
+	// setup jwks manager
+	jwksEnabled := conf.GetBoolean("webconfig.jwt.api_token.jwks_enabled", defaultJwksEnabled)
+	var ctx context.Context
+	jwksManager, err := security.NewJwksManager(conf, ctx)
+	if jwksEnabled && err != nil {
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	metricsEnabled := conf.GetBoolean("webconfig.server.metrics_enabled", MetricsEnabledDefault)
 	factoryResetEnabled := conf.GetBoolean("webconfig.factory_reset_enabled", FactoryResetEnabledDefault)
 
@@ -200,22 +214,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	// tlsConfig, here we ignore any error
 	tlsConfig, _ := NewTlsConfig(conf)
-
-	panicExitEnabled := conf.GetBoolean("webconfig.panic_exit_enabled", false)
-	// load codebig credentials
-	satClientId := os.Getenv("SAT_CLIENT_ID")
-	if len(satClientId) == 0 {
-		if panicExitEnabled {
-			panic("No env SAT_CLIENT_ID")
-		}
-	}
-
-	satClientSecret := os.Getenv("SAT_CLIENT_SECRET")
-	if len(satClientSecret) == 0 {
-		if panicExitEnabled {
-			panic("No env SAT_CLIENT_SECRET")
-		}
-	}
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
@@ -245,6 +243,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		},
 		DatabaseClient:            dbclient,
 		TokenManager:              security.NewTokenManager(conf),
+		JwksManager:               jwksManager,
 		ServerConfig:              sc,
 		WebpaConnector:            NewWebpaConnector(conf, tlsConfig),
 		XconfConnector:            NewXconfConnector(conf, tlsConfig),
@@ -262,6 +261,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		appName:                   appName,
 		validateMacEnabled:        validateMacEnabled,
 		validPartners:             validPartners,
+		jwksEnabled:               jwksEnabled,
 	}
 }
 
@@ -354,10 +354,21 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		isValid := false
 		token := xw.Token()
 		if len(token) > 0 {
+			var kid string
+			if x, err := security.ParseKidFromTokenHeader(token); err == nil {
+				kid = x
+			}
+			fields := xw.Audit()
+			tfields := util.CopyLogFields(fields)
+			tfields["logger"] = "token"
+			tfields["kid"] = kid
+
 			if ok, err := s.VerifyApiToken(token); ok {
 				isValid = true
+				log.WithFields(tfields).Debug("valid")
 			} else {
-				xw.LogDebug(r, "token", fmt.Sprintf("ApiMiddleware() VerifyApiToken()=false, err=%v", err))
+				tfields["error"] = fmt.Sprintf("ApiMiddleware::VerifyApiToken() %v", err)
+				log.WithFields(tfields).Debug("rejected")
 			}
 		} else {
 			xw.LogDebug(r, "token", "ApiMiddleware() error no token")
@@ -405,6 +416,19 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 		}
 	}
 	return http.HandlerFunc(fn)
+}
+
+func (s *WebconfigServer) VerifyApiToken(tokenStr string) (bool, error) {
+	if s.JwksEnabled() {
+		if _, err := s.JwksManager.VerifyApiToken(tokenStr); err != nil {
+			return false, common.NewError(err)
+		}
+	} else {
+		if _, err := s.TokenManager.VerifyApiToken(tokenStr); err != nil {
+			return false, common.NewError(err)
+		}
+	}
+	return true, nil
 }
 
 func (s *WebconfigServer) MetricsEnabled() bool {
@@ -496,6 +520,14 @@ func (s *WebconfigServer) ValidPartners() []string {
 
 func (s *WebconfigServer) SetValidPartners(validPartners []string) {
 	s.validPartners = validPartners
+}
+
+func (s *WebconfigServer) JwksEnabled() bool {
+	return s.jwksEnabled
+}
+
+func (s *WebconfigServer) SetJwksEnabled(enabled bool) {
+	s.jwksEnabled = enabled
 }
 
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
