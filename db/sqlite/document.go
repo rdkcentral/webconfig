@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -153,18 +154,23 @@ func (c *SqliteClient) updateSubDocument(cpeMac string, groupId string, doc *com
 
 func (c *SqliteClient) SetSubDocument(cpeMac string, groupId string, doc *common.SubDocument, vargs ...interface{}) error {
 	var oldState int
-	metricsAgent := "default"
 	var fields log.Fields
+	var labels prometheus.Labels
 	for _, varg := range vargs {
 		switch ty := varg.(type) {
 		case int:
 			oldState = ty
-		case string:
-			if len(ty) > 0 {
-				metricsAgent = ty
-			}
 		case log.Fields:
 			fields = ty
+		case prometheus.Labels:
+			labels = ty
+		}
+	}
+	if labels == nil {
+		labels = prometheus.Labels{
+			"model":     "unknown",
+			"fwversion": "unknown",
+			"client":    "default",
 		}
 	}
 
@@ -190,7 +196,8 @@ func (c *SqliteClient) SetSubDocument(cpeMac string, groupId string, doc *common
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if doc.State() != nil {
-			c.UpdateStateMetrics(oldState, *doc.State(), groupId, metricsAgent, cpeMac, fields)
+			labels["feature"] = groupId
+			c.UpdateStateMetrics(oldState, *doc.State(), labels, cpeMac, fields)
 		}
 	}
 	return nil

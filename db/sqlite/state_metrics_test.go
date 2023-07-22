@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
@@ -31,12 +32,17 @@ func TestStateMetrics(t *testing.T) {
 	tmetrics.ResetStateGauges()
 	cpeMac := util.GenerateRandomCpeMac()
 	groupId := "privatessid"
-	metricsClient := "default"
 
 	// verify starting empty
 	fields := log.Fields{}
 	_, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
+
+	labels := prometheus.Labels{
+		"model":     "unknown",
+		"fwversion": "unknown",
+		"client":    "default",
+	}
 
 	// ==== insert a doc ====
 	srcBytes := []byte("hello world")
@@ -48,7 +54,8 @@ func TestStateMetrics(t *testing.T) {
 	assert.NilError(t, err)
 
 	// verify state metrics
-	scntr, err := tmetrics.GetStateCounter(groupId, metricsClient)
+	labels["feature"] = groupId
+	scntr, err := tmetrics.GetStateCounter(labels)
 	assert.NilError(t, err)
 	assert.Equal(t, scntr.PendingDownload, 1)
 	assert.Equal(t, scntr.InDeployment, 0)
@@ -64,11 +71,11 @@ func TestStateMetrics(t *testing.T) {
 	// ==== update an doc with the same cpeMac and a changed state ====
 	state2 := common.InDeployment
 	doc1.SetState(&state2)
-	err = tdbclient.SetSubDocument(cpeMac, groupId, doc1, fields, state1, metricsClient)
+	err = tdbclient.SetSubDocument(cpeMac, groupId, doc1, state1, labels, fields)
 	assert.NilError(t, err)
 
 	// verify state metrics
-	scntr, err = tmetrics.GetStateCounter(groupId, metricsClient)
+	scntr, err = tmetrics.GetStateCounter(labels)
 	assert.NilError(t, err)
 	assert.Equal(t, scntr.PendingDownload, 0)
 	assert.Equal(t, scntr.InDeployment, 1)
@@ -82,11 +89,11 @@ func TestStateMetrics(t *testing.T) {
 	// ==== update an doc with the same cpeMac and a changed state ====
 	state3 := common.Deployed
 	doc2.SetState(&state3)
-	err = tdbclient.SetSubDocument(cpeMac, groupId, doc2, fields, state2, metricsClient)
+	err = tdbclient.SetSubDocument(cpeMac, groupId, doc2, state2, labels, fields)
 	assert.NilError(t, err)
 
 	// verify state metrics
-	scntr, err = tmetrics.GetStateCounter(groupId, metricsClient)
+	scntr, err = tmetrics.GetStateCounter(labels)
 	assert.NilError(t, err)
 	assert.Equal(t, scntr.PendingDownload, 0)
 	assert.Equal(t, scntr.InDeployment, 0)
