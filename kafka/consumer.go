@@ -88,6 +88,10 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 		return nil, common.NewError(err)
 	}
 
+	if m.ErrorDetails != nil && *m.ErrorDetails == "max_retry_reached" {
+		return &m, nil
+	}
+
 	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
 	err = db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
