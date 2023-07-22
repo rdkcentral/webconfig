@@ -156,10 +156,21 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 	}
 
 	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
+	if len(metricsAgent) == 0 {
+		metricsAgent = "default"
+	}
 
 	for _, deviceId := range deviceIds {
 		fields["src_caller"] = common.GetCaller()
-		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, metricsAgent, fields)
+
+		labels, err := s.GetRootDocumentLabels(deviceId)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+		labels["client"] = metricsAgent
+
+		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, labels, fields)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return

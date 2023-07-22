@@ -249,6 +249,17 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 
+	// set metrics labels
+	metricsAgent := "default"
+	if itf, ok := fields["metrics_agent"]; ok {
+		metricsAgent = itf.(string)
+	}
+	labels, err := c.GetRootDocumentLabels(cpeMac)
+	if err != nil {
+		return common.NewError(err)
+	}
+	labels["client"] = metricsAgent
+
 	// rootdoc-report
 	// ==== update all subdocs ====
 	if m.HttpStatusCode != nil {
@@ -273,11 +284,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 				newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 				oldState := *oldSubdoc.State()
 
-				var metricsAgent string
-				if itf, ok := fields["metrics_agent"]; ok {
-					metricsAgent = itf.(string)
-				}
-				if err := c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, metricsAgent, fields); err != nil {
+				if err := c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, labels, fields); err != nil {
 					return common.NewError(err)
 				}
 			}
@@ -333,12 +340,11 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, errorCodePtr, errorDetailsPtr)
 
 	// metricsAgent handling
-	var metricsAgent string
 	if m.MetricsAgent != nil {
-		metricsAgent = *m.MetricsAgent
+		labels["client"] = *m.MetricsAgent
 	}
 
-	err = c.SetSubDocument(cpeMac, targetGroupId, newSubdoc, oldState, metricsAgent, fields)
+	err = c.SetSubDocument(cpeMac, targetGroupId, newSubdoc, oldState, labels, fields)
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -350,13 +356,18 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	if oldSubdoc != nil && oldSubdoc.State() != nil {
 		oldState = *oldSubdoc.State()
 	}
+	// set metrics labels
+	labels, err := c.GetRootDocumentLabels(cpeMac)
+	if err != nil {
+		return common.NewError(err)
+	}
+	labels["client"] = "default"
 
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	newSubdoc.SetUpdatedTime(&updatedTime)
 	newState := common.InDeployment
 	newSubdoc.SetState(&newState)
-	metricsAgent := "default"
-	err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent, fields)
+	err = c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -387,10 +398,16 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.Document, fields log.Fields) error {
 	// skip version, payload change
 	newState := common.InDeployment
-	metricsAgent := ""
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	errorCode := 0
 	errorDetails := ""
+
+	// set metrics labels
+	labels, err := c.GetRootDocumentLabels(cpeMac)
+	if err != nil {
+		return common.NewError(err)
+	}
+	labels["client"] = "default"
 
 	for subdocId, subdoc := range d.Items() {
 		if subdoc.State() != nil && (*subdoc.State() == common.Deployed || *subdoc.State() == common.InDeployment) {
@@ -398,7 +415,7 @@ func UpdateDocumentStateIndeployment(c DatabaseClient, cpeMac string, d *common.
 		}
 		newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 		oldState := *subdoc.State()
-		err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, metricsAgent, fields)
+		err := c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 		if err != nil {
 			return common.NewError(err)
 		}

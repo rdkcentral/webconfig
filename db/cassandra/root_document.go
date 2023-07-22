@@ -20,6 +20,7 @@ package cassandra
 import (
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 )
@@ -136,21 +137,17 @@ func (c *CassandraClient) DeleteRootDocumentBitmap(cpeMac string) error {
 	return nil
 }
 
-// func (c *CassandraClient) UpdateRootDocument(cpeMac string, rdoc *common.RootDocument) error {
-// 	c.concurrentQueries <- true
-// 	defer func() { <-c.concurrentQueries }()
-
-// 	columns := []string{"cpe_mac"}
-// 	values := []interface{}{cpeMac}
-// 	columnMap := rdoc.ChangedColumnMap()
-// 	for k, v := range columnMap {
-// 		columns = append(columns, k)
-// 		values = append(values, v)
-// 	}
-
-// 	stmt := fmt.Sprintf("INSERT INTO root_document(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
-// 	if err := c.Query(stmt, values...).Exec(); err != nil {
-// 		return common.NewError(err)
-// 	}
-// 	return nil
-// }
+func (c *CassandraClient) GetRootDocumentLabels(cpeMac string) (prometheus.Labels, error) {
+	rdoc, err := c.GetRootDocument(cpeMac)
+	if err != nil {
+		if !c.IsDbNotFound(err) {
+			return nil, common.NewError(err)
+		}
+		return prometheus.Labels{}, nil
+	}
+	labels := prometheus.Labels{
+		"model":     rdoc.ModelName,
+		"fwversion": rdoc.FirmwareVersion,
+	}
+	return labels, nil
+}

@@ -18,6 +18,7 @@
 package db
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 )
 
@@ -41,6 +42,7 @@ type DatabaseClient interface {
 	SetRootDocumentVersion(string, string) error
 	SetRootDocumentBitmap(string, int) error
 	DeleteRootDocumentVersion(string) error
+	GetRootDocumentLabels(string) (prometheus.Labels, error)
 
 	// not found
 	IsDbNotFound(error) bool
