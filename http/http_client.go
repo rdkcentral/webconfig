@@ -103,7 +103,9 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	}
 }
 
-func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, baseFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
+func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
+	fields := common.FilterLogFields(auditFields)
+
 	// verify a response is received
 	var req *http.Request
 	var err error
@@ -130,17 +132,16 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	}
 
 	var userAgent string
-	if itf, ok := baseFields["user_agent"]; ok {
+	if itf, ok := fields["user_agent"]; ok {
 		if x := itf.(string); len(x) > 0 {
 			userAgent = x
 		}
 	}
 
-	tfields := util.CopyLogFields(baseFields)
-	tfields["logger"] = loggerName
-	tfields[fmt.Sprintf("%v_method", loggerName)] = method
-	tfields[fmt.Sprintf("%v_url", loggerName)] = url
-	tfields[fmt.Sprintf("%v_headers", loggerName)] = util.HeaderToMap(logHeader)
+	fields["logger"] = loggerName
+	fields[fmt.Sprintf("%v_method", loggerName)] = method
+	fields[fmt.Sprintf("%v_url", loggerName)] = url
+	fields[fmt.Sprintf("%v_headers", loggerName)] = util.HeaderToMap(logHeader)
 	bodyKey := fmt.Sprintf("%v_body", loggerName)
 
 	var longBody, longResponse string
@@ -151,16 +152,15 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 			bodyKey = fmt.Sprintf("%v_body_text", loggerName)
 			x := base64.StdEncoding.EncodeToString(bbytes)
 			if len(x) < 1000 {
-				tfields[bodyKey] = x
+				fields[bodyKey] = x
 			} else {
-				tfields[bodyKey] = "long body len " + strconv.Itoa(len(x))
+				fields[bodyKey] = "long body len " + strconv.Itoa(len(x))
 				longBody = x
 			}
 		} else {
-			tfields[bodyKey] = bdict
+			fields[bodyKey] = bdict
 		}
 	}
-	fields := util.CopyLogFields(tfields)
 
 	var startMessage string
 	if retry > 0 {
@@ -172,9 +172,9 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	if userAgent != "mget" {
 		log.WithFields(fields).Info(startMessage)
 		if len(longBody) > 0 {
-			dfields := util.CopyLogFields(fields)
-			dfields[bodyKey] = longBody
-			log.WithFields(dfields).Trace(startMessage)
+			tfields := common.FilterLogFields(fields)
+			tfields[bodyKey] = longBody
+			log.WithFields(tfields).Trace(startMessage)
 		}
 	}
 
@@ -268,9 +268,9 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	if userAgent != "mget" {
 		log.WithFields(fields).Info(endMessage)
 		if len(longResponse) > 0 {
-			dfields := util.CopyLogFields(fields)
-			dfields[responseKey] = longResponse
-			log.WithFields(dfields).Trace(endMessage)
+			tfields := common.FilterLogFields(fields)
+			tfields[responseKey] = longResponse
+			log.WithFields(tfields).Trace(endMessage)
 		}
 	}
 

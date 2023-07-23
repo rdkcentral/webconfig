@@ -32,6 +32,7 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
+	owcommon "github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/db/sqlite"
@@ -54,6 +55,7 @@ const (
 	tokenApiEnabledDefault           = false
 	activeDriverDefault              = "cassandra"
 	defaultJwksEnabled               = false
+	defaultTraceparentParentID       = "0000000000000001"
 )
 
 var (
@@ -95,6 +97,7 @@ type WebconfigServer struct {
 	validateMacEnabled        bool
 	validPartners             []string
 	jwksEnabled               bool
+	traceparentParentID       string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -235,6 +238,8 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validPartners = append(validPartners, strings.ToLower(p))
 	}
 
+	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
+
 	return &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
@@ -262,6 +267,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validateMacEnabled:        validateMacEnabled,
 		validPartners:             validPartners,
 		jwksEnabled:               jwksEnabled,
+		traceparentParentID:       traceparentParentID,
 	}
 }
 
@@ -359,7 +365,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 				kid = x
 			}
 			fields := xw.Audit()
-			tfields := util.CopyLogFields(fields)
+			tfields := common.FilterLogFields(fields)
 			tfields["logger"] = "token"
 			tfields["kid"] = kid
 
@@ -530,6 +536,14 @@ func (s *WebconfigServer) SetJwksEnabled(enabled bool) {
 	s.jwksEnabled = enabled
 }
 
+func (s *WebconfigServer) TraceparentParentID() string {
+	return s.traceparentParentID
+}
+
+func (s *WebconfigServer) SetTraceparentParentID(x string) {
+	s.traceparentParentID = x
+}
+
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	// if no valid partners are configured, all partners are accepted/validated
 	if len(s.validPartners) == 0 {
@@ -575,13 +589,21 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		token = elements[1]
 	}
 
+	var xmTraceId, traceId, outTraceparent string
+
 	// extract moneytrace from the header
-	traceId := ""
 	tracePart := strings.Split(r.Header.Get("X-Moneytrace"), ";")[0]
 	if elements := strings.Split(tracePart, "="); len(elements) == 2 {
 		if elements[0] == "trace-id" {
-			traceId = elements[1]
+			xmTraceId = elements[1]
 		}
+	}
+
+	// extract traceparent from the header
+	traceparent := r.Header.Get(owcommon.HeaderTraceparent)
+	if len(traceparent) == 55 {
+		traceId = traceparent[3:35]
+		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
 	}
 
 	// extract auditid from the header
@@ -591,15 +613,16 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	headerMap := util.HeaderToMap(header)
 	fields := log.Fields{
-		"path":      r.URL.String(),
-		"method":    r.Method,
-		"audit_id":  auditId,
-		"remote_ip": remoteIp,
-		"host_name": host,
-		"header":    headerMap,
-		"logger":    "request",
-		"trace_id":  traceId,
-		"app_name":  s.AppName(),
+		"path":            r.URL.String(),
+		"method":          r.Method,
+		"audit_id":        auditId,
+		"remote_ip":       remoteIp,
+		"host_name":       host,
+		"header":          headerMap,
+		"logger":          "request",
+		"trace_id":        traceId,
+		"app_name":        s.AppName(),
+		"out_traceparent": outTraceparent,
 	}
 
 	userAgent := r.UserAgent()
@@ -614,6 +637,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	if x := r.Header.Get(common.HeaderSourceAppName); len(x) > 0 {
 		fields["src_app_name"] = x
+	}
+	if len(xmTraceId) > 0 {
+		fields["xmoney_trace_id"] = xmTraceId
 	}
 
 	// add cpemac or csid in loggings
@@ -650,10 +676,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	auditFields := xwriter.Audit()
-
 	if userAgent != "mget" {
-		log.WithFields(auditFields).Info("request starts")
+		tfields := common.FilterLogFields(fields)
+		log.WithFields(tfields).Info("request starts")
 	}
 
 	return xwriter
@@ -690,7 +715,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 			}
 		}
 		if len(doc_map) > 0 {
-			tfields := util.CopyLogFields(fields)
+			tfields := common.FilterLogFields(fields)
 			tfields["logger"] = "doc"
 			log.WithFields(tfields).Debug("details")
 		}
@@ -728,7 +753,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 		userAgent = itf.(string)
 	}
 	if userAgent != "mget" {
-		log.WithFields(fields).Info("request ends")
+		tfields := common.FilterLogFields(fields)
+		log.WithFields(tfields).Info("request ends")
 	}
 }
 
@@ -746,15 +772,16 @@ func LogError(w http.ResponseWriter, err error) {
 
 func (xw *XResponseWriter) logMessage(logger string, message string, level int) {
 	fields := xw.Audit()
-	fields["logger"] = logger
+	tfields := common.FilterLogFields(fields)
+	tfields["logger"] = logger
 
 	switch level {
 	case LevelWarn:
-		log.WithFields(fields).Warn(message)
+		log.WithFields(tfields).Warn(message)
 	case LevelInfo:
-		log.WithFields(fields).Info(message)
+		log.WithFields(tfields).Info(message)
 	case LevelDebug:
-		log.WithFields(fields).Debug(message)
+		log.WithFields(tfields).Debug(message)
 	}
 }
 

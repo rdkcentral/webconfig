@@ -489,11 +489,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 	}
 
 	// copy the fields for logging
-	tfields := make(log.Fields)
-	for k, v := range fields {
-		tfields[k] = v
-	}
-
+	tfields := FilterLogFields(fields)
 	nfields := log.Fields{
 		"logger":         "metrics",
 		"old_state":      oldState,
@@ -502,16 +498,12 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 		"metrics_agent":  labels["client"],
 		"is_watched_cpe": isWatchedCpe,
 	}
-	for k, v := range nfields {
-		tfields[k] = v
-	}
+	UpdateLogFields(tfields, nfields)
 
 	sfields := m.GetStateCountsAsFields(labels, mlabels, isWatchedCpe)
-	for k, v := range sfields {
-		tfields[k] = v
-	}
-	tfields["line"] = GetStateMetricsLine(oldState, newState, sfields)
+	UpdateLogFields(tfields, nfields)
 
+	tfields["line"] = GetStateMetricsLine(oldState, newState, sfields)
 	log.WithFields(tfields).Log(m.logrusLevel, "OK")
 }
 
