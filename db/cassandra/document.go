@@ -98,7 +98,7 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		if fields == nil {
 			tfields = make(log.Fields)
 		} else {
-			tfields = util.CopyLogFields(fields)
+			tfields = common.FilterLogFields(fields)
 		}
 		tfields["logger"] = "xdb"
 		columnMap["stmt"] = stmt
@@ -235,7 +235,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 		if fields == nil {
 			tfields = make(log.Fields)
 		} else {
-			tfields = util.CopyLogFields(fields)
+			tfields = common.FilterLogFields(fields)
 		}
 		tfields["logger"] = "xdb"
 		tfields["query_stmt"] = stmt
