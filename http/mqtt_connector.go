@@ -28,7 +28,7 @@ import (
 
 const (
 	mqttHostDefault = "https://hcbroker.staging.us-west-2.plume.comcast.net"
-	mqttUrlTemplate = "%s/v2/mqttpub/x/to/%s/webconfig"
+	mqttUrlTemplate = "%s/v2/mqtt/pub/x/to/%s/webconfig"
 )
 
 type MqttConnector struct {
