@@ -43,8 +43,9 @@ func TestGetEventName(t *testing.T) {
 		Timestamp: time.Now(),
 		Headers:   headers,
 	}
-	eventName := getEventName(m)
+	eventName, rptHeaderValue := getEventName(m)
 	assert.Equal(t, eventName, "mqtt-get")
+	assert.Equal(t, rptHeaderValue, "x/fr/get")
 
 	// ==== mqtt-state ====
 	rheader = &sarama.RecordHeader{
@@ -63,8 +64,9 @@ func TestGetEventName(t *testing.T) {
 		Timestamp: time.Now(),
 		Headers:   headers,
 	}
-	eventName = getEventName(m)
+	eventName, rptHeaderValue = getEventName(m)
 	assert.Equal(t, eventName, "mqtt-state")
+	assert.Equal(t, rptHeaderValue, "x/fr/poke")
 
 	// ==== webpa-state ====
 	m = &sarama.ConsumerMessage{
@@ -75,10 +77,11 @@ func TestGetEventName(t *testing.T) {
 		Offset:    int64(3),
 		Timestamp: time.Now(),
 	}
-	eventName = getEventName(m)
+	eventName, rptHeaderValue = getEventName(m)
 	assert.Equal(t, eventName, "webpa-state")
+	assert.Equal(t, rptHeaderValue, "")
 
-	// ==== unknown ====
+	// ==== unknown-no-rpt ====
 	rheader = &sarama.RecordHeader{
 		Key:   []byte("yellow"),
 		Value: []byte("green"),
@@ -95,6 +98,33 @@ func TestGetEventName(t *testing.T) {
 		Timestamp: time.Now(),
 		Headers:   headers,
 	}
-	eventName = getEventName(m)
-	assert.Equal(t, eventName, "unknown")
+	eventName, rptHeaderValue = getEventName(m)
+	assert.Equal(t, eventName, "unknown-no-rpt")
+	assert.Equal(t, rptHeaderValue, "")
+
+	// ==== unknown-rpt ====
+	rheader1 := &sarama.RecordHeader{
+		Key:   []byte("yellow"),
+		Value: []byte("green"),
+	}
+	rheader2 := &sarama.RecordHeader{
+		Key:   []byte("rpt"),
+		Value: []byte("indigo"),
+	}
+	headers = []*sarama.RecordHeader{
+		rheader1,
+		rheader2,
+	}
+	m = &sarama.ConsumerMessage{
+		Topic:     "topic4",
+		Partition: int32(4),
+		Key:       []byte("blue"),
+		Value:     []byte("indigo"),
+		Offset:    int64(4),
+		Timestamp: time.Now(),
+		Headers:   headers,
+	}
+	eventName, rptHeaderValue = getEventName(m)
+	assert.Equal(t, eventName, "unknown-rpt")
+	assert.Equal(t, rptHeaderValue, "indigo")
 }

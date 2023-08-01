@@ -143,7 +143,11 @@ func (c *CassandraClient) GetRootDocumentLabels(cpeMac string) (prometheus.Label
 		if !c.IsDbNotFound(err) {
 			return nil, common.NewError(err)
 		}
-		return prometheus.Labels{}, nil
+		labels := prometheus.Labels{
+			"model":     "unknown",
+			"fwversion": "unknown",
+		}
+		return labels, nil
 	}
 	labels := prometheus.Labels{
 		"model":     rdoc.ModelName,

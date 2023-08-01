@@ -85,7 +85,9 @@ var (
 		`^/api/v1/device/(?P<v0>[^/]+)/config$`:   "/api/v1/device/<mac>/config",
 	}
 
-	appMetrics *AppMetrics
+	appMetrics                *AppMetrics
+	stateMetricsLabels        = []string{"feature", "client", "model", "fwversion"}
+	watchedStateMetricsLabels = []string{"feature", "client", "model", "fwversion", "mac"}
 )
 
 func GetUrlPattern(url string) string {
@@ -167,28 +169,28 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_state_deployed",
 				Help: "A gauge for the number of cpes in deployed state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		statePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_pending_download",
 				Help: "A gauge for the number of cpes in pending_download state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		stateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_in_deployment",
 				Help: "A gauge for the number of cpes in in_deployment state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		stateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_failure",
 				Help: "A gauge for the number of cpes in failure state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		kafkaLag: prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
@@ -217,84 +219,84 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_watched_state_deployed",
 				Help: "A gauge for the number of watched cpes in deployed state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStatePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_pending_download",
 				Help: "A gauge for the number of watched cpes in pending_download state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_in_deployment",
 				Help: "A gauge for the number of watched cpes in in_deployment state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_failure",
 				Help: "A gauge for the number of watched cpes in failure state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion", "mac"},
+			watchedStateMetricsLabels,
 		),
 		deployedIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_deployed_inc_count",
 				Help: "A counter for the times of cpes change to deployed state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		deployedDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_deployed_dec_count",
 				Help: "A counter for the times of cpes change from deployed state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		pendingIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_pending_inc_count",
 				Help: "A counter for the times of cpes change to pending state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		pendingDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_pending_dec_count",
 				Help: "A counter for the times of cpes change from pending state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		indeploymentIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_indeployment_inc_count",
 				Help: "A counter for the times of cpes change to indeployment state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		indeploymentDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_indeployment_dec_count",
 				Help: "A counter for the times of cpes change from indeployment state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		failureIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_failure_inc_count",
 				Help: "A counter for the times of cpes change to failure state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		failureDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_failure_dec_count",
 				Help: "A counter for the times of cpes change from failure state per feature.",
 			},
-			[]string{"feature", "client", "model", "fwversion"},
+			stateMetricsLabels,
 		),
 		watchedCpes: watchedCpes,
 		logrusLevel: logrusLevel,
@@ -455,6 +457,8 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 			break
 		}
 	}
+
+	RectifyLabels(labels)
 
 	mlabels := prometheus.Labels{}
 	for k, v := range labels {
@@ -746,4 +750,12 @@ func GetInt(fields log.Fields, key string) int {
 		}
 	}
 	return i
+}
+
+func RectifyLabels(labels prometheus.Labels) {
+	for _, x := range stateMetricsLabels {
+		if _, ok := labels[x]; !ok {
+			labels[x] = "unknown"
+		}
+	}
 }

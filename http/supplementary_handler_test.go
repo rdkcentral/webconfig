@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -37,7 +37,7 @@ import (
 )
 
 func TestSupplementaryApi(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
@@ -69,7 +69,7 @@ func TestSupplementaryApi(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	//assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -398,7 +398,7 @@ const (
 )
 
 func TestSupplementaryApiNoDataInXconf(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
@@ -433,7 +433,7 @@ func TestSupplementaryApiNoDataInXconf(t *testing.T) {
 }
 
 func TestSupplementaryWithExtraQueryParams(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
@@ -483,7 +483,7 @@ func TestSupplementaryWithExtraQueryParams(t *testing.T) {
 
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -537,7 +537,7 @@ func TestSupplementaryWithExtraQueryParams(t *testing.T) {
 }
 
 func TestSupplementaryApiBadPartnerHeader(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
@@ -571,7 +571,7 @@ func TestSupplementaryApiBadPartnerHeader(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	//assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)

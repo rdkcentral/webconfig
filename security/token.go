@@ -147,6 +147,7 @@ func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
 	if len(vargs) > 0 {
 		partner = vargs[0]
 	}
+	utcnow := time.Now()
 
 	claims := ThemisClaims{
 		KeyId:        kid,
@@ -158,11 +159,11 @@ func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
 		Capabilities: capabilities,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Audience:  jwt.ClaimStrings{"XMiDT"},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(utcnow.Add(24 * time.Hour)),
 			ID:        uuid.New().String(),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(utcnow),
 			Issuer:    "themis",
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(utcnow),
 			Subject:   "client:supplied",
 		},
 	}
