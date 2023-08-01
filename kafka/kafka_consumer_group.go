@@ -162,9 +162,9 @@ func getEventName(message *sarama.ConsumerMessage) (string, string) {
 			if string(h.Key) == "rpt" {
 				rptHeaderValue = string(h.Value)
 				switch rptHeaderValue {
-				case "x/fr/get":
+				case "x/fr/webconfig/get":
 					return "mqtt-get", rptHeaderValue
-				case "x/fr/poke":
+				case "x/fr/webconfig/poke":
 					return "mqtt-state", rptHeaderValue
 				}
 				return "unknown-rpt", rptHeaderValue
