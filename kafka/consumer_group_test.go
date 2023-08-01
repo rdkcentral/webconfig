@@ -29,7 +29,7 @@ func TestGetEventName(t *testing.T) {
 	// ==== mqtt-get ====
 	rheader := &sarama.RecordHeader{
 		Key:   []byte("rpt"),
-		Value: []byte("x/fr/get"),
+		Value: []byte("x/fr/webconfig/get"),
 	}
 	headers := []*sarama.RecordHeader{
 		rheader,
@@ -45,12 +45,12 @@ func TestGetEventName(t *testing.T) {
 	}
 	eventName, rptHeaderValue := getEventName(m)
 	assert.Equal(t, eventName, "mqtt-get")
-	assert.Equal(t, rptHeaderValue, "x/fr/get")
+	assert.Equal(t, rptHeaderValue, "x/fr/webconfig/get")
 
 	// ==== mqtt-state ====
 	rheader = &sarama.RecordHeader{
 		Key:   []byte("rpt"),
-		Value: []byte("x/fr/poke"),
+		Value: []byte("x/fr/webconfig/poke"),
 	}
 	headers = []*sarama.RecordHeader{
 		rheader,
@@ -66,7 +66,7 @@ func TestGetEventName(t *testing.T) {
 	}
 	eventName, rptHeaderValue = getEventName(m)
 	assert.Equal(t, eventName, "mqtt-state")
-	assert.Equal(t, rptHeaderValue, "x/fr/poke")
+	assert.Equal(t, rptHeaderValue, "x/fr/webconfig/poke")
 
 	// ==== webpa-state ====
 	m = &sarama.ConsumerMessage{
