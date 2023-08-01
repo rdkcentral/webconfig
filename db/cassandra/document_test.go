@@ -142,7 +142,7 @@ func TestMultiSubDocuments(t *testing.T) {
 	err = tdbclient.DeleteDocument(cpeMac)
 	assert.NilError(t, err)
 
-	doc, err = tdbclient.GetDocument(cpeMac)
+	_, err = tdbclient.GetDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 }
 

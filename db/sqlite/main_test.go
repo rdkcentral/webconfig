@@ -18,7 +18,7 @@
 package sqlite
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	// tdbclient.SetUp()
 	// tdbclient.TearDown()
 
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	tmetrics = common.NewMetrics(sc.Config)
 	tdbclient.SetMetrics(tmetrics)

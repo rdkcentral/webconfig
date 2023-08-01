@@ -18,7 +18,7 @@
 package security
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 
 	tokenManager = NewTokenManager(sc.Config)
 
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	returnCode := m.Run()
 	os.Exit(returnCode)
 }
