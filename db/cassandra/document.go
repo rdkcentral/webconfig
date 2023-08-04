@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -73,18 +74,17 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 
 func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *common.SubDocument, vargs ...interface{}) (fnerr error) {
 	var oldState int
-	metricsAgent := "default"
 	var fields log.Fields
+	var labels prometheus.Labels
 	for _, varg := range vargs {
 		switch ty := varg.(type) {
 		case int:
 			oldState = ty
-		case string:
-			if len(ty) > 0 {
-				metricsAgent = ty
-			}
 		case log.Fields:
 			fields = ty
+		case prometheus.Labels:
+			labels = ty
+			// should include only "model", "fwversion" and "client"
 		}
 	}
 	var newStatePtr *int
@@ -98,7 +98,7 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		if fields == nil {
 			tfields = make(log.Fields)
 		} else {
-			tfields = util.CopyLogFields(fields)
+			tfields = common.FilterLogFields(fields)
 		}
 		tfields["logger"] = "xdb"
 		columnMap["stmt"] = stmt
@@ -178,7 +178,8 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if newStatePtr != nil {
-			c.UpdateStateMetrics(oldState, *newStatePtr, groupId, metricsAgent, cpeMac, fields)
+			labels["feature"] = groupId
+			c.UpdateStateMetrics(oldState, *newStatePtr, labels, cpeMac, fields)
 		}
 	}
 	return nil
@@ -234,7 +235,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 		if fields == nil {
 			tfields = make(log.Fields)
 		} else {
-			tfields = util.CopyLogFields(fields)
+			tfields = common.FilterLogFields(fields)
 		}
 		tfields["logger"] = "xdb"
 		tfields["query_stmt"] = stmt

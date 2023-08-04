@@ -85,7 +85,9 @@ var (
 		`^/api/v1/device/(?P<v0>[^/]+)/config$`:   "/api/v1/device/<mac>/config",
 	}
 
-	appMetrics *AppMetrics
+	appMetrics                *AppMetrics
+	stateMetricsLabels        = []string{"feature", "client", "model", "fwversion"}
+	watchedStateMetricsLabels = []string{"feature", "client", "model", "fwversion", "mac"}
 )
 
 func GetUrlPattern(url string) string {
@@ -167,28 +169,28 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_state_deployed",
 				Help: "A gauge for the number of cpes in deployed state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		statePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_pending_download",
 				Help: "A gauge for the number of cpes in pending_download state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		stateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_in_deployment",
 				Help: "A gauge for the number of cpes in in_deployment state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		stateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_state_failure",
 				Help: "A gauge for the number of cpes in failure state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		kafkaLag: prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
@@ -217,84 +219,84 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 				Name: appName + "_watched_state_deployed",
 				Help: "A gauge for the number of watched cpes in deployed state per feature.",
 			},
-			[]string{"feature", "client", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStatePendingDownload: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_pending_download",
 				Help: "A gauge for the number of watched cpes in pending_download state per feature.",
 			},
-			[]string{"feature", "client", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStateInDeployment: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_in_deployment",
 				Help: "A gauge for the number of watched cpes in in_deployment state per feature.",
 			},
-			[]string{"feature", "client", "mac"},
+			watchedStateMetricsLabels,
 		),
 		watchedStateFailure: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: appName + "_watched_state_failure",
 				Help: "A gauge for the number of watched cpes in failure state per feature.",
 			},
-			[]string{"feature", "client", "mac"},
+			watchedStateMetricsLabels,
 		),
 		deployedIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_deployed_inc_count",
 				Help: "A counter for the times of cpes change to deployed state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		deployedDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_deployed_dec_count",
 				Help: "A counter for the times of cpes change from deployed state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		pendingIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_pending_inc_count",
 				Help: "A counter for the times of cpes change to pending state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		pendingDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_pending_dec_count",
 				Help: "A counter for the times of cpes change from pending state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		indeploymentIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_indeployment_inc_count",
 				Help: "A counter for the times of cpes change to indeployment state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		indeploymentDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_indeployment_dec_count",
 				Help: "A counter for the times of cpes change from indeployment state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		failureIncCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_failure_inc_count",
 				Help: "A counter for the times of cpes change to failure state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		failureDecCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: appName + "_failure_dec_count",
 				Help: "A counter for the times of cpes change from failure state per feature.",
 			},
-			[]string{"feature", "client"},
+			stateMetricsLabels,
 		),
 		watchedCpes: watchedCpes,
 		logrusLevel: logrusLevel,
@@ -355,121 +357,89 @@ func (m *AppMetrics) UrlPatternFn() func(string) string {
 }
 
 // deployed(1)
-func (m *AppMetrics) DeployedInc(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) DeployedInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateDeployed.With(labels).Inc()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateDeployed.With(mlabels).Inc()
 	}
 	m.deployedIncCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) DeployedDec(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
-	// m.stateDeployed.With(labels).Dec()
-	// if isWatchedCpe {
-	// 	mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
-	// 	m.watchedStateDeployed.With(mlabels).Dec()
-	// }
+func (m *AppMetrics) DeployedDec(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.deployedDecCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) DeployedSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) DeployedSet(labels, mlabels prometheus.Labels, v float64, isWatchedCpe bool) {
 	m.stateDeployed.With(labels).Set(v)
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateDeployed.With(mlabels).Set(v)
 	}
 }
 
 // pending_download(2)
-func (m *AppMetrics) PendingDownloadInc(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) PendingDownloadInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.statePendingDownload.With(labels).Inc()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStatePendingDownload.With(mlabels).Inc()
 	}
 	m.pendingIncCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) PendingDownloadDec(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) PendingDownloadDec(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.statePendingDownload.With(labels).Dec()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStatePendingDownload.With(mlabels).Dec()
 	}
 	m.pendingDecCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) PendingDownloadSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) PendingDownloadSet(labels, mlabels prometheus.Labels, v float64, isWatchedCpe bool) {
 	m.statePendingDownload.With(labels).Set(v)
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStatePendingDownload.With(mlabels).Set(v)
 	}
 }
 
 // in_deployment(3)
-func (m *AppMetrics) InDeploymentInc(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) InDeploymentInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateInDeployment.With(labels).Inc()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateInDeployment.With(mlabels).Inc()
 	}
 	m.indeploymentIncCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) InDeploymentDec(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) InDeploymentDec(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateInDeployment.With(labels).Dec()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateInDeployment.With(mlabels).Dec()
 	}
 	m.indeploymentDecCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) InDeploymentSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) InDeploymentSet(labels, mlabels prometheus.Labels, v float64, isWatchedCpe bool) {
 	m.stateInDeployment.With(labels).Set(v)
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateInDeployment.With(mlabels).Set(v)
 	}
 }
 
 // failure(4)
-func (m *AppMetrics) FailureInc(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) FailureInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateFailure.With(labels).Inc()
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateFailure.With(mlabels).Inc()
 	}
 	m.failureIncCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) FailureDec(feature, client, cpeMac string, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
-	// m.stateFailure.With(labels).Dec()
-	// if isWatchedCpe {
-	// 	mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
-	// 	m.watchedStateFailure.With(mlabels).Dec()
-	// }
+func (m *AppMetrics) FailureDec(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.failureDecCount.With(labels).Inc()
 }
 
-func (m *AppMetrics) FailureSet(feature, client, cpeMac string, v float64, isWatchedCpe bool) {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) FailureSet(labels, mlabels prometheus.Labels, v float64, isWatchedCpe bool) {
 	m.stateFailure.With(labels).Set(v)
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		m.watchedStateFailure.With(mlabels).Set(v)
 	}
 }
@@ -479,7 +449,7 @@ func (m *AppMetrics) FailureSet(feature, client, cpeMac string, v float64, isWat
 // InDeployment = 3
 // Failure = 4
 
-func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client, cpeMac string, fields log.Fields) {
+func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheus.Labels, cpeMac string, fields log.Fields) {
 	var isWatchedCpe bool
 	for _, x := range m.watchedCpes {
 		if x == cpeMac {
@@ -488,56 +458,56 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, feature, client,
 		}
 	}
 
+	RectifyLabels(labels)
+
+	mlabels := prometheus.Labels{}
+	for k, v := range labels {
+		mlabels[k] = v
+	}
+	mlabels["mac"] = cpeMac
+
 	// decrease the old state gauge
 	if oldState != newState {
 		switch oldState {
 		case Deployed:
-			m.DeployedDec(feature, client, cpeMac, isWatchedCpe)
+			m.DeployedDec(labels, mlabels, isWatchedCpe)
 		case PendingDownload:
-			m.PendingDownloadDec(feature, client, cpeMac, isWatchedCpe)
+			m.PendingDownloadDec(labels, mlabels, isWatchedCpe)
 		case InDeployment:
-			m.InDeploymentDec(feature, client, cpeMac, isWatchedCpe)
+			m.InDeploymentDec(labels, mlabels, isWatchedCpe)
 		case Failure:
-			m.FailureDec(feature, client, cpeMac, isWatchedCpe)
+			m.FailureDec(labels, mlabels, isWatchedCpe)
 		}
 
 		// increase the new state gauge
 		switch newState {
 		case Deployed:
-			m.DeployedInc(feature, client, cpeMac, isWatchedCpe)
+			m.DeployedInc(labels, mlabels, isWatchedCpe)
 		case PendingDownload:
-			m.PendingDownloadInc(feature, client, cpeMac, isWatchedCpe)
+			m.PendingDownloadInc(labels, mlabels, isWatchedCpe)
 		case InDeployment:
-			m.InDeploymentInc(feature, client, cpeMac, isWatchedCpe)
+			m.InDeploymentInc(labels, mlabels, isWatchedCpe)
 		case Failure:
-			m.FailureInc(feature, client, cpeMac, isWatchedCpe)
+			m.FailureInc(labels, mlabels, isWatchedCpe)
 		}
 	}
 
 	// copy the fields for logging
-	tfields := make(log.Fields)
-	for k, v := range fields {
-		tfields[k] = v
-	}
-
+	tfields := FilterLogFields(fields)
 	nfields := log.Fields{
 		"logger":         "metrics",
 		"old_state":      oldState,
 		"new_state":      newState,
-		"subdoc_id":      feature,
-		"metrics_agent":  client,
+		"subdoc_id":      labels["feature"],
+		"metrics_agent":  labels["client"],
 		"is_watched_cpe": isWatchedCpe,
 	}
-	for k, v := range nfields {
-		tfields[k] = v
-	}
+	UpdateLogFields(tfields, nfields)
 
-	sfields := m.GetStateCountsAsFields(feature, client, cpeMac, isWatchedCpe)
-	for k, v := range sfields {
-		tfields[k] = v
-	}
+	sfields := m.GetStateCountsAsFields(labels, mlabels, isWatchedCpe)
+	UpdateLogFields(tfields, nfields)
+
 	tfields["line"] = GetStateMetricsLine(oldState, newState, sfields)
-
 	log.WithFields(tfields).Log(m.logrusLevel, "OK")
 }
 
@@ -564,11 +534,9 @@ func (m *AppMetrics) CountKafkaEvents(eventName string, status string, partition
 	m.eventCounter.With(labels).Inc()
 }
 
-func (m *AppMetrics) GetStateCounter(feature, client string) (*StateCounter, error) {
+func (m *AppMetrics) GetStateCounter(labels prometheus.Labels) (*StateCounter, error) {
 	// REMINDER if a label is defined with 2 dimensions, then it must be referred
 	//          with 2 dimensions. Aggregation happens at prometheus level
-	labels := prometheus.Labels{"feature": feature, "client": client}
-
 	var err error
 	var sc StateCounter
 	var ptr *int
@@ -599,8 +567,7 @@ func (m *AppMetrics) GetStateCounter(feature, client string) (*StateCounter, err
 	return &sc, nil
 }
 
-func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string, isWatchedCpe bool) log.Fields {
-	labels := prometheus.Labels{"feature": feature, "client": client}
+func (m *AppMetrics) GetStateCountsAsFields(labels, mlabels prometheus.Labels, isWatchedCpe bool) log.Fields {
 	sfields := make(log.Fields)
 
 	pm := &promemodel.Metric{}
@@ -622,7 +589,6 @@ func (m *AppMetrics) GetStateCountsAsFields(feature, client, cpeMac string, isWa
 
 	// watched list
 	if isWatchedCpe {
-		mlabels := prometheus.Labels{"feature": feature, "client": client, "mac": cpeMac}
 		pm = &promemodel.Metric{}
 		if err := m.watchedStateDeployed.With(mlabels).Write(pm); err == nil {
 			sfields["watched_state_deployed_count"] = int(pm.Gauge.GetValue())
@@ -784,4 +750,12 @@ func GetInt(fields log.Fields, key string) int {
 		}
 	}
 	return i
+}
+
+func RectifyLabels(labels prometheus.Labels) {
+	for _, x := range stateMetricsLabels {
+		if _, ok := labels[x]; !ok {
+			labels[x] = "unknown"
+		}
+	}
 }

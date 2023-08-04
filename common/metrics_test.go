@@ -15,37 +15,23 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package cassandra
+package common
 
 import (
-	"io"
-	"os"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"github.com/rdkcentral/webconfig/common"
+	"gotest.tools/assert"
 )
 
-func TestMain(m *testing.M) {
-	sc, err := common.GetTestServerConfig()
-	if err != nil {
-		panic(err)
-	}
-
-	tdbclient, err = GetTestCassandraClient(sc.Config, true)
-	if err != nil {
-		panic(err)
-	}
-
-	log.SetOutput(io.Discard)
-
-	// init other shared objects
-	tcodec = tdbclient.Codec()
-
-	returnCode := m.Run()
-
-	// tear down
-	// _ = suite.TearDown()
-
-	os.Exit(returnCode)
+func TestMetrics(t *testing.T) {
+	sc, err := GetTestServerConfig()
+	assert.NilError(t, err)
+	m := NewMetrics(sc.Config)
+	oldState, newState := 4, 1
+	labels := prometheus.Labels{}
+	cpeMac := "777700001111"
+	fields := log.Fields{}
+	m.UpdateStateMetrics(oldState, newState, labels, cpeMac, fields)
 }

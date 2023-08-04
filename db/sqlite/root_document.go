@@ -20,6 +20,7 @@ package sqlite
 import (
 	"database/sql"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 )
 
@@ -251,4 +252,16 @@ func (c *SqliteClient) SetRootDocument(cpeMac string, inRootdoc *common.RootDocu
 		return common.NewError(err)
 	}
 	return nil
+}
+
+func (c *SqliteClient) GetRootDocumentLabels(cpeMac string) (prometheus.Labels, error) {
+	rdoc, err := c.GetRootDocument(cpeMac)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	labels := prometheus.Labels{
+		"model":     rdoc.ModelName,
+		"fwversion": rdoc.FirmwareVersion,
+	}
+	return labels, nil
 }

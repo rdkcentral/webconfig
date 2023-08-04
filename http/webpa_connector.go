@@ -188,21 +188,25 @@ func (c *WebpaConnector) SetAsyncPokeEnabled(enabled bool) {
 func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
 	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), c.ApiVersion(), cpeMac)
 
-	var traceId string
-	if itf, ok := fields["trace_id"]; ok {
-		traceId = itf.(string)
+	var xmTraceId, outTraceparent string
+	if itf, ok := fields["xm_trace_id"]; ok {
+		xmTraceId = itf.(string)
 	}
-	if len(traceId) == 0 {
-		traceId = uuid.New().String()
+	if len(xmTraceId) == 0 {
+		xmTraceId = uuid.New().String()
+	}
+	if itf, ok := fields["out_traceparent"]; ok {
+		outTraceparent = itf.(string)
 	}
 
 	t := time.Now().UnixNano() / 1000
-	transactionId := fmt.Sprintf("%s_____%015x", traceId, t)
-	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, webpaServiceName)
+	transactionId := fmt.Sprintf("%s_____%015x", xmTraceId, t)
+	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", xmTraceId, webpaServiceName)
 	header := make(http.Header)
 	header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	header.Set("X-Webpa-Transaction-Id", transactionId)
 	header.Set("X-Moneytrace", xmoney)
+	header.Set(common.HeaderTraceparent, outTraceparent)
 
 	method := "PATCH"
 	_, _, err, cont := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)

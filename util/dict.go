@@ -108,14 +108,6 @@ func (d Dict) Copy() Dict {
 	return newd
 }
 
-func CopyLogFields(src log.Fields) log.Fields {
-	fields := log.Fields{}
-	for k, v := range src {
-		fields[k] = v
-	}
-	return fields
-}
-
 func (d Dict) SelectByKeys(names ...string) Dict {
 	ndict := Dict{}
 	for _, n := range names {

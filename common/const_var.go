@@ -103,6 +103,7 @@ const (
 	HeaderReqUrl                     = "X-Req-Url"
 	HeaderWanMac                     = "X-System-Wan-Mac"
 	HeaderSourceAppName              = "X-Source-App-Name"
+	HeaderTraceparent                = "Traceparent"
 )
 
 // header X-System-Supported-Docs

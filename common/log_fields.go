@@ -15,37 +15,40 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package cassandra
+package common
 
 import (
-	"io"
-	"os"
-	"testing"
-
 	log "github.com/sirupsen/logrus"
-	"github.com/rdkcentral/webconfig/common"
 )
 
-func TestMain(m *testing.M) {
-	sc, err := common.GetTestServerConfig()
-	if err != nil {
-		panic(err)
+var (
+	unloggedFields = []string{
+		"moneytrace",
+		"token",
+		"out_traceparent",
+	}
+)
+
+func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
+	fields := log.Fields{}
+	for k, v := range src {
+		fields[k] = v
 	}
 
-	tdbclient, err = GetTestCassandraClient(sc.Config, true)
-	if err != nil {
-		panic(err)
+	for _, x := range unloggedFields {
+		delete(fields, x)
 	}
 
-	log.SetOutput(io.Discard)
+	if len(excludes) > 0 {
+		for _, x := range excludes {
+			delete(fields, x)
+		}
+	}
+	return fields
+}
 
-	// init other shared objects
-	tcodec = tdbclient.Codec()
-
-	returnCode := m.Run()
-
-	// tear down
-	// _ = suite.TearDown()
-
-	os.Exit(returnCode)
+func UpdateLogFields(fields, newfields log.Fields) {
+	for k, v := range newfields {
+		fields[k] = v
+	}
 }

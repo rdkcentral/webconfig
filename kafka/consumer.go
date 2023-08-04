@@ -88,6 +88,10 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 		return nil, common.NewError(err)
 	}
 
+	if m.ErrorDetails != nil && *m.ErrorDetails == "max_retry_reached" {
+		return &m, nil
+	}
+
 	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
 	err = db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
@@ -182,6 +186,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			auditId := util.GetAuditId()
 
 			kafkaKey := string(message.Key)
+			messageLength := len(message.Value)
 			fields := log.Fields{
 				"logger":          "kafka",
 				"app_name":        c.AppName(),
@@ -192,13 +197,14 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				"cluster_name":    c.ClusterName(),
 				"kafka_partition": message.Partition,
 				"kafka_offset":    message.Offset,
+				"message_length":  messageLength,
 			}
 
 			var err error
-			var logMessage string
+			logMessage := "discarded"
 			var m *common.EventMessage
 
-			eventName := getEventName(message)
+			eventName, rptHeaderValue := getEventName(message)
 			switch eventName {
 			case "mqtt-get":
 				m, err = c.handleGetMessage(message.Value, fields)
@@ -216,6 +222,8 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			session.MarkMessage(message, "")
 			duration := int(time.Since(start).Nanoseconds() / 1000000)
 			fields["duration"] = duration
+			fields["event_name"] = eventName
+			fields["rpt"] = rptHeaderValue
 
 			if err != nil {
 				if c.IsDbNotFound(err) {

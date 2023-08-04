@@ -132,6 +132,8 @@ func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
 	// CryptBlocks can work in-place if the two arguments are the same.
 	mode.CryptBlocks(ciphertext, ciphertext)
 
+	// Copyright 2012 The Go Authors. All rights reserved.
+	// Licensed under the BSD-3 License
 	// If the original plaintext lengths are not a multiple of the block
 	// size, padding would have to be added when encrypting, which would be
 	// removed at this point. For an example, see
@@ -209,6 +211,8 @@ func (c *AesCodec) Encrypt(plaintextstr string) (string, error) {
 	mode := cipher.NewCBCEncrypter(block, iv)
 	mode.CryptBlocks(ciphertext[aes.BlockSize:], hashedIvPlain)
 
+	// Copyright 2012 The Go Authors. All rights reserved.
+	// Licensed under the BSD-3 License
 	// It's important to remember that ciphertexts must be authenticated
 	// (i.e. by using crypto/hmac) as well as being encrypted in order to
 	// be secure.

@@ -155,21 +155,24 @@ func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, 
 	return kcgroups, nil
 }
 
-func getEventName(message *sarama.ConsumerMessage) string {
+func getEventName(message *sarama.ConsumerMessage) (string, string) {
+	var rptHeaderValue string
 	if len(message.Headers) > 0 {
 		for _, h := range message.Headers {
 			if string(h.Key) == "rpt" {
-				switch string(h.Value) {
-				case "x/fr/get":
-					return "mqtt-get"
-				case "x/fr/poke":
-					return "mqtt-state"
+				rptHeaderValue = string(h.Value)
+				switch rptHeaderValue {
+				case "x/fr/webconfig/get":
+					return "mqtt-get", rptHeaderValue
+				case "x/fr/webconfig/poke":
+					return "mqtt-state", rptHeaderValue
 				}
+				return "unknown-rpt", rptHeaderValue
 			}
 		}
-		return "unknown"
+		return "unknown-no-rpt", rptHeaderValue
 	}
-	return "webpa-state"
+	return "webpa-state", rptHeaderValue
 }
 
 func GetTopicPartitions(brokers, topics []string, config *sarama.Config) (fobj map[string][]int32, ferr error) {
