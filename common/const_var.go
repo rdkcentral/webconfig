@@ -104,6 +104,7 @@ const (
 	HeaderWanMac                     = "X-System-Wan-Mac"
 	HeaderSourceAppName              = "X-Source-App-Name"
 	HeaderTraceparent                = "Traceparent"
+	HeaderTracestate                 = "Tracestate"
 )
 
 // header X-System-Supported-Docs
