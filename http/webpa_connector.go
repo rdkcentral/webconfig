@@ -188,7 +188,7 @@ func (c *WebpaConnector) SetAsyncPokeEnabled(enabled bool) {
 func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
 	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), c.ApiVersion(), cpeMac)
 
-	var xmTraceId, outTraceparent string
+	var xmTraceId, outTraceparent, outTracestate string
 	if itf, ok := fields["xm_trace_id"]; ok {
 		xmTraceId = itf.(string)
 	}
@@ -197,6 +197,9 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	}
 	if itf, ok := fields["out_traceparent"]; ok {
 		outTraceparent = itf.(string)
+	}
+	if itf, ok := fields["out_tracestate"]; ok {
+		outTracestate = itf.(string)
 	}
 
 	t := time.Now().UnixNano() / 1000
@@ -207,6 +210,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	header.Set("X-Webpa-Transaction-Id", transactionId)
 	header.Set("X-Moneytrace", xmoney)
 	header.Set(common.HeaderTraceparent, outTraceparent)
+	header.Set(common.HeaderTracestate, outTracestate)
 
 	method := "PATCH"
 	_, _, err, cont := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)

@@ -57,6 +57,7 @@ func TestFilterLogFields(t *testing.T) {
 		"indigo":          "sapphire",
 		"violet":          "purple",
 		"out_traceparent": "foo",
+		"out_tracestate":  "cyan",
 		"token":           "bar",
 	}
 	c3 := FilterLogFields(src3)
