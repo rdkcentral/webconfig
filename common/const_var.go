@@ -174,6 +174,10 @@ var (
 		},
 		15: {
 			{1, 26},
+			{2, 27},
+		},
+		16: {
+			{1, 28},
 		},
 	}
 )
@@ -206,6 +210,8 @@ var (
 		"cellularconfig":  24,
 		"telcovoice":      25,
 		"gwfailover":      26,
+		"gwrestore":       27,
+		"prioritizedmacs": 28,
 	}
 )
 

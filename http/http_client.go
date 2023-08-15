@@ -60,6 +60,7 @@ type HttpClient struct {
 	retries              int
 	retryInMsecs         int
 	statusHandlerFuncMap map[int]StatusHandlerFunc
+	userAgent            string
 }
 
 func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
@@ -80,6 +81,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", serviceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
+	userAgent := conf.GetString("webconfig.http_client.user_agent")
 
 	return &HttpClient{
 		Client: &http.Client{
@@ -100,6 +102,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 		retries:              retries,
 		retryInMsecs:         retryInMsecs,
 		statusHandlerFuncMap: map[int]StatusHandlerFunc{},
+		userAgent:            userAgent,
 	}
 }
 
@@ -125,6 +128,10 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	}
 
 	req.Header = header.Clone()
+	if len(c.userAgent) > 0 {
+		req.Header.Set(common.HeaderUserAgent, c.userAgent)
+	}
+
 	logHeader := header.Clone()
 	auth := logHeader.Get("Authorization")
 	if len(auth) > 0 {

@@ -90,6 +90,8 @@ func TestSupportedGroupsHandler(t *testing.T) {
 		"telcovoice":      false,
 		"wanmanager":      false,
 		"voiceservice":    false,
+		"gwrestore":       false,
+		"prioritizedmacs": false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -272,6 +274,8 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 		"wanfailover":     true,
 		"wanmanager":      true,
 		"xdns":            true,
+		"gwrestore":       false,
+		"prioritizedmacs": false,
 	}
 
 	// call GET /supported_groups to verify response

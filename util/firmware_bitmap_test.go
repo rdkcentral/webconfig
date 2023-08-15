@@ -158,6 +158,8 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -204,6 +206,8 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -250,6 +254,9 @@ func TestBitmapParsing(t *testing.T) {
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -296,6 +303,9 @@ func TestParseVoiceService(t *testing.T) {
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["cellularconfig"] = false
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -352,6 +362,9 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["wanfailover"] = false
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -396,6 +409,9 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -440,6 +456,9 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
 	expectedEnabled["gwfailover"] = false
+	expectedEnabled["gwrestore"] = false
+	expectedEnabled["prioritizedmacs"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -474,6 +493,8 @@ func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 		"wanfailover":     true,
 		"wanmanager":      false,
 		"xdns":            true,
+		"gwrestore":       false,
+		"prioritizedmacs": false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
