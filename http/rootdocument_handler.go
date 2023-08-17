@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 )
@@ -74,6 +75,7 @@ func (s *WebconfigServer) PostRootDocumentHandler(w http.ResponseWriter, r *http
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
+	fields := xw.Audit()
 
 	bodyBytes := xw.BodyBytes()
 	if len(bodyBytes) == 0 {
@@ -88,6 +90,12 @@ func (s *WebconfigServer) PostRootDocumentHandler(w http.ResponseWriter, r *http
 		return
 	}
 
+	if rootdoc.ModelName == "SR213" {
+		line := "NB schema_version=" + rootdoc.SchemaVersion
+		tfields := common.FilterLogFields(fields)
+		tfields["logger"] = "rootdoc"
+		log.WithFields(tfields).Info(line)
+	}
 	err = s.SetRootDocument(mac, rootdoc)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, common.NewError(err))

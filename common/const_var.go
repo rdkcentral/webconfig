@@ -104,6 +104,7 @@ const (
 	HeaderWanMac                     = "X-System-Wan-Mac"
 	HeaderSourceAppName              = "X-Source-App-Name"
 	HeaderTraceparent                = "Traceparent"
+	HeaderTracestate                 = "Tracestate"
 )
 
 // header X-System-Supported-Docs
@@ -173,6 +174,10 @@ var (
 		},
 		15: {
 			{1, 26},
+			{2, 27},
+		},
+		16: {
+			{1, 28},
 		},
 	}
 )
@@ -205,6 +210,8 @@ var (
 		"cellularconfig":  24,
 		"telcovoice":      25,
 		"gwfailover":      26,
+		"gwrestore":       27,
+		"prioritizedmacs": 28,
 	}
 )
 

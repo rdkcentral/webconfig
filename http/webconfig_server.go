@@ -56,6 +56,7 @@ const (
 	activeDriverDefault              = "cassandra"
 	defaultJwksEnabled               = false
 	defaultTraceparentParentID       = "0000000000000001"
+	defaultTracestateVendorID        = "webconfig"
 )
 
 var (
@@ -98,6 +99,7 @@ type WebconfigServer struct {
 	validPartners             []string
 	jwksEnabled               bool
 	traceparentParentID       string
+	tracestateVendorID        string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -239,6 +241,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	}
 
 	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
+	tracestateVendorID := conf.GetString("webconfig.tracestate_vendor_id", defaultTracestateVendorID)
 
 	return &WebconfigServer{
 		Server: &http.Server{
@@ -268,6 +271,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validPartners:             validPartners,
 		jwksEnabled:               jwksEnabled,
 		traceparentParentID:       traceparentParentID,
+		tracestateVendorID:        tracestateVendorID,
 	}
 }
 
@@ -544,6 +548,14 @@ func (s *WebconfigServer) SetTraceparentParentID(x string) {
 	s.traceparentParentID = x
 }
 
+func (s *WebconfigServer) TracestateVendorID() string {
+	return s.tracestateVendorID
+}
+
+func (s *WebconfigServer) SetTracestateVendorID(x string) {
+	s.tracestateVendorID = x
+}
+
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	// if no valid partners are configured, all partners are accepted/validated
 	if len(s.validPartners) == 0 {
@@ -589,7 +601,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		token = elements[1]
 	}
 
-	var xmTraceId, traceId, outTraceparent string
+	var xmTraceId, traceId, outTraceparent, outTracestate string
 
 	// extract moneytrace from the header
 	tracePart := strings.Split(r.Header.Get("X-Moneytrace"), ";")[0]
@@ -604,6 +616,12 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(traceparent) == 55 {
 		traceId = traceparent[3:35]
 		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
+	}
+
+	// extrac tracestate from the header
+	tracestate := r.Header.Get(common.HeaderTracestate)
+	if len(tracestate) > 0 {
+		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
 
 	// extract auditid from the header
@@ -623,6 +641,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		"trace_id":        traceId,
 		"app_name":        s.AppName(),
 		"out_traceparent": outTraceparent,
+		"out_tracestate":  outTracestate,
 	}
 
 	userAgent := r.UserAgent()

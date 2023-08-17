@@ -26,6 +26,7 @@ var (
 		"moneytrace",
 		"token",
 		"out_traceparent",
+		"out_tracestate",
 	}
 )
 
