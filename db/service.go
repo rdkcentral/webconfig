@@ -99,6 +99,12 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
 		clonedRootDoc := deviceRootDocument.Clone()
 		clonedRootDoc.Version = ""
+		if clonedRootDoc.ModelName == "SR213" {
+			line := "CREATE schema_version=" + clonedRootDoc.SchemaVersion
+			tfields := common.FilterLogFields(fields)
+			tfields["logger"] = "rootdoc"
+			log.WithFields(tfields).Info(line)
+		}
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
 		}
@@ -120,6 +126,12 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
 		clonedRootDoc := deviceRootDocument.Clone()
 		clonedRootDoc.Version = ""
+		if clonedRootDoc.ModelName == "SR213" {
+			line := "UPDATE schema_version=" + clonedRootDoc.SchemaVersion
+			tfields := common.FilterLogFields(fields)
+			tfields["logger"] = "rootdoc"
+			log.WithFields(tfields).Info(line)
+		}
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
 		}
