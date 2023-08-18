@@ -189,7 +189,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), c.ApiVersion(), cpeMac)
 
 	var xmTraceId, outTraceparent string
-	if itf, ok := fields["xm_trace_id"]; ok {
+	if itf, ok := fields["xmoney_trace_id"]; ok {
 		xmTraceId = itf.(string)
 	}
 	if len(xmTraceId) == 0 {
