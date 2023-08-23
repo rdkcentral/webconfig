@@ -211,7 +211,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	}
 
 	t := time.Now().UnixNano() / 1000
-	transactionId := fmt.Sprintf("%s_____%015x", traceId, t)
+	transactionId := fmt.Sprintf("%s_____%015x", xmTraceId, t)
 	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", xmTraceId, webpaServiceName)
 	header := make(http.Header)
 	header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
