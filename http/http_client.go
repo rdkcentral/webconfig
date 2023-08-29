@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/go-akka/configuration"
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
@@ -312,24 +311,6 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 }
 
 func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
-	var traceId string
-	if itf, ok := fields["trace_id"]; ok {
-		traceId = itf.(string)
-	}
-	if len(traceId) == 0 {
-		traceId = uuid.New().String()
-	}
-
-	var header http.Header
-	if rHeader != nil {
-		header = rHeader.Clone()
-	} else {
-		header = make(http.Header)
-	}
-	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, loggerName)
-	header.Set("X-Moneytrace", xmoney)
-
-	// var res *http.Response
 	var respBytes []byte
 	var respHeader http.Header
 	var err error
@@ -343,7 +324,7 @@ func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Heade
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		respBytes, respHeader, err, cont = c.Do(method, url, header, cbytes, fields, loggerName, i)
+		respBytes, respHeader, err, cont = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}

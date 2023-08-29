@@ -721,7 +721,7 @@ func ParseSummary(metrics []*promemodel.Metric) map[string]int {
 }
 
 const (
-	lineTemplate = "state %v => %v, states=(%v,%v,%v,%v), dec_inc_count: s1(%v,%v), s2(%v,%v), s3(%v,%v), s4(%v,%v)"
+	lineTemplate = "state %v TO %v, states=(%v,%v,%v,%v), dec_inc_count: s1(%v,%v), s2(%v,%v), s3(%v,%v), s4(%v,%v)"
 )
 
 func GetStateMetricsLine(oldState, newState int, fields log.Fields) string {
