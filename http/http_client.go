@@ -126,6 +126,10 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		return nil, nil, common.NewError(err), true
 	}
 
+	if header == nil {
+		header = make(http.Header)
+	}
+
 	req.Header = header.Clone()
 	if len(c.userAgent) > 0 {
 		req.Header.Set(common.HeaderUserAgent, c.userAgent)

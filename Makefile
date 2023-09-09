@@ -16,8 +16,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-GOARCH := $(shell uname -m | sed 's/x86_64/amd64/g')
-GOOS := $(shell uname -s | tr "[:upper:]" "[:lower:]")
+GOARCH := $(shell go env GOARCH)
+GOOS := $(shell go env GOOS)
 PROJ := webconfig
 ORG := rdkcentral
 REPO := github.com/${ORG}/${PROJ}
