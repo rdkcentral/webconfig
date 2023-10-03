@@ -14,14 +14,14 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package db
 
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // (1) need to handle if c.IsDbNotFound(err) {
