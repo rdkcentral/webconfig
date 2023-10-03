@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -25,9 +25,9 @@ import (
 	"github.com/MicahParks/keyfunc/v2"
 	"github.com/go-akka/configuration"
 	"github.com/golang-jwt/jwt/v5"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
