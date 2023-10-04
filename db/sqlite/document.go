@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package sqlite
 
 import (
@@ -23,9 +23,9 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
-	log "github.com/sirupsen/logrus"
 )
 
 func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {

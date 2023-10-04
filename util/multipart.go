@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package util
 
 import (
@@ -26,8 +26,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/vmihailenco/msgpack"
+	"github.com/rdkcentral/webconfig/common"
 )
 
 func ParseMultipart(header http.Header, bbytes []byte) (map[string]common.Multipart, error) {

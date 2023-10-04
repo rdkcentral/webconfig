@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package http
 
 import (
@@ -23,8 +23,8 @@ import (
 	"net/http"
 
 	"github.com/go-akka/configuration"
-	owcommon "github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
+	owcommon "github.com/rdkcentral/webconfig/common"
 )
 
 const (
