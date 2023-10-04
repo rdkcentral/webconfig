@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package cassandra
 
 import (
@@ -23,10 +23,10 @@ import (
 
 	"github.com/gocql/gocql"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	log "github.com/sirupsen/logrus"
 )
 
 // NOTE this
