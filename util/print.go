@@ -14,15 +14,15 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/vmihailenco/msgpack"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/vmihailenco/msgpack"
 )
 
 func PrettyJson(input interface{}) string {
