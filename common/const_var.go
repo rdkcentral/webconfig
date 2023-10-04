@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package common
 
 const (
@@ -179,43 +179,39 @@ var (
 		16: {
 			{1, 28},
 		},
-		17: {
-			{1, 29},
-		},
 	}
 )
 
 var (
 	SubdocBitIndexMap = map[string]int{
-		"portforwarding":    1,
-		"lan":               2,
-		"wan":               3,
-		"macbinding":        4,
-		"hotspot":           5,
-		"bridge":            6,
-		"privatessid":       7,
-		"homessid":          8,
-		"radio":             9,
-		"moca":              10,
-		"xdns":              11,
-		"advsecurity":       12,
-		"mesh":              13,
-		"aker":              14,
-		"telemetry":         15,
-		"statusreport":      16,
-		"trafficreport":     17,
-		"interfacereport":   18,
-		"radioreport":       19,
-		"telcovoip":         20,
-		"wanmanager":        21,
-		"voiceservice":      22,
-		"wanfailover":       23,
-		"cellularconfig":    24,
-		"telcovoice":        25,
-		"gwfailover":        26,
-		"gwrestore":         27,
-		"prioritizedmacs":   28,
-		"connectedbuilding": 29,
+		"portforwarding":  1,
+		"lan":             2,
+		"wan":             3,
+		"macbinding":      4,
+		"hotspot":         5,
+		"bridge":          6,
+		"privatessid":     7,
+		"homessid":        8,
+		"radio":           9,
+		"moca":            10,
+		"xdns":            11,
+		"advsecurity":     12,
+		"mesh":            13,
+		"aker":            14,
+		"telemetry":       15,
+		"statusreport":    16,
+		"trafficreport":   17,
+		"interfacereport": 18,
+		"radioreport":     19,
+		"telcovoip":       20,
+		"wanmanager":      21,
+		"voiceservice":    22,
+		"wanfailover":     23,
+		"cellularconfig":  24,
+		"telcovoice":      25,
+		"gwfailover":      26,
+		"gwrestore":       27,
+		"prioritizedmacs": 28,
 	}
 )
 

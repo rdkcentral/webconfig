@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package http
 
 import (
@@ -28,9 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vmihailenco/msgpack/v4"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/vmihailenco/msgpack/v4"
 	"gotest.tools/assert"
 )
 
