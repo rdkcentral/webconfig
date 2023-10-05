@@ -23,12 +23,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-akka/configuration"
-	"github.com/gocql/gocql"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/go-akka/configuration"
+	"github.com/gocql/gocql"
 )
 
 const (

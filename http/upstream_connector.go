@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-akka/configuration"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	owcommon "github.com/rdkcentral/webconfig/common"
+	"github.com/go-akka/configuration"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

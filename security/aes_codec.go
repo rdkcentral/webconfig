@@ -28,9 +28,9 @@ import (
 	"io"
 	"os"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
 	log "github.com/sirupsen/logrus"
-	"github.com/rdkcentral/webconfig/common"
 )
 
 /*

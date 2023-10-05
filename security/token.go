@@ -26,11 +26,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 )
 
 const (

@@ -27,10 +27,10 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/vmihailenco/msgpack/v4"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	log "github.com/sirupsen/logrus"
+	"github.com/vmihailenco/msgpack/v4"
 	"gotest.tools/assert"
 )
 

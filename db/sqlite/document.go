@@ -21,11 +21,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/db"
 )
 
 func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {

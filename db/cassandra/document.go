@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gocql/gocql"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 )
 
 // NOTE this
