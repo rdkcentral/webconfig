@@ -20,8 +20,8 @@ package db
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // (1) need to handle if c.IsDbNotFound(err) {

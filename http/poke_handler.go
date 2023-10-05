@@ -25,10 +25,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {

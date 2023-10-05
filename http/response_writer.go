@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
+	log "github.com/sirupsen/logrus"
 )
 
 var (

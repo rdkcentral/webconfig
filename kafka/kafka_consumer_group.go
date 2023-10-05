@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/go-akka/configuration"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
+	"github.com/go-akka/configuration"
 )
 
 type KafkaConsumerGroup struct {

@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.Request) {

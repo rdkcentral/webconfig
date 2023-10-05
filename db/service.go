@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO s.MultipartSupplementaryHandler(w, r) should be handled separately

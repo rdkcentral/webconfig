@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/rdkcentral/webconfig/common"
 )
 
 const (
