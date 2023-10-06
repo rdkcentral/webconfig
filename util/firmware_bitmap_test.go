@@ -160,6 +160,8 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -208,6 +210,8 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -256,6 +260,8 @@ func TestBitmapParsing(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -305,6 +311,8 @@ func TestParseVoiceService(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -364,6 +372,8 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -411,6 +421,8 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -458,6 +470,8 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 	expectedEnabled["gwfailover"] = false
 	expectedEnabled["gwrestore"] = false
 	expectedEnabled["prioritizedmacs"] = false
+	expectedEnabled["connectedbuilding"] = false
+	expectedEnabled["lldqoscontrol"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -467,34 +481,132 @@ func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 
 	// build expected
 	expectedEnabled := map[string]bool{
-		"advsecurity":     true,
-		"aker":            true,
-		"bridge":          false,
-		"cellularconfig":  false,
-		"gwfailover":      true,
-		"homessid":        true,
-		"hotspot":         true,
-		"interfacereport": false,
-		"lan":             true,
-		"macbinding":      true,
-		"mesh":            true,
-		"moca":            true,
-		"portforwarding":  true,
-		"privatessid":     true,
-		"radio":           false,
-		"radioreport":     false,
-		"statusreport":    false,
-		"telcovoice":      false,
-		"telcovoip":       false,
-		"telemetry":       true,
-		"trafficreport":   false,
-		"voiceservice":    true,
-		"wan":             true,
-		"wanfailover":     true,
-		"wanmanager":      false,
-		"xdns":            true,
-		"gwrestore":       false,
-		"prioritizedmacs": false,
+		"advsecurity":       true,
+		"aker":              true,
+		"bridge":            false,
+		"cellularconfig":    false,
+		"gwfailover":        true,
+		"homessid":          true,
+		"hotspot":           true,
+		"interfacereport":   false,
+		"lan":               true,
+		"macbinding":        true,
+		"mesh":              true,
+		"moca":              true,
+		"portforwarding":    true,
+		"privatessid":       true,
+		"radio":             false,
+		"radioreport":       false,
+		"statusreport":      false,
+		"telcovoice":        false,
+		"telcovoip":         false,
+		"telemetry":         true,
+		"trafficreport":     false,
+		"voiceservice":      true,
+		"wan":               true,
+		"wanfailover":       true,
+		"wanmanager":        false,
+		"xdns":              true,
+		"gwrestore":         false,
+		"prioritizedmacs":   false,
+		"connectedbuilding": false,
+		"lldqoscontrol":     false,
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	for subdocId, enabled := range expectedEnabled {
+		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
+		assert.Equal(t, parsedEnabled, enabled)
+	}
+
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+}
+
+func TestParseSupportedDocsHeaderWithPrioritizedMacs(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,251658241,268435457"
+
+	// build expected
+	expectedEnabled := map[string]bool{
+		"advsecurity":       true,
+		"aker":              true,
+		"bridge":            false,
+		"cellularconfig":    false,
+		"gwfailover":        true,
+		"homessid":          true,
+		"hotspot":           true,
+		"interfacereport":   false,
+		"lan":               true,
+		"macbinding":        true,
+		"mesh":              true,
+		"moca":              true,
+		"portforwarding":    true,
+		"privatessid":       true,
+		"radio":             false,
+		"radioreport":       false,
+		"statusreport":      false,
+		"telcovoice":        false,
+		"telcovoip":         false,
+		"telemetry":         true,
+		"trafficreport":     false,
+		"voiceservice":      false,
+		"wan":               true,
+		"wanfailover":       true,
+		"wanmanager":        false,
+		"xdns":              true,
+		"gwrestore":         false,
+		"prioritizedmacs":   true,
+		"connectedbuilding": false,
+		"lldqoscontrol":     false,
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	for subdocId, enabled := range expectedEnabled {
+		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
+		assert.Equal(t, parsedEnabled, enabled)
+	}
+
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+}
+
+func TestParseSupportedDocsHeaderWithPrioritizedMacsAndConnectedbuilding(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
+
+	// build expected
+	expectedEnabled := map[string]bool{
+		"advsecurity":       true,
+		"aker":              true,
+		"bridge":            false,
+		"cellularconfig":    false,
+		"gwfailover":        true,
+		"homessid":          true,
+		"hotspot":           true,
+		"interfacereport":   false,
+		"lan":               true,
+		"macbinding":        true,
+		"mesh":              true,
+		"moca":              true,
+		"portforwarding":    true,
+		"privatessid":       true,
+		"radio":             false,
+		"radioreport":       false,
+		"statusreport":      false,
+		"telcovoice":        false,
+		"telcovoip":         false,
+		"telemetry":         true,
+		"trafficreport":     false,
+		"voiceservice":      true,
+		"wan":               true,
+		"wanfailover":       true,
+		"wanmanager":        false,
+		"xdns":              true,
+		"gwrestore":         false,
+		"prioritizedmacs":   true,
+		"connectedbuilding": true,
+		"lldqoscontrol":     true,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
