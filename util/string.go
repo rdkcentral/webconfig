@@ -24,8 +24,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/google/uuid"
 )
 
 var (

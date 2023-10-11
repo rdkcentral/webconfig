@@ -26,11 +26,11 @@ import (
 	"syscall"
 
 	"github.com/Shopify/sarama"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	wchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/rdkcentral/webconfig/kafka"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
 )

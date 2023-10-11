@@ -33,10 +33,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-akka/configuration"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/go-akka/configuration"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -128,6 +129,19 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 	if header == nil {
 		header = make(http.Header)
+	}
+
+	if loggerName == webpaServiceName || loggerName == asyncWebpaServiceName {
+		var xmTraceId string
+		if itf, ok := fields["xmoney_trace_id"]; ok {
+			xmTraceId = itf.(string)
+		}
+		if len(xmTraceId) == 0 {
+			xmTraceId = uuid.New().String()
+		}
+		t := time.Now().UnixNano() / 1000
+		transactionId := fmt.Sprintf("%s_____%015x", xmTraceId, t)
+		header.Set("X-Webpa-Transaction-Id", transactionId)
 	}
 
 	req.Header = header.Clone()

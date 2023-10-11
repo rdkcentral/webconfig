@@ -20,8 +20,8 @@ package sqlite
 import (
 	"database/sql"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, error) {

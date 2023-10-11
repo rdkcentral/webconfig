@@ -18,8 +18,8 @@
 package db
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type DatabaseClient interface {

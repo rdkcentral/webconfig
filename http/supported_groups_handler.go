@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
 )
 
 // The supported doc header in GET /config is parsed and stored as a bitmap

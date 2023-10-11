@@ -28,9 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	owcommon "github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -38,6 +35,9 @@ import (
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO enum, probably no need

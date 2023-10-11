@@ -20,9 +20,9 @@ package cassandra
 import (
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // shared.go:	err := c.Query(stmt, cpeMac).MapScan(dict)

@@ -22,10 +22,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-akka/configuration"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	"github.com/go-akka/configuration"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (

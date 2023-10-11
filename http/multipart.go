@@ -24,11 +24,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 var (

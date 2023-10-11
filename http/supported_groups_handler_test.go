@@ -22,7 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -44,7 +44,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	req, err := http.NewRequest("GET", sgUrl, nil)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -67,31 +67,36 @@ func TestSupportedGroupsHandler(t *testing.T) {
 
 	// call GET /supported_groups
 	expectedEnabled := map[string]bool{
-		"portforwarding":  true,
-		"lan":             true,
-		"wan":             true,
-		"macbinding":      true,
-		"hotspot":         false,
-		"bridge":          false,
-		"privatessid":     true,
-		"homessid":        true,
-		"radio":           false,
-		"moca":            true,
-		"xdns":            true,
-		"advsecurity":     true,
-		"mesh":            true,
-		"aker":            true,
-		"telemetry":       true,
-		"statusreport":    false,
-		"trafficreport":   false,
-		"interfacereport": false,
-		"radioreport":     false,
-		"telcovoip":       false,
-		"telcovoice":      false,
-		"wanmanager":      false,
-		"voiceservice":    false,
-		"gwrestore":       false,
-		"prioritizedmacs": false,
+		"portforwarding":    true,
+		"lan":               true,
+		"wan":               true,
+		"macbinding":        true,
+		"hotspot":           false,
+		"bridge":            false,
+		"privatessid":       true,
+		"homessid":          true,
+		"radio":             false,
+		"moca":              true,
+		"xdns":              true,
+		"advsecurity":       true,
+		"mesh":              true,
+		"aker":              true,
+		"telemetry":         true,
+		"statusreport":      false,
+		"trafficreport":     false,
+		"interfacereport":   false,
+		"radioreport":       false,
+		"telcovoip":         false,
+		"telcovoice":        false,
+		"wanmanager":        false,
+		"voiceservice":      false,
+		"wanfailover":       false,
+		"cellularconfig":    false,
+		"gwfailover":        false,
+		"gwrestore":         false,
+		"prioritizedmacs":   false,
+		"connectedbuilding": false,
+		"lldqoscontrol":     false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -99,15 +104,12 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 
 	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
 	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
 
 	// ==== step 2 add lan data ====
@@ -123,7 +125,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -132,7 +134,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -146,7 +148,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	req.Header.Set(common.HeaderFirmwareVersion, fwVersion1)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	mparts, err := util.ParseMultipart(res.Header, rbytes)
@@ -158,7 +160,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
@@ -194,7 +196,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	req.Header.Set(common.HeaderFirmwareVersion, fwVersion2)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	mparts, err = util.ParseMultipart(res.Header, rbytes)
@@ -206,7 +208,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
@@ -226,7 +228,7 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	req, err := http.NewRequest("GET", sgUrl, nil)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -249,33 +251,36 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 
 	// call GET /supported_groups
 	expectedEnabled := map[string]bool{
-		"advsecurity":     true,
-		"aker":            true,
-		"bridge":          false,
-		"cellularconfig":  false,
-		"homessid":        false,
-		"hotspot":         false,
-		"interfacereport": false,
-		"lan":             true,
-		"macbinding":      true,
-		"mesh":            true,
-		"moca":            false,
-		"portforwarding":  true,
-		"privatessid":     true,
-		"radio":           false,
-		"radioreport":     false,
-		"statusreport":    false,
-		"telcovoip":       false,
-		"telcovoice":      true,
-		"telemetry":       true,
-		"trafficreport":   false,
-		"voiceservice":    false,
-		"wan":             true,
-		"wanfailover":     true,
-		"wanmanager":      true,
-		"xdns":            true,
-		"gwrestore":       false,
-		"prioritizedmacs": false,
+		"advsecurity":       true,
+		"aker":              true,
+		"bridge":            false,
+		"cellularconfig":    false,
+		"homessid":          false,
+		"hotspot":           false,
+		"interfacereport":   false,
+		"lan":               true,
+		"macbinding":        true,
+		"mesh":              true,
+		"moca":              false,
+		"portforwarding":    true,
+		"privatessid":       true,
+		"radio":             false,
+		"radioreport":       false,
+		"statusreport":      false,
+		"telcovoip":         false,
+		"telcovoice":        true,
+		"telemetry":         true,
+		"trafficreport":     false,
+		"voiceservice":      false,
+		"wan":               true,
+		"wanfailover":       true,
+		"wanmanager":        true,
+		"xdns":              true,
+		"gwfailover":        false,
+		"gwrestore":         false,
+		"prioritizedmacs":   false,
+		"connectedbuilding": false,
+		"lldqoscontrol":     false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -283,13 +288,92 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 
 	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
+	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+}
+
+func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	// ==== step 1 test when no data ====
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// call GET /supported_groups when no data
+	sgUrl := fmt.Sprintf("/api/v1/device/%v/supported_groups", cpeMac)
+	req, err := http.NewRequest("GET", sgUrl, nil)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// call GET /config to add supported-doc header
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
+	req.Header.Set(common.HeaderSupportedDocs, rdkSupportedDocsHeaderStr)
+	fwVersion1 := "TG1682_4.4s24_DEV_sey"
+	req.Header.Set(common.HeaderFirmwareVersion, fwVersion1)
+	res = ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	bitmap, err := util.GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	assert.Equal(t, bitmap, rdoc.Bitmap)
+
+	// call GET /supported_groups
+	expectedEnabled := map[string]bool{
+		"advsecurity":       true,
+		"aker":              true,
+		"bridge":            false,
+		"cellularconfig":    false,
+		"homessid":          true,
+		"hotspot":           true,
+		"interfacereport":   false,
+		"lan":               true,
+		"macbinding":        true,
+		"mesh":              true,
+		"moca":              true,
+		"portforwarding":    true,
+		"privatessid":       true,
+		"radio":             false,
+		"radioreport":       false,
+		"statusreport":      false,
+		"telcovoip":         false,
+		"telcovoice":        false,
+		"telemetry":         true,
+		"trafficreport":     false,
+		"voiceservice":      true,
+		"wan":               true,
+		"wanfailover":       true,
+		"wanmanager":        false,
+		"xdns":              true,
+		"gwfailover":        true,
+		"gwrestore":         false,
+		"prioritizedmacs":   true,
+		"connectedbuilding": true,
+		"lldqoscontrol":     true,
+	}
+
+	// call GET /supported_groups to verify response
+	req, err = http.NewRequest("GET", sgUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+
+	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
+	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
+	assert.NilError(t, err)
 	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
 }
