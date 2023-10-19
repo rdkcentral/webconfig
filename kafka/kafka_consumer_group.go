@@ -127,17 +127,14 @@ func (g *KafkaConsumerGroup) Consumer() *Consumer {
 }
 
 func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, m *common.AppMetrics) ([]*KafkaConsumerGroup, error) {
+	kcgroups := []*KafkaConsumerGroup{}
+
 	rootGroup, err := NewKafkaConsumerGroup(sc.Config, s, m, "root")
 	if err != nil {
 		return nil, common.NewError(err)
 	}
-
-	if rootGroup == nil {
-		return nil, nil
-	}
-
-	kcgroups := []*KafkaConsumerGroup{
-		rootGroup,
+	if rootGroup != nil {
+		kcgroups = append(kcgroups, rootGroup)
 	}
 
 	clusterNames := sc.KafkaClusterNames()
