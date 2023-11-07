@@ -18,6 +18,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/rdkcentral/webconfig/common"
@@ -30,8 +31,9 @@ func (s *WebconfigServer) VersionHandler(w http.ResponseWriter, r *http.Request)
 		BinaryVersion:   common.BinaryVersion,
 		BinaryBranch:    common.BinaryBranch,
 		BinaryBuildTime: common.BinaryBuildTime,
+		OpenLibVersion:  common.OpenLibVersion,
 	}
-	WriteOkResponse(w, r, version)
+	WriteOkResponse(w, version)
 }
 
 func (s *WebconfigServer) MonitorHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,10 +41,20 @@ func (s *WebconfigServer) MonitorHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *WebconfigServer) NotificationHandler(w http.ResponseWriter, r *http.Request) {
-	WriteOkResponse(w, r, nil)
+	_, err := getValue()
+	if err != nil {
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
+	}
+	WriteOkResponse(w, nil)
 }
 
 func (s *WebconfigServer) ServerConfigHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(s.ConfigBytes())
+}
+
+func getValue() (string, error) {
+	err := fmt.Errorf("hello world ERR")
+	return "", common.NewError(err)
 }

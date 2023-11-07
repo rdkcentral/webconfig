@@ -26,25 +26,35 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type XpcResponseWriter struct {
+var (
+	ObfuscatedMap = map[string]string{
+		"msgpack": "****",
+	}
+	BadJsonResponseMap = map[string]string{
+		"bad_json": "****",
+	}
+	EmptyMap = map[string]string{}
+)
+
+type XResponseWriter struct {
 	http.ResponseWriter
-	status         int
-	length         int
-	response       string
-	startTime      time.Time
-	body           string
-	token          string
-	audit          log.Fields
-	bodyObfuscated bool
+	status    int
+	length    int
+	response  string
+	startTime time.Time
+	bodyBytes []byte
+	token     string
+	audit     log.Fields
+	partnerId string
 }
 
-func (w *XpcResponseWriter) String() string {
+func (w *XResponseWriter) String() string {
 	ret := fmt.Sprintf("status=%v, length=%v, response=%v, startTime=%v, audit=%v",
 		w.status, w.length, w.response, w.startTime, w.audit)
 	return ret
 }
 
-func NewXpcResponseWriter(w http.ResponseWriter, vargs ...interface{}) *XpcResponseWriter {
+func NewXResponseWriter(w http.ResponseWriter, vargs ...interface{}) *XResponseWriter {
 	var audit log.Fields
 	var startTime time.Time
 	var token string
@@ -64,7 +74,7 @@ func NewXpcResponseWriter(w http.ResponseWriter, vargs ...interface{}) *XpcRespo
 		audit = make(log.Fields)
 	}
 
-	return &XpcResponseWriter{
+	return &XResponseWriter{
 		ResponseWriter: w,
 		status:         0,
 		length:         0,
@@ -76,12 +86,12 @@ func NewXpcResponseWriter(w http.ResponseWriter, vargs ...interface{}) *XpcRespo
 }
 
 // interface/override
-func (w *XpcResponseWriter) WriteHeader(status int) {
+func (w *XResponseWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
 
-func (w *XpcResponseWriter) Write(b []byte) (int, error) {
+func (w *XResponseWriter) Write(b []byte) (int, error) {
 	if w.status == 0 {
 		w.status = 200
 	}
@@ -95,52 +105,47 @@ func (w *XpcResponseWriter) Write(b []byte) (int, error) {
 }
 
 // get/set
-func (w *XpcResponseWriter) Status() int {
+func (w *XResponseWriter) Status() int {
 	return w.status
 }
 
-func (w *XpcResponseWriter) Response() string {
+func (w *XResponseWriter) Response() string {
 	return w.response
 }
 
-func (w *XpcResponseWriter) StartTime() time.Time {
+func (w *XResponseWriter) StartTime() time.Time {
 	return w.startTime
 }
 
-func (w *XpcResponseWriter) AuditId() string {
+func (w *XResponseWriter) AuditId() string {
 	return w.AuditData("audit_id")
 }
 
-func (w *XpcResponseWriter) Body() string {
-	return w.AuditData("body")
+func (w *XResponseWriter) BodyBytes() []byte {
+	return w.bodyBytes
 }
 
-func (w *XpcResponseWriter) SetBody(body string) {
-	w.SetAuditData("body", body)
+func (w *XResponseWriter) SetBodyBytes(bbytes []byte) {
+	w.bodyBytes = bbytes
 }
 
-func (w *XpcResponseWriter) Token() string {
+func (w *XResponseWriter) Token() string {
 	return w.token
 }
 
-func (w *XpcResponseWriter) TraceId() string {
+func (w *XResponseWriter) SetToken(token string) {
+	w.token = token
+}
+
+func (w *XResponseWriter) TraceId() string {
 	return w.AuditData("trace_id")
 }
 
-func (w *XpcResponseWriter) Audit() log.Fields {
-	// return w.audit
-	out := log.Fields{}
-	for k, v := range w.audit {
-		if k == "body" && w.bodyObfuscated {
-			out[k] = "****"
-		} else {
-			out[k] = v
-		}
-	}
-	return out
+func (w *XResponseWriter) Audit() log.Fields {
+	return w.audit
 }
 
-func (w *XpcResponseWriter) AuditData(k string) string {
+func (w *XResponseWriter) AuditData(k string) string {
 	itf := w.audit[k]
 	if itf != nil {
 		return itf.(string)
@@ -148,10 +153,15 @@ func (w *XpcResponseWriter) AuditData(k string) string {
 	return ""
 }
 
-func (w *XpcResponseWriter) SetAuditData(k string, v interface{}) {
+func (w *XResponseWriter) SetAuditData(k string, v interface{}) {
 	w.audit[k] = v
 }
 
-func (w *XpcResponseWriter) SetBodyObfuscated(obfuscated bool) {
-	w.bodyObfuscated = obfuscated
+func (w *XResponseWriter) PartnerId() string {
+	return w.partnerId
+}
+
+func (w *XResponseWriter) SetPartnerId(partnerId string) {
+	w.partnerId = partnerId
+	w.audit["partner"] = partnerId
 }

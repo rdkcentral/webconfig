@@ -21,15 +21,38 @@ import (
 	"strings"
 )
 
-func Contains(data []string, x string) bool {
-	for _, d := range data {
-		if d == x {
-			return true
+func Contains(collection interface{}, element interface{}) bool {
+	switch ty := element.(type) {
+	case string:
+		if elements, ok := collection.([]string); ok {
+			for _, e := range elements {
+				if e == ty {
+					return true
+				}
+			}
+		}
+	case int:
+		if elements, ok := collection.([]int); ok {
+			for _, e := range elements {
+				if e == ty {
+					return true
+				}
+			}
+		}
+	case float64:
+		if elements, ok := collection.([]float64); ok {
+			for _, e := range elements {
+				if e == ty {
+					return true
+				}
+			}
 		}
 	}
 	return false
 }
 
+// TODO keep it for backward compatibility in "webconfig" for now
+//      plan to remove it later
 func ContainsInt(data []int, x int) bool {
 	for _, d := range data {
 		if d == x {
@@ -41,7 +64,7 @@ func ContainsInt(data []int, x int) bool {
 
 func CaseInsensitiveContains(data []string, x string) bool {
 	for _, d := range data {
-		if strings.ToLower(x) == strings.ToLower(d) {
+		if strings.EqualFold(x, d) {
 			return true
 		}
 	}

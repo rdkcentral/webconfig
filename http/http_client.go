@@ -20,11 +20,17 @@ package http
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
+	neturl "net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
@@ -47,10 +53,14 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+type StatusHandlerFunc func([]byte) ([]byte, http.Header, error, bool)
+
 type HttpClient struct {
 	*http.Client
-	retries      int
-	retryInMsecs int
+	retries              int
+	retryInMsecs         int
+	statusHandlerFuncMap map[int]StatusHandlerFunc
+	userAgent            string
 }
 
 func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
@@ -71,6 +81,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", serviceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
+	userAgent := conf.GetString("webconfig.http_client.user_agent")
 
 	return &HttpClient{
 		Client: &http.Client{
@@ -88,12 +99,16 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 			},
 			Timeout: time.Duration(readTimeout) * time.Second,
 		},
-		retries:      retries,
-		retryInMsecs: retryInMsecs,
+		retries:              retries,
+		retryInMsecs:         retryInMsecs,
+		statusHandlerFuncMap: map[int]StatusHandlerFunc{},
+		userAgent:            userAgent,
 	}
 }
 
-func (c *HttpClient) Do(method string, url string, headers map[string]string, bbytes []byte, baseFields log.Fields, loggerName string, retry int) ([]byte, error, bool) {
+func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
+	fields := common.FilterLogFields(auditFields)
+
 	// verify a response is received
 	var req *http.Request
 	var err error
@@ -105,33 +120,71 @@ func (c *HttpClient) Do(method string, url string, headers map[string]string, bb
 	case "DELETE":
 		req, err = http.NewRequest(method, url, nil)
 	default:
-		return nil, common.NewError(fmt.Errorf("method=%v", method)), false
+		return nil, nil, common.NewError(fmt.Errorf("method=%v", method)), false
 	}
 
 	if err != nil {
-		return nil, common.NewError(err), true
+		return nil, nil, common.NewError(err), true
 	}
 
-	logHeaders := map[string]string{}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-		if k == "Authorization" {
-			logHeaders[k] = "****"
-		} else {
-			logHeaders[k] = v
+	if header == nil {
+		header = make(http.Header)
+	}
+
+	if loggerName == webpaServiceName || loggerName == asyncWebpaServiceName {
+		var xmTraceId string
+		if itf, ok := fields["xmoney_trace_id"]; ok {
+			xmTraceId = itf.(string)
+		}
+		if len(xmTraceId) == 0 {
+			xmTraceId = uuid.New().String()
+		}
+		t := time.Now().UnixNano() / 1000
+		transactionId := fmt.Sprintf("%s_____%015x", xmTraceId, t)
+		header.Set("X-Webpa-Transaction-Id", transactionId)
+	}
+
+	req.Header = header.Clone()
+	if len(c.userAgent) > 0 {
+		req.Header.Set(common.HeaderUserAgent, c.userAgent)
+	}
+
+	logHeader := header.Clone()
+	auth := logHeader.Get("Authorization")
+	if len(auth) > 0 {
+		logHeader.Set("Authorization", "****")
+	}
+
+	var userAgent string
+	if itf, ok := fields["user_agent"]; ok {
+		if x := itf.(string); len(x) > 0 {
+			userAgent = x
 		}
 	}
 
-	tfields := util.CopyLogFields(baseFields)
-	tfields["logger"] = loggerName
-	tfields[fmt.Sprintf("%v_method", loggerName)] = method
-	tfields[fmt.Sprintf("%v_url", loggerName)] = url
-	tfields[fmt.Sprintf("%v_headers", loggerName)] = logHeaders
+	fields["logger"] = loggerName
+	fields[fmt.Sprintf("%v_method", loggerName)] = method
+	fields[fmt.Sprintf("%v_url", loggerName)] = url
+	fields[fmt.Sprintf("%v_headers", loggerName)] = util.HeaderToMap(logHeader)
 	bodyKey := fmt.Sprintf("%v_body", loggerName)
+
+	var longBody, longResponse string
 	if bbytes != nil && len(bbytes) > 0 {
-		tfields[bodyKey] = string(bbytes)
+		bdict := util.Dict{}
+		err = json.Unmarshal(bbytes, &bdict)
+		if err != nil {
+			bodyKey = fmt.Sprintf("%v_body_text", loggerName)
+			x := base64.StdEncoding.EncodeToString(bbytes)
+			if len(x) < 1000 {
+				fields[bodyKey] = x
+			} else {
+				fields[bodyKey] = "long body len " + strconv.Itoa(len(x))
+				longBody = x
+			}
+		} else {
+			fields[bodyKey] = bdict
+		}
 	}
-	fields := util.CopyLogFields(tfields)
 
 	var startMessage string
 	if retry > 0 {
@@ -139,9 +192,25 @@ func (c *HttpClient) Do(method string, url string, headers map[string]string, bb
 	} else {
 		startMessage = fmt.Sprintf("%v starts", loggerName)
 	}
-	log.WithFields(fields).Info(startMessage)
 
+	if userAgent != "mget" {
+		log.WithFields(fields).Info(startMessage)
+		if len(longBody) > 0 {
+			tfields := common.FilterLogFields(fields)
+			tfields[bodyKey] = longBody
+			log.WithFields(tfields).Trace(startMessage)
+		}
+	}
+
+	startTime := time.Now()
+
+	// the core http call
 	res, err := c.Client.Do(req)
+	// err should be *url.Error
+
+	tdiff := time.Now().Sub(startTime)
+	duration := tdiff.Nanoseconds() / 1000000
+	fields[fmt.Sprintf("%v_duration", loggerName)] = duration
 
 	delete(fields, bodyKey)
 
@@ -156,8 +225,35 @@ func (c *HttpClient) Do(method string, url string, headers map[string]string, bb
 
 	if err != nil {
 		fields[errorKey] = err.Error()
-		log.WithFields(fields).Info(endMessage)
-		return nil, common.NewError(err), true
+		if userAgent != "mget" {
+			log.WithFields(fields).Info(endMessage)
+		}
+		if ue, ok := err.(*neturl.Error); ok {
+			innerErr := ue.Err
+			if ue.Timeout() {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusGatewayTimeout,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
+			if errors.Is(innerErr, io.EOF) {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusBadGateway,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
+			if _, ok := innerErr.(*net.OpError); ok {
+				rherr := common.RemoteHttpError{
+					Message:    ue.Error(),
+					StatusCode: http.StatusServiceUnavailable,
+				}
+				return nil, nil, common.NewError(rherr), true
+			}
+			// Unknown err still appear as 500
+		}
+		return nil, nil, common.NewError(err), true
 	}
 	if res.Body != nil {
 		defer res.Body.Close()
@@ -167,21 +263,51 @@ func (c *HttpClient) Do(method string, url string, headers map[string]string, bb
 	rbytes, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		fields[errorKey] = err.Error()
-		log.WithFields(fields).Info(endMessage)
-		return nil, common.NewError(err), false
+		if userAgent != "mget" {
+			log.WithFields(fields).Info(endMessage)
+		}
+		return nil, nil, common.NewError(err), false
 	}
 
 	rbody := string(rbytes)
-	fields[fmt.Sprintf("%v_response", loggerName)] = rbody
-	log.WithFields(fields).Info(fmt.Sprintf("%v ends", loggerName))
+	resp := util.Dict{}
+	err = json.Unmarshal(rbytes, &resp)
+	responseKey := fmt.Sprintf("%v_response_text", loggerName)
+
+	if err != nil {
+		if loggerName == "mqtt" && (res.StatusCode == 404 || res.StatusCode == 202) {
+			fields[responseKey] = strings.TrimSpace(rbody)
+		} else {
+			x := base64.StdEncoding.EncodeToString(rbytes)
+			if len(x) < 1000 {
+				fields[responseKey] = x
+			} else {
+				fields[responseKey] = "long response len " + strconv.Itoa(len(x))
+				longResponse = x
+			}
+		}
+	} else {
+		fields[fmt.Sprintf("%v_response", loggerName)] = resp
+	}
+	if userAgent != "mget" {
+		log.WithFields(fields).Info(endMessage)
+		if len(longResponse) > 0 {
+			tfields := common.FilterLogFields(fields)
+			tfields[responseKey] = longResponse
+			log.WithFields(tfields).Trace(endMessage)
+		}
+	}
+
+	// check if there is any customized statusHandler
+	if fn := c.StatusHandler(res.StatusCode); fn != nil {
+		return fn(rbytes)
+	}
 
 	if res.StatusCode >= 400 {
 		var errorMessage string
-		if len(rbody) > 0 {
-			var er ErrorResponse
-			if err := json.Unmarshal(rbytes, &er); err == nil {
-				errorMessage = er.Message
-			}
+		if len(rbody) > 0 && len(resp) > 0 {
+			errorMessage = resp.GetString("message")
+
 			if len(errorMessage) == 0 {
 				errorMessage = rbody
 			}
@@ -194,35 +320,17 @@ func (c *HttpClient) Do(method string, url string, headers map[string]string, bb
 		}
 
 		switch res.StatusCode {
-		case http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound, 520:
-			return rbytes, common.NewError(err), false
+		case http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound:
+			return rbytes, nil, common.NewError(err), false
 		}
-		return rbytes, common.NewError(err), true
+		return rbytes, nil, common.NewError(err), true
 	}
-	return rbytes, nil, false
+	return rbytes, res.Header, nil, false
 }
 
-func (c *HttpClient) DoWithRetries(method string, url string, inHeaders map[string]string, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
-	var traceId string
-	if itf, ok := fields["trace_id"]; ok {
-		traceId = itf.(string)
-	}
-	if len(traceId) == 0 {
-		traceId = uuid.New().String()
-	}
-
-	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, loggerName)
-	headers := map[string]string{
-		"X-Moneytrace": xmoney,
-	}
-	if inHeaders != nil {
-		for k, v := range inHeaders {
-			headers[k] = v
-		}
-	}
-
-	// var res *http.Response
-	var rbytes []byte
+func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
+	var respBytes []byte
+	var respHeader http.Header
 	var err error
 	var cont bool
 
@@ -234,14 +342,25 @@ func (c *HttpClient) DoWithRetries(method string, url string, inHeaders map[stri
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, err, cont = c.Do(method, url, headers, cbytes, fields, loggerName, i)
+		respBytes, respHeader, err, cont = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}
 	}
 
 	if err != nil {
-		return rbytes, common.NewError(err)
+		return respBytes, respHeader, common.NewError(err)
 	}
-	return rbytes, nil
+	return respBytes, respHeader, nil
+}
+
+func (c *HttpClient) SetStatusHandler(status int, fn StatusHandlerFunc) {
+	c.statusHandlerFuncMap[status] = fn
+}
+
+func (c *HttpClient) StatusHandler(status int) StatusHandlerFunc {
+	if fn, ok := c.statusHandlerFuncMap[status]; ok {
+		return fn
+	}
+	return nil
 }

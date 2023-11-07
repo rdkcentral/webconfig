@@ -14,11 +14,11 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
 package http
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,8 +29,7 @@ import (
 )
 
 var (
-	testConfigFile string
-	sc             *common.ServerConfig
+	sc *common.ServerConfig
 )
 
 func ExecuteRequest(r *http.Request, handler http.Handler) *httptest.ResponseRecorder {
@@ -40,38 +39,15 @@ func ExecuteRequest(r *http.Request, handler http.Handler) *httptest.ResponseRec
 }
 
 func TestMain(m *testing.M) {
-	testConfigFile = "config/sample_webconfig.conf"
-	if _, err := os.Stat(testConfigFile); os.IsNotExist(err) {
-		testConfigFile = "../config/sample_webconfig.conf"
-	}
-
-	sid := os.Getenv("SAT_CLIENT_ID")
-	if len(sid) == 0 {
-		os.Setenv("SAT_CLIENT_ID", "foo")
-	}
-
-	sec := os.Getenv("SAT_CLIENT_SECRET")
-	if len(sec) == 0 {
-		os.Setenv("SAT_CLIENT_SECRET", "bar")
-	}
-
 	var err error
-	sc, err = common.NewServerConfig(testConfigFile)
+	sc, err = common.GetTestServerConfig()
 	if err != nil {
 		panic(err)
 	}
-	server := NewWebconfigServer(sc, true, nil)
 
-	// start clean
-	server.SetUp()
-	server.TearDown()
-
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	returnCode := m.Run()
-
-	// tear down
-	// _ = suite.TearDown()
 
 	os.Exit(returnCode)
 }

@@ -19,6 +19,10 @@ package util
 
 import (
 	"encoding/json"
+	"net/http"
+
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/vmihailenco/msgpack"
 )
 
 func PrettyJson(input interface{}) string {
@@ -32,11 +36,47 @@ func PrettyJson(input interface{}) string {
 				pretty = string(bbytes)
 			}
 		}
-	case Dict, []Dict, map[interface{}]Dict, map[string]string:
+	case Dict, []Dict, map[interface{}]Dict, map[string]string, []string, []interface{}:
 		if bbytes, err := json.MarshalIndent(input, "", "    "); err == nil {
 			pretty = string(bbytes)
 		}
 	}
 
 	return pretty
+}
+
+func ParseMultipartsForLogging(rbytes []byte, header http.Header, subdocIds []string) (Dict, error) {
+	mparts, err := ParseMultipartAsList(header, rbytes)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+
+	ret := make(Dict)
+
+	for _, mpart := range mparts {
+		if !Contains(subdocIds, mpart.Name) {
+			ret[mpart.Name] = map[string]string{
+				"version": mpart.Version,
+			}
+			continue
+		}
+
+		var response common.TR181Output
+		err := msgpack.Unmarshal(mpart.Bytes, &response)
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+
+		for _, parameter := range response.Parameters {
+			itf, err := common.ParseTR181EntryAsItf(&parameter, mpart.Version)
+			if err != nil {
+				itf = map[string]string{
+					"version": mpart.Version,
+				}
+			}
+			ret[mpart.Name] = itf
+		}
+	}
+
+	return ret, nil
 }

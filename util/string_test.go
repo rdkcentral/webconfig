@@ -18,8 +18,11 @@
 package util
 
 import (
+	"net/http"
+	"net/url"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
@@ -55,4 +58,104 @@ func TestValidateMac(t *testing.T) {
 func TestGetAuditId(t *testing.T) {
 	auditId := GetAuditId()
 	assert.Equal(t, len(auditId), 32)
+}
+
+func TestTelemetryQuery(t *testing.T) {
+	header := http.Header{}
+	header.Set(common.HeaderProfileVersion, "2.0")
+	header.Set(common.HeaderModelName, "TG1682G")
+	header.Set(common.HeaderPartnerID, "comcast")
+	header.Set(common.HeaderAccountID, "1234567890")
+	header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+	mac := "567890ABCDEF"
+	qstr := GetTelemetryQueryString(header, mac, "", "comcast")
+
+	expected := "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF"
+	assert.Equal(t, qstr, expected)
+
+	// with queryParams
+	queryParams := "stormReadyWifi=true"
+	qstr = GetTelemetryQueryString(header, mac, queryParams, "comcast")
+	expected = "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDF1&ecmMacAddress=567890ABCDEF&stormReadyWifi=true"
+	assert.Equal(t, qstr, expected)
+}
+
+func TestValidatePokeQuery(t *testing.T) {
+	values := url.Values{}
+
+	values["doc"] = []string{
+		"primary,telemetry",
+		"hello,world",
+	}
+	_, err := ValidatePokeQuery(values)
+	assert.Assert(t, err != nil)
+
+	values["doc"] = []string{
+		"primary,hello,world",
+	}
+	_, err = ValidatePokeQuery(values)
+	assert.Assert(t, err != nil)
+
+	values["doc"] = []string{
+		"primary,telemetry",
+	}
+	_, err = ValidatePokeQuery(values)
+	assert.Assert(t, err != nil)
+
+	values["doc"] = []string{
+		"primary",
+	}
+	s, err := ValidatePokeQuery(values)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "primary")
+
+	values["doc"] = []string{
+		"telemetry",
+	}
+	s, err = ValidatePokeQuery(values)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "telemetry")
+
+	delete(values, "doc")
+	s, err = ValidatePokeQuery(values)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "primary")
+
+	values["doc"] = []string{
+		"primary",
+	}
+	values["route"] = []string{
+		"mqtt",
+	}
+	s, err = ValidatePokeQuery(values)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "primary")
+
+	delete(values, "doc")
+	s, err = ValidatePokeQuery(values)
+	assert.NilError(t, err)
+	assert.Equal(t, s, "mqtt")
+}
+
+func TestIsValidUTF8(t *testing.T) {
+	b1 := []byte(`{"foo":"bar","hello":123,"world":true}`)
+	assert.Assert(t, IsValidUTF8(b1))
+
+	b2 := RandomBytes(100, 150)
+	assert.Assert(t, !IsValidUTF8(b2))
+}
+
+func TestTelemetryQueryWithWanMac(t *testing.T) {
+	header := http.Header{}
+	header.Set(common.HeaderProfileVersion, "2.0")
+	header.Set(common.HeaderModelName, "TG1682G")
+	header.Set(common.HeaderPartnerID, "comcast")
+	header.Set(common.HeaderAccountID, "1234567890")
+	header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+	mac := "567890ABCDEF"
+	header.Set(common.HeaderWanMac, "567890ABCDEF")
+	qstr := GetTelemetryQueryString(header, mac, "", "comcast")
+
+	expected := "env=PROD&partnerId=comcast&version=2.0&model=TG1682G&accountId=1234567890&firmwareVersion=TG1682_3.14p9s6_PROD_sey&estbMacAddress=567890ABCDEF"
+	assert.Equal(t, qstr, expected)
 }

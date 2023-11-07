@@ -15,22 +15,24 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package db
+package sqlite
 
 import (
 	"database/sql"
 	"fmt"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *SqliteClient) GetDocument(cpeMac string, groupId string, fields log.Fields) (*common.Document, error) {
+func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	rows, err := c.Query(`SELECT params,payload,state,updated_time,version FROM xpc_group_config WHERE cpe_mac=? AND group_id=?`, cpeMac, groupId)
+	rows, err := c.Query("SELECT payload,state,updated_time,version,error_code,error_details FROM xpc_group_config WHERE cpe_mac=? AND group_id=?", cpeMac, groupId)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -38,20 +40,20 @@ func (c *SqliteClient) GetDocument(cpeMac string, groupId string, fields log.Fie
 	var ns1, ns2 sql.NullString
 	var b1 []byte
 	var nt1 sql.NullTime
-	var ni1 sql.NullInt64
+	var ni1, ni2 sql.NullInt64
 
 	if !rows.Next() {
 		return nil, sql.ErrNoRows
 	}
-	err = rows.Scan(&ns1, &b1, &ni1, &nt1, &ns2)
+	err = rows.Scan(&b1, &ni1, &nt1, &ns1, &ni2, &ns2)
 	defer rows.Close()
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
 	var s1, s2 *string
-	var i1 *int
-	var ts *int64
+	var i1, i2 *int
+	var ts *int
 	if ns1.Valid {
 		s1 = &(ns1.String)
 	}
@@ -60,32 +62,32 @@ func (c *SqliteClient) GetDocument(cpeMac string, groupId string, fields log.Fie
 	}
 	if nt1.Valid {
 		t1 := nt1.Time
-		tt := t1.UnixNano() / 1000000
+		tt := int(t1.UnixNano() / 1000000)
 		ts = &tt
 	}
 	if ni1.Valid {
 		ii := int(ni1.Int64)
 		i1 = &ii
 	}
+	if ni2.Valid {
+		ii := int(ni2.Int64)
+		i2 = &ii
+	}
 
-	doc := common.NewDocument(b1, s1, s2, i1, ts)
+	doc := common.NewSubDocument(b1, s1, i1, ts, i2, s2)
 	return doc, nil
 }
 
-func (c *SqliteClient) insertDocument(cpeMac string, groupId string, doc *common.Document, fields log.Fields) error {
+func (c *SqliteClient) insertSubDocument(cpeMac string, groupId string, doc *common.SubDocument) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
 	// build the statement and avoid unnecessary fields/columns
 	columns := []string{"cpe_mac", "group_id"}
 	values := []interface{}{cpeMac, groupId}
-	if doc.Bytes() != nil {
+	if doc.Payload() != nil {
 		columns = append(columns, "payload")
-		values = append(values, doc.Bytes())
-	}
-	if doc.Params() != nil {
-		columns = append(columns, "params")
-		values = append(values, doc.Params())
+		values = append(values, doc.Payload())
 	}
 	if doc.Version() != nil {
 		columns = append(columns, "version")
@@ -99,7 +101,7 @@ func (c *SqliteClient) insertDocument(cpeMac string, groupId string, doc *common
 		columns = append(columns, "updated_time")
 		values = append(values, doc.UpdatedTime())
 	}
-	qstr := fmt.Sprintf(`INSERT INTO xpc_group_config(%v) VALUES(%v)`, GetColumnsStr(columns), GetValuesStr(len(columns)))
+	qstr := fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
 	stmt, err := c.Prepare(qstr)
 	if err != nil {
 		return common.NewError(err)
@@ -112,20 +114,16 @@ func (c *SqliteClient) insertDocument(cpeMac string, groupId string, doc *common
 	return nil
 }
 
-func (c *SqliteClient) updateDocument(cpeMac string, groupId string, doc *common.Document, fields log.Fields) error {
+func (c *SqliteClient) updateSubDocument(cpeMac string, groupId string, doc *common.SubDocument) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
 	// build the statement and avoid unnecessary fields/columns
 	columns := []string{}
 	values := []interface{}{}
-	if doc.Bytes() != nil {
+	if doc.Payload() != nil {
 		columns = append(columns, "payload")
-		values = append(values, doc.Bytes())
-	}
-	if doc.Params() != nil {
-		columns = append(columns, "params")
-		values = append(values, doc.Params())
+		values = append(values, doc.Payload())
 	}
 	if doc.Version() != nil {
 		columns = append(columns, "version")
@@ -141,7 +139,7 @@ func (c *SqliteClient) updateDocument(cpeMac string, groupId string, doc *common
 	}
 	values = append(values, cpeMac)
 	values = append(values, groupId)
-	qstr := fmt.Sprintf(`UPDATE xpc_group_config SET %v WHERE cpe_mac=? AND group_id=?`, GetSetColumnsStr(columns))
+	qstr := fmt.Sprintf("UPDATE xpc_group_config SET %v WHERE cpe_mac=? AND group_id=?", db.GetSetColumnsStr(columns))
 	stmt, err := c.Prepare(qstr)
 	if err != nil {
 		return common.NewError(err)
@@ -154,24 +152,62 @@ func (c *SqliteClient) updateDocument(cpeMac string, groupId string, doc *common
 	return nil
 }
 
-func (c *SqliteClient) SetDocument(cpeMac string, groupId string, doc *common.Document, fields log.Fields) error {
-	_, err := c.GetDocument(cpeMac, groupId, fields)
+func (c *SqliteClient) SetSubDocument(cpeMac string, groupId string, doc *common.SubDocument, vargs ...interface{}) error {
+	var oldState int
+	var fields log.Fields
+	var labels prometheus.Labels
+	for _, varg := range vargs {
+		switch ty := varg.(type) {
+		case int:
+			oldState = ty
+		case log.Fields:
+			fields = ty
+		case prometheus.Labels:
+			labels = ty
+		}
+	}
+	if labels == nil {
+		labels = prometheus.Labels{
+			"model":     "unknown",
+			"fwversion": "unknown",
+			"client":    "default",
+		}
+	}
+
+	_, err := c.GetSubDocument(cpeMac, groupId)
 	if err != nil {
 		if c.IsDbNotFound(err) {
-			return c.insertDocument(cpeMac, groupId, doc, fields)
+			err1 := c.insertSubDocument(cpeMac, groupId, doc)
+			if err1 != nil {
+				return common.NewError(err1)
+			}
 		} else {
 			// unexpected error
 			return common.NewError(err)
 		}
+	} else {
+		// normal dbNotFound should not happen
+		err = c.updateSubDocument(cpeMac, groupId, doc)
+		if err != nil {
+			return common.NewError(err)
+		}
 	}
-	return c.updateDocument(cpeMac, groupId, doc, fields)
+
+	// update state metrics
+	if c.IsMetricsEnabled() {
+		if doc.State() != nil {
+			labels["feature"] = groupId
+			c.UpdateStateMetrics(oldState, *doc.State(), labels, cpeMac, fields)
+		}
+	}
+	return nil
 }
 
-func (c *SqliteClient) DeleteDocument(cpeMac string, groupId string, fields log.Fields) error {
+func (c *SqliteClient) DeleteSubDocument(cpeMac string, groupId string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`DELETE FROM xpc_group_config WHERE cpe_mac=? AND group_id=?`)
+	stmt, err := c.Prepare("DELETE FROM xpc_group_config WHERE cpe_mac=? AND group_id=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -183,11 +219,11 @@ func (c *SqliteClient) DeleteDocument(cpeMac string, groupId string, fields log.
 	return nil
 }
 
-func (c *SqliteClient) DeleteFullDocument(cpeMac string, fields log.Fields) error {
+func (c *SqliteClient) DeleteDocument(cpeMac string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`DELETE FROM xpc_group_config WHERE cpe_mac=?`)
+	stmt, err := c.Prepare("DELETE FROM xpc_group_config WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -199,13 +235,13 @@ func (c *SqliteClient) DeleteFullDocument(cpeMac string, fields log.Fields) erro
 	return nil
 }
 
-func (c *SqliteClient) GetFolder(cpeMac string, fields log.Fields) (*common.Folder, error) {
-	folder := common.NewFolder()
+func (c *SqliteClient) GetDocument(cpeMac string, xargs ...interface{}) (*common.Document, error) {
+	Document := common.NewDocument(nil)
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
-
-	rows, err := c.Query(`SELECT group_id,params,payload,state,updated_time,version FROM xpc_group_config WHERE cpe_mac=?`, cpeMac)
+	// ns0,    b1,     ni1,  nt1,        ns1,     nil2      ns2
+	rows, err := c.Query("SELECT group_id,payload,state,updated_time,version,error_code,error_details FROM xpc_group_config WHERE cpe_mac=?", cpeMac)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -215,17 +251,17 @@ func (c *SqliteClient) GetFolder(cpeMac string, fields log.Fields) (*common.Fold
 		var ns0, ns1, ns2 sql.NullString
 		var b1 []byte
 		var nt1 sql.NullTime
-		var ni1 sql.NullInt64
+		var ni1, ni2 sql.NullInt64
 
-		err = rows.Scan(&ns0, &ns1, &b1, &ni1, &nt1, &ns2)
+		err = rows.Scan(&ns0, &b1, &ni1, &nt1, &ns1, &ni2, &ns2)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
 
 		var s1, s2 *string
 		var groupId string
-		var i1 *int
-		var ts *int64
+		var i1, i2 *int
+		var ts *int
 
 		if ns0.Valid {
 			groupId = ns0.String
@@ -238,21 +274,25 @@ func (c *SqliteClient) GetFolder(cpeMac string, fields log.Fields) (*common.Fold
 		}
 		if nt1.Valid {
 			t1 := nt1.Time
-			tt := t1.UnixNano() / 1000000
+			tt := int(t1.UnixNano() / 1000000)
 			ts = &tt
 		}
 		if ni1.Valid {
 			ii := int(ni1.Int64)
 			i1 = &ii
 		}
+		if ni2.Valid {
+			ii := int(ni2.Int64)
+			i2 = &ii
+		}
 
-		doc := common.NewDocument(b1, s1, s2, i1, ts)
-		folder.SetDocument(groupId, doc)
+		doc := common.NewSubDocument(b1, s1, i1, ts, i2, s2)
+		Document.SetSubDocument(groupId, doc)
 	}
 
-	if folder.Length() == 0 {
-		return folder, common.NewError(sql.ErrNoRows)
+	if Document.Length() == 0 {
+		return Document, common.NewError(sql.ErrNoRows)
 	} else {
-		return folder, nil
+		return Document, nil
 	}
 }

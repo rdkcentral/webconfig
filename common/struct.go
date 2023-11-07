@@ -17,14 +17,18 @@
 */
 package common
 
-//http ok response
+// http ok response
 type HttpResponse struct {
-	Status  int         `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
+	Status       int         `json:"status"`
+	Message      string      `json:"message,omitempty"`
+	Data         interface{} `json:"data,omitempty"`
+	State        string      `json:"state,omitempty"`
+	UpdatedTime  int         `json:"updated_time,omitempty"`
+	ErrorCode    int         `json:"error_code,omitempty"`
+	ErrorDetails string      `json:"error_details,omitempty"`
 }
 
-//http error response
+// http error response
 type HttpErrorResponse struct {
 	Status    int         `json:"status"`
 	ErrorCode int         `json:"error_code,omitempty"`
@@ -36,6 +40,7 @@ type Multipart struct {
 	Bytes   []byte
 	Version string
 	Name    string
+	State   int
 }
 
 type Version struct {
@@ -44,6 +49,7 @@ type Version struct {
 	BinaryVersion   string `json:"binary_version"`
 	BinaryBranch    string `json:"binary_branch"`
 	BinaryBuildTime string `json:"binary_build_time"`
+	OpenLibVersion  string `json:"open_lib_version,omitempty"`
 }
 
 type SupportedGroupsData struct {

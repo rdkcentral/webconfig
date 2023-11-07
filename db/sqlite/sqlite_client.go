@@ -15,7 +15,7 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package db
+package sqlite
 
 import (
 	"database/sql"
@@ -23,29 +23,40 @@ import (
 	"fmt"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/go-akka/configuration"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
-	defaultSqliteDbFile        = "/tmp/db_webconfig.db"
-	defaultSqliteTestDbFile    = "/tmp/test_webconfig.db"
+	defaultSqliteDbFile        = "/app/db/webconfig.db"
+	defaultSqliteTestDbFile    = "/app/db/test_webconfig.db"
 	defaultDbConcurrentQueries = 10
 )
 
+var (
+	tdbclient *SqliteClient
+	tmetrics  *common.AppMetrics
+)
+
 type SqliteClient struct {
+	db.BaseClient
 	*sql.DB
+	*common.AppMetrics
 	concurrentQueries chan bool
+	blockedSubdocIds  []string
 }
 
 func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
 	// check and create test_keyspace
 	var dbfile string
 	if testOnly {
-		dbfile = conf.GetString("webconfig.database.sqlite3.unittest_db_file", defaultSqliteTestDbFile)
+		dbfile = conf.GetString("webconfig.database.sqlite.unittest_db_file", defaultSqliteTestDbFile)
 	} else {
-		dbfile = conf.GetString("webconfig.database.sqlite3.db_file", defaultSqliteDbFile)
+		dbfile = conf.GetString("webconfig.database.sqlite.db_file", defaultSqliteDbFile)
 	}
+
+	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
 
 	db, err := sql.Open("sqlite3", dbfile)
 	if err != nil {
@@ -54,7 +65,8 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 
 	return &SqliteClient{
 		DB:                db,
-		concurrentQueries: make(chan bool, conf.GetInt32("webconfig.database.concurrent_queries", defaultDbConcurrentQueries)),
+		concurrentQueries: make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
+		blockedSubdocIds:  blockedSubdocIds,
 	}, nil
 }
 
@@ -82,7 +94,7 @@ func (c *SqliteClient) TearDown() error {
 	defer func() { <-c.concurrentQueries }()
 
 	for _, t := range SqliteAllTables {
-		stmt, err := c.Prepare(fmt.Sprintf("DELETE FROM %v", t))
+		stmt, err := c.Prepare(fmt.Sprintf("DROP TABLE %v", t))
 		if err != nil {
 			return common.NewError(err)
 		}
@@ -99,4 +111,51 @@ func (c *SqliteClient) IsDbNotFound(err error) bool {
 		return true
 	}
 	return false
+}
+
+func (c *SqliteClient) Metrics() *common.AppMetrics {
+	return c.AppMetrics
+}
+
+func (c *SqliteClient) SetMetrics(m *common.AppMetrics) {
+	c.AppMetrics = m
+}
+
+func (c *SqliteClient) IsMetricsEnabled() bool {
+	if c.AppMetrics == nil {
+		return false
+	}
+	return true
+}
+
+func (c *SqliteClient) BlockedSubdocIds() []string {
+	return c.blockedSubdocIds
+}
+
+func (c *SqliteClient) SetBlockedSubdocIds(x []string) {
+	c.blockedSubdocIds = x
+}
+
+func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
+	if tdbclient != nil {
+		return tdbclient, nil
+	}
+	var err error
+	tdbclient, err = NewSqliteClient(conf, testOnly)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+
+	// need to do it this way to sure we have correct schema but empty tables
+	if err = tdbclient.SetUp(); err != nil {
+		return nil, common.NewError(err)
+	}
+	if err = tdbclient.TearDown(); err != nil {
+		return nil, common.NewError(err)
+	}
+	if err = tdbclient.SetUp(); err != nil {
+		return nil, common.NewError(err)
+	}
+
+	return tdbclient, nil
 }

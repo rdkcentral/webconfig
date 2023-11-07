@@ -20,14 +20,44 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
 )
 
-func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, _, fields, err := Validate(w, r, false)
+// TODO
+// 1. group_id related validation
+// 2. mac validation
+// 3. msgpack body validation
+
+func writeStateHeaders(w http.ResponseWriter, subdoc *common.SubDocument) {
+	if subdoc.Version() != nil {
+		w.Header().Set(common.HeaderSubdocumentVersion, *subdoc.Version())
+	}
+	if subdoc.State() != nil {
+		w.Header().Set(common.HeaderSubdocumentState, strconv.Itoa(*subdoc.State()))
+	}
+	if subdoc.UpdatedTime() != nil {
+		w.Header().Set(common.HeaderSubdocumentUpdatedTime, strconv.Itoa(*subdoc.UpdatedTime()))
+	}
+	if subdoc.ErrorCode() != nil {
+		w.Header().Set(common.HeaderSubdocumentErrorCode, strconv.Itoa(*subdoc.ErrorCode()))
+	}
+	if subdoc.ErrorDetails() != nil {
+		w.Header().Set(common.HeaderSubdocumentErrorDetails, *subdoc.ErrorDetails())
+	}
+	if subdoc.Expiry() != nil {
+		w.Header().Set(common.HeaderSubdocumentExpiry, strconv.Itoa(*subdoc.Expiry()))
+	}
+}
+
+func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	mac, subdocId, _, _, err := s.Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -39,28 +69,29 @@ func (s *WebconfigServer) GetDocumentHandler(w http.ResponseWriter, r *http.Requ
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
-	mdoc, err := s.GetDocument(mac, groupId, fields)
+	subdoc, err := s.GetSubDocument(mac, subdocId)
 	if err != nil {
 		if s.IsDbNotFound(err) {
-			Error(w, r, http.StatusNotFound, nil)
+			Error(w, http.StatusNotFound, nil)
 		} else {
-			LogError(w, r, err)
-			Error(w, r, http.StatusInternalServerError, err)
+			LogError(w, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/msgpack")
-	rbytes := mdoc.Bytes()
-	WriteResponseBytes(w, r, rbytes, http.StatusOK, "application/msgpack")
+	writeStateHeaders(w, subdoc)
+	w.WriteHeader(http.StatusOK)
+	w.Write(subdoc.Payload())
 }
 
-func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, bbytes, fields, err := Validate(w, r, true)
+func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	mac, subdocId, bbytes, fields, err := s.Validate(w, r, true)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -72,47 +103,105 @@ func (s *WebconfigServer) PostDocumentHandler(w http.ResponseWriter, r *http.Req
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
-	version := util.GetMurmur3Hash(bbytes)
-	updatedTime := time.Now().UnixNano() / 1000000
+	deviceIds := []string{
+		mac,
+	}
+	if x, ok := r.URL.Query()["device_id"]; ok {
+		elements := strings.Split(x[0], ",")
+		if len(elements) > 0 {
+			deviceIds = append(deviceIds, elements...)
+		}
+	}
+
+	// handle version header
+	version := r.Header.Get(common.HeaderSubdocumentVersion)
+	if len(version) == 0 {
+		version = util.GetMurmur3Hash(bbytes)
+	}
 	state := common.PendingDownload
-	doc := common.NewDocument(
-		bbytes,
-		nil,
-		&version,
-		&state,
-		&updatedTime,
-	)
-
-	err = s.SetDocument(mac, groupId, doc, fields)
-	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
-		return
+	statePtr := &state
+	if x := r.Header.Get(common.HeaderSubdocumentState); len(x) > 0 {
+		if x == "null" {
+			statePtr = nil
+		} else {
+			if i, err := strconv.Atoi(x); err == nil {
+				statePtr = &i
+			}
+		}
 	}
 
-	// update the root version
-	folder, err := s.GetFolder(mac, fields)
-	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
-		return
+	updatedTime := int(time.Now().UnixNano() / 1000000)
+	subdoc := common.NewSubDocument(bbytes, &version, statePtr, &updatedTime, nil, nil)
+
+	// handle expiry header
+	expiryTmsStr := r.Header.Get(common.HeaderSubdocumentExpiry)
+	if len(expiryTmsStr) > 0 {
+		expiryTms, err := strconv.Atoi(expiryTmsStr)
+		if err != nil {
+			Error(w, http.StatusBadRequest, common.NewError(err))
+			return
+		}
+		subdoc.SetExpiry(&expiryTms)
 	}
 
-	folder.SetDocument(groupId, doc)
-	newRootVersion := util.RootVersion(folder.VersionMap())
-	err = s.SetRootDocumentVersion(mac, newRootVersion)
-	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
-		return
+	oldState := 0
+	if x := r.Header.Get(common.HeaderSubdocumentOldState); len(x) > 0 {
+		if i, err := strconv.Atoi(x); err == nil {
+			oldState = i
+		}
 	}
 
-	WriteOkResponse(w, r, nil)
+	metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
+	if len(metricsAgent) == 0 {
+		metricsAgent = "default"
+	}
+
+	for _, deviceId := range deviceIds {
+		fields["src_caller"] = common.GetCaller()
+
+		labels, err := s.GetRootDocumentLabels(deviceId)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+		labels["client"] = metricsAgent
+
+		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, labels, fields)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+
+		// update the root version
+		fields["src_caller"] = common.GetCaller()
+		doc, err := s.GetDocument(deviceId, true, fields)
+		if err != nil {
+			if s.IsDbNotFound(err) {
+				doc = common.NewDocument(nil)
+			} else {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+		}
+
+		doc.SetSubDocument(subdocId, subdoc)
+		newRootVersion := db.HashRootVersion(doc.VersionMap())
+		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+	}
+
+	WriteOkResponse(w, nil)
 }
 
-func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
-	mac, groupId, _, fields, err := Validate(w, r, false)
+func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	mac, subdocId, _, fields, err := s.Validate(w, r, false)
 	if err != nil {
 		var status int
 		if errors.As(err, common.Http400ErrorType) {
@@ -124,40 +213,97 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		} else {
 			status = http.StatusInternalServerError
 		}
-		Error(w, r, status, err)
+		Error(w, status, common.NewError(err))
 		return
 	}
 
-	err = s.DeleteDocument(mac, groupId, fields)
+	err = s.DeleteSubDocument(mac, subdocId)
 	if err != nil {
 		if s.IsDbNotFound(err) {
-			Error(w, r, http.StatusNotFound, nil)
+			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, r, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
 
 	// update the root version
-	folder, err := s.GetFolder(mac, fields)
+	fields["src_caller"] = common.GetCaller()
+	doc, err := s.GetDocument(mac, fields)
 	if err != nil {
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, r, http.StatusInternalServerError, err)
+				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
 		} else {
-			Error(w, r, http.StatusInternalServerError, err)
+			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
 		return
 	}
 
-	newRootVersion := util.RootVersion(folder.VersionMap())
+	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, r, http.StatusInternalServerError, err)
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 
-	WriteOkResponse(w, r, nil)
+	WriteOkResponse(w, nil)
+}
+
+func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	mac := params["mac"]
+	mac = strings.ToUpper(mac)
+	if !util.ValidateMac(mac) {
+		err := common.Http400Error{
+			Message: "invalid mac",
+		}
+		Error(w, http.StatusBadRequest, common.NewError(err))
+		return
+	}
+
+	// get fields
+	xw, ok := w.(*XResponseWriter)
+	if !ok {
+		err := *common.NewHttp500Error("responsewriter cast error")
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
+	}
+	fields := xw.Audit()
+
+	err := s.DeleteDocument(mac)
+	if err != nil {
+		if s.IsDbNotFound(err) {
+			Error(w, http.StatusNotFound, nil)
+		} else {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+		}
+		return
+	}
+
+	// update the root version
+	fields["src_caller"] = common.GetCaller()
+	doc, err := s.GetDocument(mac, fields)
+	if err != nil {
+		if s.IsDbNotFound(err) {
+			err := s.DeleteRootDocumentVersion(mac)
+			if err != nil {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+			}
+		} else {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+		}
+		return
+	}
+
+	newRootVersion := db.HashRootVersion(doc.VersionMap())
+	err = s.SetRootDocumentVersion(mac, newRootVersion)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, common.NewError(err))
+		return
+	}
+
+	WriteOkResponse(w, nil)
 }

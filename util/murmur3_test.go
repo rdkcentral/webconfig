@@ -18,32 +18,35 @@
 package util
 
 import (
-	"bytes"
 	"testing"
 
 	tmur "github.com/twmb/murmur3"
+	"gotest.tools/assert"
 )
 
 func TestMurmur3(t *testing.T) {
-	bbytes := []byte(`{"enabled":true,"updated_time":"Fri Jan 01 00:00:00 2021"}`)
+	bbytes := []byte(`{"beacon_detection":true,"group_updated_time":"Wed Nov 20 22:25:26 2019"}`)
+	expected := "207215293136367767981683347176289025858"
+
 	s := GetMurmur3HashByTwmb(bbytes)
-	t.Logf("s=%v", s)
+	assert.Equal(t, s, expected)
 }
 
 func TestMurmur3Int32(t *testing.T) {
-	bbytes := []byte(`{"enabled":true,"updated_time":"Fri Jan 01 00:00:00 2021"}`)
+	bbytes := []byte(`{"beacon_detection":true,"group_updated_time":"Wed Nov 20 22:25:26 2019"}`)
+	// expected := "207215293136367767981683347176289025858"
 
 	h32 := tmur.New32()
 	h32.Write(bbytes)
 	v1 := h32.Sum32()
-	t.Logf("v1=%v  type(v1)=%T\n", v1, v1)
+	_ = v1
 }
 
 func TestSomeMurmur3(t *testing.T) {
-	buffer := bytes.NewBufferString("")
-	bbytes := buffer.Bytes()
-	t.Logf("\n|%v|\n", string(bbytes))
+	s1 := GetMurmur3Hash(nil)
+	assert.Equal(t, s1, "0")
 
-	x := GetMurmur3Hash(bbytes)
-	t.Logf("\nx=|%v|\n", x)
+	bbytes := RandomBytes(10, 20)
+	s2 := GetMurmur3Hash(bbytes)
+	assert.Assert(t, len(s2) > 0)
 }

@@ -19,15 +19,15 @@ package util
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
-	"io/ioutil"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"strings"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/vmihailenco/msgpack"
 )
 
 func ParseMultipart(header http.Header, bbytes []byte) (map[string]common.Multipart, error) {
@@ -43,14 +43,18 @@ func ParseMultipart(header http.Header, bbytes []byte) (map[string]common.Multip
 }
 
 func ParseMultipartAsList(header http.Header, bbytes []byte) ([]common.Multipart, error) {
+	mparts := []common.Multipart{}
+
+	if len(bbytes) == 0 {
+		return mparts, nil
+	}
+
 	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		log.Fatal(err)
+		return nil, common.NewError(err)
 	}
 
 	breader := bytes.NewReader(bbytes)
-
-	mparts := []common.Multipart{}
 
 	if strings.HasPrefix(mediaType, "multipart/") {
 		mr := multipart.NewReader(breader, params["boundary"])
@@ -62,7 +66,7 @@ func ParseMultipartAsList(header http.Header, bbytes []byte) ([]common.Multipart
 			if err != nil {
 				return mparts, common.NewError(err)
 			}
-			bbytes, err := ioutil.ReadAll(p)
+			bbytes, err := io.ReadAll(p)
 			if err != nil {
 				return mparts, common.NewError(err)
 			}
@@ -82,4 +86,54 @@ func ParseMultipartAsList(header http.Header, bbytes []byte) ([]common.Multipart
 		}
 	}
 	return mparts, nil
+}
+
+func TelemetryBytesToMultipart(telemetryBytes []byte) (common.Multipart, error) {
+	mp := common.Multipart{}
+
+	// step 1: prepare the payload
+	var itf interface{}
+	err := json.Unmarshal(telemetryBytes, &itf)
+	if err != nil {
+		return mp, err
+	}
+
+	rbytes, err := msgpack.Marshal(&itf)
+	if err != nil {
+		return mp, err
+	}
+
+	parameters := []common.TR181Entry{}
+	entry := common.TR181Entry{
+		Name:     common.TR181NameTelemetry,
+		DataType: common.TR181Blob,
+		Value:    string(rbytes),
+	}
+	parameters = append(parameters, entry)
+
+	// step 2 convert the "parameters" parts to json and use it to calculate the "version" hash
+	var version string
+	if bbytes, err := json.Marshal(parameters); err != nil {
+		return mp, err
+	} else {
+		version = GetMurmur3Hash(bbytes)
+	}
+
+	// step 3 prepare the output object
+	output := common.TR181Output{
+		Parameters: parameters,
+	}
+
+	// step 4: check Accept header
+	obytes, err := msgpack.Marshal(output)
+	if err != nil {
+		return mp, err
+	}
+
+	mp = common.Multipart{
+		Bytes:   obytes,
+		Version: version,
+		Name:    "telemetry",
+	}
+	return mp, nil
 }

@@ -29,6 +29,13 @@ func TestContains(t *testing.T) {
 	assert.Assert(t, c1)
 	c2 := Contains(days, "fri")
 	assert.Assert(t, !c2)
+
+	assert.Assert(t, Contains([]int{1, 2, 3, 4}, 3))
+	assert.Assert(t, !Contains([]int{1, 2, 3, 4}, 9))
+	assert.Assert(t, Contains([]string{"red", "orange", "yellow", "green", "blue"}, "orange"))
+	assert.Assert(t, !Contains([]string{"red", "orange", "yellow", "green", "blue"}, "violet"))
+	assert.Assert(t, Contains([]float64{1.1, 2.2, 3.3, 4.4}, 3.3))
+	assert.Assert(t, !Contains([]float64{1.1, 2.2, 3.3, 4.4}, 9.2))
 }
 
 func TestContainsInt(t *testing.T) {

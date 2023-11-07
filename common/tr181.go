@@ -17,12 +17,19 @@
 */
 package common
 
+import (
+	"fmt"
+
+	"github.com/vmihailenco/msgpack"
+)
+
 const (
-	TR181Str  = 0
-	TR181Int  = 1
-	TR181Uint = 2
-	TR181Bool = 3
-	TR181Blob = 12
+	TR181Str           = 0
+	TR181Int           = 1
+	TR181Uint          = 2
+	TR181Bool          = 3
+	TR181Blob          = 12
+	TR181NameTelemetry = "Device.X_RDKCENTRAL-COM_T2.ReportProfilesMsgPack"
 )
 
 type TR181Entry struct {
@@ -33,4 +40,41 @@ type TR181Entry struct {
 
 type TR181Output struct {
 	Parameters []TR181Entry `json:"parameters" msgpack:"parameters"`
+}
+
+type TR181ResponseObject struct {
+	Name    string `json:"name" msgpack:"name"`
+	Message string `json:"message" msgpack:"message"`
+}
+
+type TR181Response struct {
+	Parameters []TR181ResponseObject `json:"parameters" msgpack:"parameters"`
+}
+
+func ParseTR181EntryAsItf(t *TR181Entry, version string) (interface{}, error) {
+	var itf interface{}
+	bbytes := []byte(t.Value)
+
+	switch t.Name {
+	case TR181NamePrivatessid:
+		obj := EmbeddedPrivateWifi{}
+		err := msgpack.Unmarshal(bbytes, &obj)
+		if err != nil {
+			return itf, NewError(err)
+		}
+		p := &obj
+		itf = p.GetSimpleWifi(version)
+	case TR181NameHomessid:
+		obj := EmbeddedHomeWifi{}
+		err := msgpack.Unmarshal(bbytes, &obj)
+		if err != nil {
+			return itf, NewError(err)
+		}
+		p := &obj
+		itf = p.GetSimpleWifi(version)
+	default:
+		err := fmt.Errorf("unsupported tr181")
+		return nil, NewError(err)
+	}
+	return itf, nil
 }

@@ -15,46 +15,41 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package db
+package sqlite
 
 import (
-	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
-	"github.com/go-akka/configuration"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
 var (
-	dbclient DatabaseClient
+	sc *common.ServerConfig
 )
 
 func TestMain(m *testing.M) {
-	configFile := "config/sample_webconfig.conf"
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		configFile = "../config/sample_webconfig.conf"
-	}
-
-	// configure the sqlite client
-	configBytes, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		fmt.Printf("ERROR: config file %v read error=%v\n", configFile, err)
-		panic(err)
-	}
-	conf := configuration.ParseString(string(configBytes))
-
-	dbclient, err = NewSqliteClient(conf, true)
+	var err error
+	sc, err = common.GetTestServerConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	// start clean
-	dbclient.SetUp()
-	dbclient.TearDown()
+	tdbclient, err = GetTestSqliteClient(sc.Config, true)
+	if err != nil {
+		panic(err)
+	}
 
-	log.SetOutput(ioutil.Discard)
+	// TODO eval start clean
+	// tdbclient.SetUp()
+	// tdbclient.TearDown()
+
+	log.SetOutput(io.Discard)
+
+	tmetrics = common.NewMetrics(sc.Config)
+	tdbclient.SetMetrics(tmetrics)
 
 	returnCode := m.Run()
 

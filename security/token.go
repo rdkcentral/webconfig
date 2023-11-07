@@ -27,15 +27,14 @@ import (
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 const (
 	EncodingKeyId = "webconfig_key"
-	// sermo lib
-	JwtLibIdDefault = 2
 )
 
 type ThemisClaims struct {
@@ -46,10 +45,10 @@ type ThemisClaims struct {
 	Trust        string   `json:"trust"`
 	Uuid         string   `json:"uuid"`
 	Capabilities []string `json:"capabilities"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
-type VerifyFunc func(map[string]*rsa.PublicKey, []string, []string, ...string) (bool, error)
+type VerifyFunc func(map[string]*rsa.PublicKey, []string, []string, ...string) (bool, string, error)
 
 type TokenManager struct {
 	encodeKey       *rsa.PrivateKey
@@ -62,6 +61,13 @@ type TokenManager struct {
 }
 
 func NewTokenManager(conf *configuration.Config) *TokenManager {
+	jwtEnabled := conf.GetBoolean("webconfig.jwt.enabled", false)
+	if !jwtEnabled {
+		return nil
+	}
+
+	panicExitEnabled := conf.GetBoolean("webconfig.panic_exit_enabled", false)
+
 	// prepare args for TokenManager
 	privateKeyFile := conf.GetString(fmt.Sprintf("webconfig.jwt.kid.%s.private_key_file", EncodingKeyId))
 
@@ -71,20 +77,27 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 		keyfile := conf.GetString(fmt.Sprintf("webconfig.jwt.kid.%s.public_key_file", kid))
 		dk, err := loadDecodeKey(keyfile)
 		if err != nil {
-			panic(err)
+			if panicExitEnabled {
+				panic(err)
+			} else {
+				fmt.Printf("WARNING %v\n", err)
+			}
 		}
 		decodeKeys[kid] = dk
 	}
 
-	fn := VerifyBySermo
+	fn := VerifyToken
 
 	// load the private encoding key
 	encodeKey, err := loadEncodeKey(privateKeyFile)
 	if err != nil {
-		panic(err)
+		if panicExitEnabled {
+			panic(err)
+		} else {
+			fmt.Printf("WARNING %v\n", err)
+		}
 	}
 
-	// default to sermo_jose verifier
 	return &TokenManager{
 		encodeKey:       encodeKey,
 		decodeKeys:      decodeKeys,
@@ -120,31 +133,37 @@ func loadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
 	return encodeKey, nil
 }
 
-func (m *TokenManager) Generate(mac string, ttl int64) string {
+// TODO this is not an officially supported function.
+func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
 	// %% NOTE mac should be lowercase to be consistent with reference doc
 	// static themis fields copied from examples in the webconfig confluence
 	kid := "webconfig_key"
 	serial := "ABCNDGE"
 	trust := "1000"
 	capUuid := "1234567891234"
+	capabilities := []string{"x1:issuer:test:.*:all"}
 
-	utcnow := time.Now().Unix()
+	partner := "comcast"
+	if len(vargs) > 0 {
+		partner = vargs[0]
+	}
+	utcnow := time.Now()
 
 	claims := ThemisClaims{
-		kid,
-		mac,
-		"comcast",
-		serial,
-		trust,
-		capUuid,
-		[]string{"x1:issuer:test:.*:all"},
-		jwt.StandardClaims{
-			Audience:  "XMiDT",
-			ExpiresAt: utcnow + ttl,
-			Id:        uuid.New().String(),
-			IssuedAt:  utcnow,
+		KeyId:        kid,
+		Mac:          mac,
+		PartnerId:    partner,
+		Serial:       serial,
+		Trust:        trust,
+		Uuid:         capUuid,
+		Capabilities: capabilities,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{"XMiDT"},
+			ExpiresAt: jwt.NewNumericDate(utcnow.Add(24 * time.Hour)),
+			ID:        uuid.New().String(),
+			IssuedAt:  jwt.NewNumericDate(utcnow),
 			Issuer:    "themis",
-			NotBefore: utcnow,
+			NotBefore: jwt.NewNumericDate(utcnow),
 			Subject:   "client:supplied",
 		},
 	}
@@ -205,13 +224,165 @@ func ParseKidFromTokenHeader(tokenString string) (string, error) {
 }
 
 func (m *TokenManager) VerifyApiToken(token string) (bool, error) {
-	return m.verifyFn(m.decodeKeys, m.apiKids, m.apiCapabilities, token)
+	ok, _, err := m.verifyFn(m.decodeKeys, m.apiKids, m.apiCapabilities, token)
+	if err != nil {
+		return ok, common.NewError(err)
+	}
+	return ok, err
 }
 
-func (m *TokenManager) VerifyCpeToken(token string, mac string) (bool, error) {
-	return m.verifyFn(m.decodeKeys, m.cpeKids, m.cpeCapabilities, token, mac)
+func (m *TokenManager) VerifyCpeToken(token string, mac string) (bool, string, error) {
+	ok, partner, err := m.verifyFn(m.decodeKeys, m.cpeKids, m.cpeCapabilities, token, mac)
+	if err != nil {
+		return ok, "", common.NewError(err)
+	}
+	return ok, partner, nil
 }
 
 func (m *TokenManager) SetVerifyFunc(fn VerifyFunc) {
 	m.verifyFn = fn
+}
+
+func (m *TokenManager) ParseCpeToken(tokenStr string) (map[string]string, error) {
+	parser := &jwt.Parser{}
+	uclaims := jwt.MapClaims{}
+	token, _, err := parser.ParseUnverified(tokenStr, uclaims)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+
+	// check kid
+	var kid string
+	if itf, ok := token.Header["kid"]; ok {
+		kid = itf.(string)
+	}
+	if len(kid) == 0 {
+		return nil, common.NewError(fmt.Errorf("error in reading kid from header"))
+	}
+	if !util.Contains(m.cpeKids, kid) {
+		return nil, common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, m.cpeKids))
+	}
+	decodeKey, ok := m.decodeKeys[kid]
+	if !ok {
+		return nil, common.NewError(fmt.Errorf("key object missing, kid=%v", kid))
+	}
+
+	// capabilities check is skipped for now
+
+	claims := jwt.MapClaims{}
+	token, err = jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) { return decodeKey, nil })
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+
+	// TODO eval if more claims need to be returned, for now only two
+	data := map[string]string{}
+	if itf, ok := claims["mac"]; ok {
+		mac := itf.(string)
+		if len(mac) > 0 {
+			data["mac"] = mac
+		}
+	}
+	if itf, ok := claims["partner-id"]; ok {
+		partner := itf.(string)
+		if len(partner) > 0 {
+			data["partner"] = partner
+		}
+	}
+
+	return data, nil
+}
+
+func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requiredCapabilities []string, vargs ...string) (bool, string, error) {
+	tokenString := vargs[0]
+	var kid string
+
+	parser := &jwt.Parser{}
+
+	// this is the claims before the token is verified by the public key
+	uclaims := jwt.MapClaims{}
+	if token, _, err := parser.ParseUnverified(tokenString, uclaims); err == nil {
+		// check kid
+		rawkid, ok := token.Header["kid"]
+		if !ok {
+			return false, "", common.NewError(fmt.Errorf("missing kid in token"))
+		}
+		kid, ok = rawkid.(string)
+		if !ok {
+			return false, "", common.NewError(fmt.Errorf("error in reading kid from header"))
+		}
+
+		ok = false
+		for _, k := range validKids {
+			if kid == k {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false, "", common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, validKids))
+		}
+
+		// check capabilities, if requiredCapabilities is nonempty
+		if len(requiredCapabilities) > 0 {
+			isCapable := false
+			if capitfs, ok := uclaims["capabilities"]; ok {
+				capvalues, ok1 := capitfs.([]interface{})
+				if ok1 {
+					for _, capvalue := range capvalues {
+						for _, rc := range requiredCapabilities {
+							if rc == capvalue {
+								isCapable = true
+								break
+							}
+						}
+						if isCapable {
+							break
+						}
+					}
+				}
+			}
+			if !isCapable {
+				return false, "", common.NewError(fmt.Errorf("token without proper capabilities"))
+			}
+		}
+	} else {
+		return false, "", common.NewError(err)
+	}
+
+	decodeKey, ok := decodeKeys[kid]
+	if !ok {
+		return false, "", common.NewError(fmt.Errorf("key object missing, kid=%v", kid))
+	}
+
+	claims := jwt.MapClaims{}
+	if _, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) { return decodeKey, nil }); err != nil {
+		return false, "", common.NewError(err)
+	}
+
+	if len(vargs) > 1 {
+		mac := vargs[1]
+		// mac must match
+		isMatched := false
+		if macitf, ok := claims["mac"]; ok {
+			if macstr, ok := macitf.(string); ok {
+				if strings.ToLower(mac) == strings.ToLower(macstr) {
+					isMatched = true
+				} else {
+					return false, "", common.NewError(fmt.Errorf("mac in token(%v) does not match mac in claims(%v)", mac, macstr))
+				}
+			}
+		}
+		if !isMatched {
+			return false, "", common.NewError(fmt.Errorf("mac in token(%v) does not match claims=%v", mac, claims))
+		}
+	}
+
+	// parse partner
+	partner := "comcast"
+	if itf, ok := claims["partner-id"]; ok {
+		partner = itf.(string)
+	}
+
+	return true, partner, nil
 }

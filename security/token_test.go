@@ -20,31 +20,63 @@ package security
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
 func TestLoadingKeyFiles(t *testing.T) {
-	privateKeyFileName := "/tmp/private.pem"
-	publicKeyFileName := "/tmp/public.pem"
+	sc, err := common.GetTestServerConfig()
+	if err != nil {
+		panic(err)
+	}
+	if !sc.GetBoolean("webconfig.jwt.enabled") {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
 
-	privateKey, err := GenerateKeyPairAsFiles(privateKeyFileName, publicKeyFileName)
+	publicKeyFile := "/etc/webconfig/webconfig_key_pub.pem"
+	_, err = loadDecodeKey(publicKeyFile)
 	assert.NilError(t, err)
 
-	readPublicKey, err := loadDecodeKey(publicKeyFileName)
-	assert.NilError(t, err)
-	assert.Assert(t, privateKey.PublicKey.Equal(readPublicKey))
-
-	badPublicKeyFileName := "/tmp/private.pemx"
-	_, err = loadDecodeKey(badPublicKeyFileName)
+	badPublicKeyFile := "/etc/webconfig/webconfig_key_pub.pemx"
+	_, err = loadDecodeKey(badPublicKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
 
-	readPrivateKey, err := loadEncodeKey(privateKeyFileName)
+	privateKeyFile := "/etc/webconfig/webconfig_key.pem"
+	_, err = loadEncodeKey(privateKeyFile)
 	assert.NilError(t, err)
-	assert.Assert(t, privateKey.Equal(readPrivateKey))
 
-	badPrivateKeyFileName := "/tmp/public.pemx"
-	_, err = loadEncodeKey(badPrivateKeyFileName)
+	badPrivateKeyFile := "/etc/webconfig/webconfig_key.pemx"
+	_, err = loadEncodeKey(badPrivateKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
+}
+
+func TestTokenValidation(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	if err != nil {
+		panic(err)
+	}
+	if !sc.GetBoolean("webconfig.jwt.enabled") {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	token := tokenManager.Generate(strings.ToLower(cpeMac), 86400)
+
+	// default comcast
+	ok, parsedPartner, err := tokenManager.VerifyCpeToken(token, cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
+	assert.Equal(t, parsedPartner, "comcast")
+
+	// create a partner token
+	partner1 := "cox"
+	token1 := tokenManager.Generate(strings.ToLower(cpeMac), 86400, partner1)
+	ok, parsedPartner, err = tokenManager.VerifyCpeToken(token1, cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
+	assert.Equal(t, parsedPartner, partner1)
 }

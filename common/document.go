@@ -18,166 +18,197 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
+// deviceRootDocument is use to stored the data from device headers in the GET call
+// we stored it to build "new" headers during the upstream call
+// *RootDocument is used to stored data read from db and used to build the "old" headers
 type Document struct {
-	bytes       []byte
-	params      *string
-	version     *string
-	state       *int
-	updatedTime *int64
+	docmap       map[string]SubDocument
+	rootDocument *RootDocument
 }
 
-func NewDocument(bytes []byte, params *string, version *string, state *int, updatedTime *int64) *Document {
+// TODO add support to support NewDocument([]common.Multipart)
+func NewDocument(rootDocument *RootDocument) *Document {
+	docmap := map[string]SubDocument{}
 	return &Document{
-		bytes:       bytes,
-		params:      params,
-		version:     version,
-		state:       state,
-		updatedTime: updatedTime,
+		rootDocument: rootDocument,
+		docmap:       docmap,
 	}
 }
 
-func (d Document) String() string {
-	fmt.Println("Document.String()")
-	var s1, s2, s3, s4, s5 string
-	if d.bytes == nil {
-		s1 = "bytes=nil"
-	} else {
-		s1 = fmt.Sprintf("bytes=%v", d.bytes)
-	}
-	if d.params == nil {
-		s2 = "params=nil"
-	} else {
-		s2 = fmt.Sprintf("params=%v", *d.params)
-	}
-	if d.version == nil {
-		s3 = "version=nil"
-	} else {
-		s3 = fmt.Sprintf("version=%v", *d.version)
-	}
-	if d.state == nil {
-		s4 = "state=nil"
-	} else {
-		s4 = fmt.Sprintf("state=%v", *d.state)
-	}
-	if d.updatedTime == nil {
-		s5 = "updatedTime=nil"
-	} else {
-		s5 = fmt.Sprintf("updatedTime=%v", *d.updatedTime)
-	}
-	return fmt.Sprintf("%v, %v, %v, %v, %v", s1, s2, s3, s4, s5)
+func (d *Document) SetSubDocument(groupId string, subdoc *SubDocument) {
+	d.docmap[groupId] = *subdoc
 }
 
-func (d *Document) Bytes() []byte {
-	return d.bytes
-}
-
-func (d *Document) SetBytes(bytes []byte) {
-	d.bytes = bytes
-}
-
-func (d *Document) HasBytes() bool {
-	if d.bytes != nil && len(d.bytes) > 0 {
-		return true
-	} else {
-		return false
+func (d *Document) SetSubDocuments(mparts []Multipart) {
+	for _, mpart := range mparts {
+		version := mpart.Version
+		subdoc := NewSubDocument(mpart.Bytes, &version, nil, nil, nil, nil)
+		d.SetSubDocument(mpart.Name, subdoc)
 	}
 }
 
-func (d *Document) Params() *string {
-	return d.params
+func (d *Document) SubDocument(subdocId string) *SubDocument {
+	subdoc, ok := d.docmap[subdocId]
+	if !ok {
+		return nil
+	}
+	return &subdoc
 }
 
-func (d *Document) SetParams(params *string) {
-	d.params = params
+func (d *Document) DeleteSubDocument(groupId string) {
+	delete(d.docmap, groupId)
 }
 
-func (d *Document) Version() *string {
-	return d.version
-}
-
-func (d *Document) SetVersion(version *string) {
-	d.version = version
-}
-
-func (d *Document) State() *int {
-	return d.state
-}
-
-func (d *Document) SetState(state *int) {
-	d.state = state
-}
-
-func (d *Document) UpdatedTime() *int64 {
-	return d.updatedTime
-}
-
-func (d *Document) SetUpdatedTime(updatedTime *int64) {
-	d.updatedTime = updatedTime
-}
-
-func (d *Document) Equals(tdoc *Document) error {
-	if d.HasBytes() && tdoc.HasBytes() {
-		if !bytes.Equal(d.Bytes(), tdoc.Bytes()) {
-			err := fmt.Errorf("d.Bytes() != tdoc.Bytes()")
-			return NewError(err)
+func (d *Document) VersionMap() map[string]string {
+	versionMap := map[string]string{}
+	for k, doc := range d.docmap {
+		if doc.Version() != nil {
+			versionMap[k] = *doc.Version()
 		}
-	} else {
-		if d.HasBytes() != tdoc.HasBytes() {
-			err := fmt.Errorf("d.HasBytes() != tdoc.HasBytes()")
-			return NewError(err)
+	}
+	return versionMap
+}
+
+func (d *Document) StateMap() map[string]int {
+	stateMap := map[string]int{}
+	for k, doc := range d.docmap {
+		if doc.State() != nil {
+			stateMap[k] = *doc.State()
+		}
+	}
+	return stateMap
+}
+
+func (d *Document) Length() int {
+	return len(d.docmap)
+}
+
+func (d *Document) Items() map[string]SubDocument {
+	return d.docmap
+}
+
+func (d *Document) SetRootDocument(rootDocument *RootDocument) {
+	d.rootDocument = rootDocument
+}
+
+func (d *Document) GetRootDocument() *RootDocument {
+	return d.rootDocument
+}
+
+func (d *Document) RootVersion() string {
+	return d.rootDocument.Version
+}
+
+// TODO
+// (1) for now we only filter by state
+// (2) expiry check can be included to support blaster/command subdocs
+// (3) we can implement blockedSubdocIds if we want
+func (d *Document) FilterForMqttSend() *Document {
+	newdoc := NewDocument(d.GetRootDocument())
+	for subdocId, subDocument := range d.docmap {
+		if subDocument.State() != nil {
+			state := *subDocument.State()
+			if state == PendingDownload || state == Failure {
+				newdoc.SetSubDocument(subdocId, &subDocument)
+			}
+		}
+	}
+	return newdoc
+}
+
+func (d *Document) FilterForGet(versionMap map[string]string) *Document {
+	newdoc := NewDocument(d.GetRootDocument())
+
+	deviceRootVersion := versionMap["root"]
+	if len(deviceRootVersion) > 0 {
+		if deviceRootVersion == d.RootVersion() {
+			return newdoc
 		}
 	}
 
-	if d.Version() != nil && tdoc.Version() != nil {
-		if *d.Version() != *tdoc.Version() {
-			err := fmt.Errorf("*d.Version()[%v] != *tdoc.Version()[%v]", *d.Version(), *tdoc.Version())
-			return NewError(err)
+	for subdocId, subDocument := range d.docmap {
+		if subDocument.Version() != nil {
+			deviceSubdocVersion := versionMap[subdocId]
+			version := *subDocument.Version()
+			if version != deviceSubdocVersion {
+				newdoc.SetSubDocument(subdocId, &subDocument)
+			}
 		}
-	} else {
-		if d.Version() != tdoc.Version() {
-			err := fmt.Errorf("d.Version()[%v] != tdoc.Version()[%v]", d.Version(), tdoc.Version())
-			return NewError(err)
+	}
+	return newdoc
+}
+
+func (d *Document) Bytes() ([]byte, error) {
+	// build the http stream
+	mparts := []Multipart{}
+	for subdocId, subdoc := range d.docmap {
+		mpart := Multipart{
+			Bytes:   subdoc.Payload(),
+			Version: *subdoc.Version(),
+			Name:    subdocId,
 		}
+		mparts = append(mparts, mpart)
 	}
 
-	if d.UpdatedTime() != nil && tdoc.UpdatedTime() != nil {
-		if *d.UpdatedTime() != *tdoc.UpdatedTime() {
-			err := fmt.Errorf("*d.UpdatedTime()[%v] != *tdoc.UpdatedTime()[%v]", *d.UpdatedTime(), *tdoc.UpdatedTime())
-			return NewError(err)
-		}
-	} else {
-		if d.UpdatedTime() != tdoc.UpdatedTime() {
-			err := fmt.Errorf("d.UpdatedTime()[%v] != tdoc.UpdatedTime()[%v]", d.UpdatedTime(), tdoc.UpdatedTime())
-			return NewError(err)
-		}
+	bbytes, err := WriteMultipartBytes(mparts)
+	if err != nil {
+		return nil, NewError(err)
 	}
 
-	if d.State() != nil && tdoc.State() != nil {
-		if *d.State() != *tdoc.State() {
-			err := fmt.Errorf("*d.State()[%v] != *tdoc.State()[%v]", *d.State(), *tdoc.State())
-			return NewError(err)
+	return bbytes, nil
+}
+
+func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
+	// build the http stream
+	mparts := []Multipart{}
+	for subdocId, subdoc := range d.docmap {
+		mpart := Multipart{
+			Bytes:   subdoc.Payload(),
+			Version: *subdoc.Version(),
+			Name:    subdocId,
 		}
-	} else {
-		if d.State() != tdoc.State() {
-			err := fmt.Errorf("d.State()[%v] != tdoc.State()[%v]", d.State(), tdoc.State())
-			return NewError(err)
-		}
+		mparts = append(mparts, mpart)
 	}
 
-	if d.Params() != nil && tdoc.Params() != nil {
-		if *d.Params() != *tdoc.Params() {
-			err := fmt.Errorf("*d.Params()[%v] != *tdoc.Params()[%v]", *d.Params(), *tdoc.Params())
-			return NewError(err)
-		}
+	var rootVersion string
+	if d.GetRootDocument() != nil {
+		rootVersion = d.RootVersion()
 	} else {
-		if d.Params() != tdoc.Params() {
-			err := fmt.Errorf("d.Params()[%v] != tdoc.Params()[%v]", d.Params(), tdoc.Params())
-			return NewError(err)
-		}
+		rootVersion = strconv.Itoa(int(time.Now().Unix()))
 	}
-	return nil
+
+	header := make(http.Header)
+	header.Set("Content-type", MultipartContentType)
+	header.Set("Etag", rootVersion)
+
+	var traceId string
+	if itf, ok := fields["trace_id"]; ok {
+		traceId = itf.(string)
+	}
+	if len(traceId) == 0 {
+		traceId = uuid.New().String()
+	}
+	t := time.Now().UnixNano() / 1000
+	transactionId := fmt.Sprintf("%s_____%015x", traceId, t)
+	appName := fields["app_name"]
+	xmoney := fmt.Sprintf("trace-id=%s;parent-id=0;span-id=0;span-name=%s", traceId, appName)
+	header.Set("Transaction-Id", transactionId)
+	header.Set("X-Webpa-Transaction-Id", transactionId)
+	header.Set("X-Moneytrace", xmoney)
+
+	bbytes, err := WriteMultipartBytes(mparts)
+	if err != nil {
+		return nil, NewError(err)
+	}
+
+	return BuildPayloadAsHttp(http.StatusOK, header, bbytes), nil
 }

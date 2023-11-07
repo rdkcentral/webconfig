@@ -31,7 +31,7 @@ import (
 func SetBitmapByGroup(cpeBitmap *int, groupId int, groupBitmap int) error {
 	tuples, ok := common.SupportedDocsBitMaskMap[groupId]
 	if !ok {
-		return common.NewError(common.NotOK)
+		return nil
 	}
 
 	for _, tuple := range tuples {
@@ -69,7 +69,6 @@ func GetCpeBitmap(rdkSupportedDocsHeaderStr string) (int, error) {
 		if err != nil {
 			return 0, common.NewError(err)
 		}
-		// fmt.Printf("groupId=%v, groupBitmap=%v, cpeBitmap=%v\n", groupId, groupBitmap, cpeBitmap)
 	}
 
 	return cpeBitmap, nil
@@ -109,10 +108,7 @@ func IsSubdocSupported(cpeBitmap int, subdocId string) bool {
 	shift := index - 1
 	bitmask := 1 << shift
 	masked := cpeBitmap & bitmask
-	if masked == 0 {
-		return false
-	}
-	return true
+	return masked != 0
 }
 
 func GetSupportedMap(cpeBitmap int) map[string]bool {
@@ -137,4 +133,17 @@ func BitarrayToBitmap(src string) (int, error) {
 	}
 	i := int(v)
 	return i, nil
+}
+
+func GetBitmapFromSupportedMap(srcMap map[string]bool) int {
+	var bitmap int
+
+	for k, index := range common.SubdocBitIndexMap {
+		shift := index - 1
+		bitmask := 1 << shift
+		if srcMap[k] {
+			bitmap += bitmask
+		}
+	}
+	return bitmap
 }

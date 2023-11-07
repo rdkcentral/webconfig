@@ -19,27 +19,44 @@ package db
 
 import (
 	"github.com/rdkcentral/webconfig/common"
-	log "github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type DatabaseClient interface {
 	SetUp() error
 	TearDown() error
 
-	// document and folder
-	GetDocument(string, string, log.Fields) (*common.Document, error)
-	SetDocument(string, string, *common.Document, log.Fields) error
-	GetFolder(string, log.Fields) (*common.Folder, error)
-	DeleteDocument(string, string, log.Fields) error
-	DeleteFullDocument(string, log.Fields) error
+	// SubDocument and Document
+	GetSubDocument(string, string) (*common.SubDocument, error)
+	SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
+	DeleteSubDocument(string, string) error
+
+	GetDocument(string, ...interface{}) (*common.Document, error)
+	SetDocument(string, *common.Document) error
+	DeleteDocument(string) error
 
 	// root document
 	GetRootDocument(string) (*common.RootDocument, error)
+	SetRootDocument(string, *common.RootDocument) error
+	DeleteRootDocument(string) error
 	SetRootDocumentVersion(string, string) error
 	SetRootDocumentBitmap(string, int) error
-	DeleteRootDocument(string) error
 	DeleteRootDocumentVersion(string) error
+	GetRootDocumentLabels(string) (prometheus.Labels, error)
 
 	// not found
 	IsDbNotFound(error) bool
+
+	// set metrics
+	Metrics() *common.AppMetrics
+	SetMetrics(*common.AppMetrics)
+
+	// blockedSubdocIds
+	BlockedSubdocIds() []string
+	SetBlockedSubdocIds([]string)
+
+	// These functions are now changed to use upstream
+	FactoryReset(string) error
+	FirmwareUpdate(string, int, *common.RootDocument) error
+	AppendProfiles(string, []byte) ([]byte, error)
 }

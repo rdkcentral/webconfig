@@ -20,38 +20,17 @@ package util
 import (
 	"testing"
 
-	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
-func TestGetRootVersion(t *testing.T) {
-	folder := common.NewFolder()
-
-	t1 := int64(123)
-
-	// if all documents have no payload/version, calculated root should be "0"
-	bbytes1 := []byte{}
-	params1 := "foo bar"
-	d1 := common.NewDocument(bbytes1, &params1, nil, nil, &t1)
-	folder.SetDocument("advsecurity", d1)
-
-	bbytes2 := []byte{}
-	params2 := "hello world"
-	t2 := int64(456)
-	d2 := common.NewDocument(bbytes2, &params2, nil, nil, &t2)
-	folder.SetDocument("mesh", d2)
-
-	root := RootVersion(folder.VersionMap())
-	assert.Equal(t, root, "0")
-
-	// if some documents have payload/version, calculated root becomes non "0"
-	bbytes3 := []byte("hello world")
-	params3 := "red blue white"
-	version3 := "12345"
-	t3 := int64(789)
-	d3 := common.NewDocument(bbytes3, &params3, &version3, nil, &t3)
-	folder.SetDocument("privatessid", d3)
-
-	root = RootVersion(folder.VersionMap())
-	assert.Assert(t, root != "0")
+func TestGetRandomRootVersion(t *testing.T) {
+	v1 := GetRandomRootVersion()
+	assert.Assert(t, len(v1) > 0)
+	v2 := GetRandomRootVersion()
+	assert.Assert(t, len(v2) > 0)
+	v3 := GetRandomRootVersion()
+	assert.Assert(t, len(v3) > 0)
+	assert.Assert(t, v1 != v2)
+	assert.Assert(t, v2 != v3)
+	assert.Assert(t, v3 != v1)
 }

@@ -18,63 +18,181 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
 	"github.com/gorilla/mux"
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
-	mac, ok := params["mac"]
+	mac := params["mac"]
+	mac = strings.ToUpper(mac)
 	if !util.ValidateMac(mac) {
-		err := common.Http404Error{"invalid mac"}
-		Error(w, r, http.StatusNotFound, err)
+		err := common.Http400Error{
+			Message: "invalid mac",
+		}
+		Error(w, http.StatusBadRequest, err)
 		return
 	}
 
-	xw, ok := w.(*XpcResponseWriter)
+	queryParams := r.URL.Query()
+
+	// parse and validate query param "doc"
+	// /poke?doc=telemetry
+	// /poke?cpe_action=true
+	pokeStr, err := util.ValidatePokeQuery(queryParams)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err)
+		return
+	}
+
+	xw, ok := w.(*XResponseWriter)
 	if !ok {
 		err := fmt.Errorf("PokeHandler() responsewriter cast error")
-		Error(w, r, http.StatusInternalServerError, common.NewError(err))
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 
-	token := xw.Token()
 	fields := xw.Audit()
-	var err error
 
-	if len(token) == 0 {
-		token, err = s.GetToken(fields)
-		if err != nil {
-			Error(w, r, http.StatusInternalServerError, common.NewError(err))
-			return
+	// extract "metrics_agent"
+	metricsAgent := "default"
+	if itf, ok := fields["metrics_agent"]; ok {
+		metricsAgent = itf.(string)
+	}
+
+	deviceIds := []string{
+		mac,
+	}
+	if x, ok := r.URL.Query()["device_id"]; ok {
+		elements := strings.Split(x[0], ",")
+		if len(elements) > 0 {
+			deviceIds = append(deviceIds, elements...)
 		}
 	}
 
-	transactionId, err := s.Poke(mac, token, fields)
-	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.As(err, common.RemoteHttpErrorType) {
-			unerr := errors.Unwrap(err)
-			rherr := unerr.(common.RemoteHttpError)
+	if pokeStr == "mqtt" {
+		for _, deviceId := range deviceIds {
+			document, err := db.BuildMqttSendDocument(s.DatabaseClient, deviceId, fields)
+			if err != nil {
+				if s.IsDbNotFound(err) {
+					Error(w, http.StatusNotFound, nil)
+					return
+				}
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+			if document.Length() == 0 {
+				WriteResponseBytes(w, nil, http.StatusNoContent)
+				return
+			}
 
-			// webpa error handling
-			if rherr.StatusCode == http.StatusNotFound {
-				status = 520
-			} else if rherr.StatusCode > http.StatusInternalServerError {
-				status = rherr.StatusCode
+			// TODO, we can build/filter it again for blocked subdocs if needed
 
+			mbytes, err := document.HttpBytes(fields)
+			if err != nil {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+
+			_, err = s.PostMqtt(deviceId, mbytes, fields)
+			if err != nil {
+				var rherr common.RemoteHttpError
+				if errors.As(err, &rherr) {
+					if rherr.StatusCode == http.StatusNotFound {
+						Error(w, http.StatusNotFound, nil)
+						return
+					}
+				}
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
+
+			err = db.UpdateStatesInBatch(s.DatabaseClient, deviceId, metricsAgent, fields, document.StateMap())
+			if err != nil {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
 			}
 		}
-		Error(w, r, status, err)
+		WriteAcceptedResponse(w)
+		return
+	}
+
+	// pokes through cpe_action API can bypass this "smart" poke
+	if len(queryParams) == 0 {
+		document, err := db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
+		if err != nil {
+			if s.IsDbNotFound(err) {
+				Error(w, http.StatusNoContent, nil)
+				return
+			}
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+		if document.Length() == 0 {
+			WriteResponseBytes(w, nil, http.StatusNoContent)
+			return
+		}
+		pendingSubdocs := []string{}
+		for subdocId := range document.StateMap() {
+			pendingSubdocs = append(pendingSubdocs, subdocId)
+		}
+		sort.Strings(pendingSubdocs)
+		fields["pending_subdocs"] = strings.Join(pendingSubdocs, ".")
+	}
+
+	// handle tokens
+	token := xw.Token()
+	if len(token) == 0 {
+		Error(w, http.StatusForbidden, nil)
+		return
+	}
+
+	transactionId, err := s.Poke(mac, token, pokeStr, fields)
+	if err != nil {
+		var rherr common.RemoteHttpError
+		if errors.As(err, &rherr) {
+			// webpa error handling
+			status := http.StatusInternalServerError
+			if rherr.StatusCode == http.StatusNotFound {
+				status = 521
+			} else if rherr.StatusCode > http.StatusInternalServerError {
+				status = rherr.StatusCode
+			}
+
+			// parse the core message
+			var tr181Res common.TR181Response
+			var tr181Message string
+			if err := json.Unmarshal([]byte(rherr.Message), &tr181Res); err == nil {
+				if len(tr181Res.Parameters) > 0 {
+					tr181Message = tr181Res.Parameters[0].Message
+				}
+			}
+			if len(tr181Message) > 0 {
+				resp := common.HttpErrorResponse{
+					Status: rherr.StatusCode,
+					Errors: tr181Message,
+				}
+				SetAuditValue(w, "response", resp)
+				WriteByMarshal(w, rherr.StatusCode, resp)
+			} else {
+				Error(w, status, rherr)
+			}
+			return
+		}
+		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
 	data := map[string]interface{}{
 		"transaction_id": transactionId,
 	}
-	WriteOkResponse(w, r, data)
+	WriteOkResponse(w, data)
 }

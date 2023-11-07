@@ -26,56 +26,101 @@ import (
 )
 
 const (
-	OkResponseTemplate    = `{"status":200,"message":"OK","data":%v}`
+	OkResponseTemplate              = `{"status":200,"message":"OK","data":%v,"state":"%v","updated_time":%v}`
+	OkResponseWithErrorCodeTemplate = `{"status":200,"message":"OK","data":%v,"state":"%v","updated_time":%v,"error_code":%v,"error_details":"%v"}`
+
+	// TODO, this is should be retired
 	TR181ResponseTemplate = `{"parameters":%v,"version":"%v"}`
 )
 
-func writeByMarshal(w http.ResponseWriter, r *http.Request, status int, o interface{}) {
-	if rbytes, err := json.Marshal(o); err == nil {
-		w.Header().Set("Content-type", "application/json")
-		w.WriteHeader(status)
-		w.Write(rbytes)
-	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-		LogError(w, r, err)
+// TODO: VersionHandler does not go through Middleware, hence the XResponseWriter cast will fail
+// take no actions for now. Need to see if this causes errors
+func SetAuditValue(w http.ResponseWriter, key string, value interface{}) {
+	xw, ok := w.(*XResponseWriter)
+	if !ok {
+		// fields := make(log.Fields)
+		// log.WithFields(fields).Error("internal error in openwebconfig.http.SetAuditValue() NotOK")
+		return
 	}
+	fields := xw.Audit()
+	fields[key] = value
 }
 
-//helper function to wirte a json response into ResponseWriter
-func WriteOkResponse(w http.ResponseWriter, r *http.Request, data interface{}) {
+func WriteByMarshal(w http.ResponseWriter, status int, o interface{}) {
+	rbytes, err := json.Marshal(o)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		LogError(w, common.NewError(err))
+		return
+	}
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(status)
+	w.Write(rbytes)
+}
+
+// helper function to wirte a json response into ResponseWriter
+func WriteOkResponse(w http.ResponseWriter, data interface{}) {
 	resp := common.HttpResponse{
 		Status:  http.StatusOK,
 		Message: http.StatusText(http.StatusOK),
 		Data:    data,
 	}
-	writeByMarshal(w, r, http.StatusOK, resp)
+	SetAuditValue(w, "response", resp)
+	WriteByMarshal(w, http.StatusOK, resp)
 }
 
-func WriteOkResponseByTemplate(w http.ResponseWriter, r *http.Request, dataStr string) {
-	rbytes := []byte(fmt.Sprintf(OkResponseTemplate, dataStr))
-	w.Header().Set("Content-type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(rbytes)
+func WriteAcceptedResponse(w http.ResponseWriter) {
+	resp := common.HttpResponse{
+		Status:  http.StatusAccepted,
+		Message: http.StatusText(http.StatusAccepted),
+	}
+	SetAuditValue(w, "response", resp)
+	WriteByMarshal(w, http.StatusAccepted, resp)
 }
 
-func WriteTR181Response(w http.ResponseWriter, r *http.Request, params string, version string) {
+func WriteOkResponseByTemplate(w http.ResponseWriter, dataStr string, state int, updatedTime int, errorCode *int, errorDetails *string) {
+	stateText := common.States[state]
+	s := "null"
+	if len(dataStr) > 0 {
+		s = dataStr
+	}
+	var rbytes []byte
+	if errorCode != nil && *errorCode > 0 && errorDetails != nil && len(*errorDetails) > 0 {
+		resp := common.HttpResponse{
+			Status:       http.StatusOK,
+			Message:      http.StatusText(http.StatusOK),
+			State:        stateText,
+			UpdatedTime:  updatedTime,
+			ErrorCode:    *errorCode,
+			ErrorDetails: *errorDetails,
+		}
+		SetAuditValue(w, "response", resp)
+		rbytes = []byte(fmt.Sprintf(OkResponseWithErrorCodeTemplate, s, stateText, updatedTime, *errorCode, *errorDetails))
+	} else {
+		resp := common.HttpResponse{
+			Status:      http.StatusOK,
+			Message:     http.StatusText(http.StatusOK),
+			State:       stateText,
+			UpdatedTime: updatedTime,
+		}
+		SetAuditValue(w, "response", resp)
+		rbytes = []byte(fmt.Sprintf(OkResponseTemplate, s, stateText, updatedTime))
+	}
 	w.Header().Set("Content-type", "application/json")
-	w.Header().Set("ETag", version)
 	w.WriteHeader(http.StatusOK)
-	rbytes := []byte(fmt.Sprintf(TR181ResponseTemplate, params, version))
 	w.Write(rbytes)
 }
 
 // this is used to return default tr-181 payload while the cpe is not in the db
-func WriteContentTypeAndResponse(w http.ResponseWriter, r *http.Request, rbytes []byte, version string, contentType string) {
+func WriteContentTypeAndResponse(w http.ResponseWriter, rbytes []byte, version string, contentType string) {
 	w.Header().Set("Content-type", contentType)
-	w.Header().Set("ETag", version)
+	w.Header().Set(common.HeaderEtag, version)
 	w.WriteHeader(http.StatusOK)
 	w.Write(rbytes)
 }
 
-//helper function to write a failure json response into ResponseWriter
-func WriteErrorResponse(w http.ResponseWriter, r *http.Request, status int, err error) {
+// helper function to write a failure json response into ResponseWriter
+func WriteErrorResponse(w http.ResponseWriter, status int, err error) {
 	errstr := ""
 	if err != nil {
 		errstr = err.Error()
@@ -85,19 +130,22 @@ func WriteErrorResponse(w http.ResponseWriter, r *http.Request, status int, err 
 		Message: http.StatusText(status),
 		Errors:  errstr,
 	}
-	writeByMarshal(w, r, status, resp)
+	SetAuditValue(w, "response", resp)
+	WriteByMarshal(w, status, resp)
 }
 
-func Error(w http.ResponseWriter, r *http.Request, status int, err error) {
+func Error(w http.ResponseWriter, status int, err error) {
+	// calling WriteHeader() multiple times will cause errors in "content-type"
+	// ==> errors like 'superfluous response.WriteHeader call' in stderr
 	switch status {
 	case http.StatusNoContent, http.StatusNotModified, http.StatusForbidden:
 		w.WriteHeader(status)
 	default:
-		WriteErrorResponse(w, r, status, err)
+		WriteErrorResponse(w, status, err)
 	}
 }
 
-func WriteResponseBytes(w http.ResponseWriter, r *http.Request, rbytes []byte, statusCode int, vargs ...string) {
+func WriteResponseBytes(w http.ResponseWriter, rbytes []byte, statusCode int, vargs ...string) {
 	if len(vargs) > 0 {
 		w.Header().Set("Content-type", vargs[0])
 	}
@@ -106,7 +154,7 @@ func WriteResponseBytes(w http.ResponseWriter, r *http.Request, rbytes []byte, s
 }
 
 func WriteFactoryResetResponse(w http.ResponseWriter) {
-	w.Header().Set("Content-type", MultipartContentType)
+	w.Header().Set("Content-type", common.MultipartContentType)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte{})
 }

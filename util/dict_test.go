@@ -18,43 +18,129 @@
 package util
 
 import (
+	"encoding/json"
+	"net/http"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 func TestUtilPrettyPrint(t *testing.T) {
 	line := `{"foo":"bar", "enabled": true, "age": 30}`
-	t.Logf(PrettyJson(line))
+	_ = PrettyJson(line)
 
 	a := Dict{
-		"broadcast": true,
-		"rindex":    10100,
-		"enabled":   true,
-		"sindex":    10101,
-		"name":      "hello",
-		"mode":      4,
-		"word":      "password1",
+		"broadcast_ssid":  true,
+		"radio_index":     10100,
+		"ssid_enabled":    true,
+		"ssid_index":      10101,
+		"ssid_name":       "hello",
+		"wifi_security":   4,
+		"wifi_passphrase": "password1",
 	}
-	t.Logf(PrettyJson(a))
+	_ = PrettyJson(a)
 
 	b := []Dict{
-		Dict{
-			"broadcast": true,
-			"rindex":    10000,
-			"enabled":   true,
-			"sindex":    10001,
-			"name":      "ssid_2g",
-			"mode":      4,
-			"word":      "password2",
+		{
+			"broadcast_ssid":  true,
+			"radio_index":     10000,
+			"ssid_enabled":    true,
+			"ssid_index":      10001,
+			"ssid_name":       "ssid_2g",
+			"wifi_security":   4,
+			"wifi_passphrase": "password2",
 		},
-		Dict{
-			"broadcast": true,
-			"rindex":    10100,
-			"enabled":   true,
-			"sindex":    10101,
-			"name":      "ssid_5g",
-			"mode":      4,
-			"word":      "password5",
+		{
+			"broadcast_ssid":  true,
+			"radio_index":     10100,
+			"ssid_enabled":    true,
+			"ssid_index":      10101,
+			"ssid_name":       "ssid_5g",
+			"wifi_security":   4,
+			"wifi_passphrase": "password5",
 		},
 	}
-	t.Logf(PrettyJson(b))
+	_ = PrettyJson(b)
+
+	d := Dict{}
+	err := json.Unmarshal([]byte(line), &d)
+	assert.NilError(t, err)
+	assert.Equal(t, len(d), 3)
+	assert.Equal(t, d.GetString("xxx"), "")
+}
+
+func TestDictDefaults(t *testing.T) {
+	// ==== bool ====
+	d1 := Dict{
+		"red": true,
+	}
+
+	b1 := d1.GetBool("red")
+	assert.Equal(t, b1, true)
+	b1 = d1.GetBool("red", false)
+	assert.Equal(t, b1, true)
+
+	b1 = d1.GetBool("orange")
+	assert.Equal(t, b1, false)
+	b1 = d1.GetBool("orange", false)
+	assert.Equal(t, b1, false)
+	b1 = d1.GetBool("orange", true)
+	assert.Equal(t, b1, true)
+
+	// ==== int ====
+	d2 := Dict{
+		"red": 123,
+	}
+
+	i2 := d2.GetInt("red")
+	assert.Equal(t, i2, 123)
+	i2 = d2.GetInt("red", 456)
+	assert.Equal(t, i2, 123)
+
+	i2 = d2.GetInt("orange")
+	assert.Equal(t, i2, 0)
+	i2 = d2.GetInt("orange", 78)
+	assert.Equal(t, i2, 78)
+
+	// ==== string ====
+	d3 := Dict{
+		"red": "foo",
+	}
+
+	s3 := d3.GetString("red")
+	assert.Equal(t, s3, "foo")
+	s3 = d3.GetString("red", "bar")
+	assert.Equal(t, s3, "foo")
+
+	s3 = d3.GetString("orange")
+	assert.Equal(t, s3, "")
+	s3 = d3.GetString("orange", "bar")
+	assert.Equal(t, s3, "bar")
+
+	// ==== string ====
+	d4 := Dict{
+		"red":    "foo",
+		"orange": "",
+	}
+	s4 := d4.GetString("orange", "orange")
+	assert.Equal(t, s4, "")
+
+	s4 = d4.GetNonEmptyString("orange", "orange")
+	assert.Equal(t, s4, "orange")
+}
+
+func TestHeaderToMap(t *testing.T) {
+	header := make(http.Header)
+	header.Add("Red", "maroon")
+	header.Add("Orange", "auburn")
+	header.Add("Yellow", "amber")
+
+	expected := map[string]string{
+		"Red":    "maroon",
+		"Orange": "auburn",
+		"Yellow": "amber",
+	}
+
+	m := HeaderToMap(header)
+	assert.DeepEqual(t, m, expected)
 }

@@ -15,19 +15,20 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package db
+package sqlite
 
 import (
 	"database/sql"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, error) {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	rows, err := c.Query(`SELECT version,bitmap FROM root_document WHERE cpe_mac=?`, cpeMac)
+	rows, err := c.Query("SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version FROM root_document WHERE cpe_mac=?", cpeMac)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -36,31 +37,44 @@ func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, err
 		return nil, sql.ErrNoRows
 	}
 
-	var ns sql.NullString
 	var ni sql.NullInt64
-	err = rows.Scan(&ns, &ni)
+	var ns1, ns2, ns3, ns4, ns5 sql.NullString
+	err = rows.Scan(&ni, &ns1, &ns2, &ns3, &ns4, &ns5)
 	defer rows.Close()
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
-	var version string
 	var bitmap int
-	if ns.Valid {
-		version = ns.String
-	}
 	if ni.Valid {
 		bitmap = int(ni.Int64)
 	}
 
-	return common.NewRootDocument(version, bitmap), nil
+	var firmware_version, model_name, partner_id, schema_version, version string
+	if ns1.Valid {
+		firmware_version = ns1.String
+	}
+	if ns2.Valid {
+		model_name = ns2.String
+	}
+	if ns3.Valid {
+		partner_id = ns3.String
+	}
+	if ns4.Valid {
+		schema_version = ns4.String
+	}
+	if ns5.Valid {
+		version = ns5.String
+	}
+
+	return common.NewRootDocument(bitmap, firmware_version, model_name, partner_id, schema_version, version, ""), nil
 }
 
-func (c *SqliteClient) insertRootDocumentVersion(cpeMac string, version string) error {
+func (c *SqliteClient) insertRootDocumentVersion(cpeMac, version string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`INSERT INTO root_document(cpe_mac,version) VALUES(?,?)`)
+	stmt, err := c.Prepare("INSERT INTO root_document(cpe_mac,version) VALUES(?,?)")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -72,11 +86,11 @@ func (c *SqliteClient) insertRootDocumentVersion(cpeMac string, version string) 
 	return nil
 }
 
-func (c *SqliteClient) updateRootDocumentVersion(cpeMac string, version string) error {
+func (c *SqliteClient) updateRootDocumentVersion(cpeMac, version string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`UPDATE root_document SET version=? WHERE cpe_mac=?`)
+	stmt, err := c.Prepare("UPDATE root_document SET version=? WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -88,7 +102,7 @@ func (c *SqliteClient) updateRootDocumentVersion(cpeMac string, version string) 
 	return nil
 }
 
-func (c *SqliteClient) SetRootDocumentVersion(cpeMac string, version string) error {
+func (c *SqliteClient) SetRootDocumentVersion(cpeMac, version string) error {
 	_, err := c.GetRootDocument(cpeMac)
 	if err != nil {
 		if c.IsDbNotFound(err) {
@@ -105,7 +119,7 @@ func (c *SqliteClient) insertRootDocumentBitmap(cpeMac string, bitmap int) error
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`INSERT INTO root_document(cpe_mac,bitmap) VALUES(?,?)`)
+	stmt, err := c.Prepare("INSERT INTO root_document(cpe_mac,bitmap) VALUES(?,?)")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -121,7 +135,7 @@ func (c *SqliteClient) updateRootDocumentBitmap(cpeMac string, bitmap int) error
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`UPDATE root_document SET bitmap=? WHERE cpe_mac=?`)
+	stmt, err := c.Prepare("UPDATE root_document SET bitmap=? WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -150,7 +164,7 @@ func (c *SqliteClient) DeleteRootDocument(cpeMac string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare(`DELETE FROM root_document WHERE cpe_mac=?`)
+	stmt, err := c.Prepare("DELETE FROM root_document WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -176,7 +190,7 @@ func (c *SqliteClient) DeleteRootDocumentVersion(cpeMac string) error {
 		}
 	}
 
-	stmt, err := c.Prepare(`UPDATE root_document SET version=null WHERE cpe_mac=?`)
+	stmt, err := c.Prepare("UPDATE root_document SET version=null WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -186,4 +200,68 @@ func (c *SqliteClient) DeleteRootDocumentVersion(cpeMac string) error {
 		return common.NewError(err)
 	}
 	return nil
+}
+
+func (c *SqliteClient) insertRootDocument(cpeMac string, rd *common.RootDocument) error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	stmt, err := c.Prepare("INSERT INTO root_document(cpe_mac,bitmap,firmware_version,model_name,partner_id,schema_version,version) VALUES(?,?,?,?,?,?,?)")
+	if err != nil {
+		return common.NewError(err)
+	}
+
+	_, err = stmt.Exec(cpeMac, rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version)
+	if err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+func (c *SqliteClient) updateRootDocument(cpeMac string, rd *common.RootDocument) error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	stmt, err := c.Prepare("UPDATE root_document SET bitmap=?,firmware_version=?,model_name=?,partner_id=?,schema_version=?,version=?  WHERE cpe_mac=?")
+	if err != nil {
+		return common.NewError(err)
+	}
+	_, err = stmt.Exec(rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version, cpeMac)
+	if err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+// simple implementation, could optimize if needed
+func (c *SqliteClient) SetRootDocument(cpeMac string, inRootdoc *common.RootDocument) error {
+	rootdoc, err := c.GetRootDocument(cpeMac)
+	if err != nil {
+		if !c.IsDbNotFound(err) {
+			return common.NewError(err)
+		}
+		// db not found, create a new record
+		if err = c.insertRootDocument(cpeMac, inRootdoc); err != nil {
+			return common.NewError(err)
+		}
+		return nil
+	}
+	rootdoc.Update(inRootdoc)
+
+	if err := c.updateRootDocument(cpeMac, rootdoc); err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+func (c *SqliteClient) GetRootDocumentLabels(cpeMac string) (prometheus.Labels, error) {
+	rdoc, err := c.GetRootDocument(cpeMac)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	labels := prometheus.Labels{
+		"model":     rdoc.ModelName,
+		"fwversion": rdoc.FirmwareVersion,
+	}
+	return labels, nil
 }

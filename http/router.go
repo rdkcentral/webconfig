@@ -21,26 +21,28 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (s *WebconfigServer) GetBaseRouter(testOnly bool) *mux.Router {
-	// setup router
-	router := mux.NewRouter()
+func (s *WebconfigServer) AddBaseRoutes(testOnly bool, router *mux.Router) {
 	r0 := router.Path("/monitor").Subrouter()
 	r0.HandleFunc("", s.MonitorHandler).Methods("HEAD", "GET")
 
 	r1 := router.Path("/healthz").Subrouter()
 	r1.HandleFunc("", s.MonitorHandler).Methods("HEAD", "GET")
 
-	r2 := router.Path("/api/v1/version").Subrouter()
+	r2 := router.Path("/version").Subrouter()
 	r2.HandleFunc("", s.VersionHandler).Methods("GET")
 
-	r3 := router.Path("/api/v1/config").Subrouter()
+	r3 := router.Path("/config").Subrouter()
 	r3.HandleFunc("", s.ServerConfigHandler).Methods("GET")
 
 	if s.TokenApiEnabled() {
-		s1 := router.Path("/api/v1/token").Subrouter()
-		s1.Use(s.NoAuthMiddleware)
-		s1.HandleFunc("", s.CreateTokenHandler).Methods("POST")
+		r4 := router.Path("/api/v1/token").Subrouter()
+		r4.Use(s.NoAuthMiddleware)
+		r4.HandleFunc("", s.CreateTokenHandler).Methods("POST")
 	}
+
+	// TODO remove this debug handler
+	r5 := router.Path("/notif").Subrouter()
+	r5.HandleFunc("", s.NotificationHandler).Methods("GET")
 
 	// msgpack multipart
 	sub2 := router.Path("/api/v1/device/{mac}/config").Subrouter()
@@ -55,8 +57,8 @@ func (s *WebconfigServer) GetBaseRouter(testOnly bool) *mux.Router {
 	}
 	sub2.HandleFunc("", s.MultipartConfigHandler).Methods("GET")
 
-	// new poke for root group
-	sub3 := router.Path("/api/v1/device/{mac}/poke").Subrouter()
+	// provide read capability to check the local fw cache
+	sub3 := router.Path("/api/v1/device/{mac}/supported_groups").Subrouter()
 	if testOnly {
 		sub3.Use(s.TestingMiddleware)
 	} else {
@@ -66,28 +68,15 @@ func (s *WebconfigServer) GetBaseRouter(testOnly bool) *mux.Router {
 			sub3.Use(s.NoAuthMiddleware)
 		}
 	}
-	sub3.HandleFunc("", s.PokeHandler).Methods("POST")
-
-	// provide read capability to check the local fw cache
-	sub4 := router.Path("/api/v1/device/{mac}/supported_groups").Subrouter()
-	if testOnly {
-		sub4.Use(s.TestingMiddleware)
-	} else {
-		if s.ServerApiTokenAuthEnabled() {
-			sub4.Use(s.ApiMiddleware)
-		} else {
-			sub4.Use(s.NoAuthMiddleware)
-		}
-	}
-	sub4.HandleFunc("", s.GetSupportedGroupsHandler).Methods("GET")
-
-	return router
+	sub3.HandleFunc("", s.GetSupportedGroupsHandler).Methods("GET")
 }
 
 func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
-	router := s.GetBaseRouter(testOnly)
+	router := mux.NewRouter()
+	s.AddBaseRoutes(testOnly, router)
 
-	sub1 := router.Path("/api/v1/device/{mac}/document").Subrouter()
+	// route handlers here could be overridden
+	sub1 := router.Path("/api/v1/device/{mac}/document/{subdoc_id}").Subrouter()
 	if testOnly {
 		sub1.Use(s.TestingMiddleware)
 	} else {
@@ -97,9 +86,46 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 			sub1.Use(s.NoAuthMiddleware)
 		}
 	}
-	sub1.HandleFunc("", s.GetDocumentHandler).Methods("GET")
-	sub1.HandleFunc("", s.PostDocumentHandler).Methods("POST")
-	sub1.HandleFunc("", s.DeleteDocumentHandler).Methods("DELETE")
+	sub1.HandleFunc("", s.GetSubDocumentHandler).Methods("GET")
+	sub1.HandleFunc("", s.PostSubDocumentHandler).Methods("POST")
+	sub1.HandleFunc("", s.DeleteSubDocumentHandler).Methods("DELETE")
+
+	sub2 := router.Path("/api/v1/device/{mac}/poke").Subrouter()
+	if testOnly {
+		sub2.Use(s.TestingMiddleware)
+	} else {
+		if s.ServerApiTokenAuthEnabled() {
+			sub2.Use(s.ApiMiddleware)
+		} else {
+			sub2.Use(s.NoAuthMiddleware)
+		}
+	}
+	sub2.HandleFunc("", s.PokeHandler).Methods("POST")
+
+	sub3 := router.Path("/api/v1/device/{mac}/rootdocument").Subrouter()
+	if testOnly {
+		sub3.Use(s.TestingMiddleware)
+	} else {
+		if s.ServerApiTokenAuthEnabled() {
+			sub3.Use(s.ApiMiddleware)
+		} else {
+			sub3.Use(s.NoAuthMiddleware)
+		}
+	}
+	sub3.HandleFunc("", s.GetRootDocumentHandler).Methods("GET")
+	sub3.HandleFunc("", s.PostRootDocumentHandler).Methods("POST")
+
+	sub4 := router.Path("/api/v1/device/{mac}/document").Subrouter()
+	if testOnly {
+		sub4.Use(s.TestingMiddleware)
+	} else {
+		if s.ServerApiTokenAuthEnabled() {
+			sub4.Use(s.ApiMiddleware)
+		} else {
+			sub4.Use(s.NoAuthMiddleware)
+		}
+	}
+	sub4.HandleFunc("", s.DeleteDocumentHandler).Methods("DELETE")
 
 	return router
 }

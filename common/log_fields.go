@@ -15,40 +15,41 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package db
+package common
 
 import (
-	"bytes"
-	"fmt"
+	log "github.com/sirupsen/logrus"
 )
 
-func GetValuesStr(length int) string {
-	buffer := bytes.NewBufferString("?")
-	for i := 0; i < length-1; i++ {
-		buffer.WriteString(",?")
+var (
+	unloggedFields = []string{
+		"moneytrace",
+		"token",
+		"out_traceparent",
+		"out_tracestate",
 	}
-	return buffer.String()
+)
+
+func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
+	fields := log.Fields{}
+	for k, v := range src {
+		fields[k] = v
+	}
+
+	for _, x := range unloggedFields {
+		delete(fields, x)
+	}
+
+	if len(excludes) > 0 {
+		for _, x := range excludes {
+			delete(fields, x)
+		}
+	}
+	return fields
 }
 
-func GetColumnsStr(columns []string) string {
-	buffer := bytes.NewBuffer([]byte{})
-	for i, v := range columns {
-		if i > 0 {
-			buffer.WriteString(",")
-		}
-		buffer.WriteString(v)
+func UpdateLogFields(fields, newfields log.Fields) {
+	for k, v := range newfields {
+		fields[k] = v
 	}
-	return buffer.String()
-}
-
-func GetSetColumnsStr(columns []string) string {
-	buffer := bytes.NewBuffer([]byte{})
-	for i, c := range columns {
-		if i > 0 {
-			buffer.WriteString(",")
-		}
-		s := fmt.Sprintf("%v=?", c)
-		buffer.WriteString(s)
-	}
-	return buffer.String()
 }

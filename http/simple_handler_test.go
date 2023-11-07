@@ -22,30 +22,29 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
 func TestSimpleHandler(t *testing.T) {
-	server := NewWebconfigServer(sc, true, nil)
+	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 
 	// ==== test version api ====
-	req, err := http.NewRequest("GET", "/api/v1/version", nil)
+	req, err := http.NewRequest("GET", "/version", nil)
+	req.Header.Set(common.HeaderMetricsAgent, "smoketest")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, 200)
-
 	rbytes, err := ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	t.Log(string(rbytes))
 
 	// ==== test monitor api ====
 	req, err = http.NewRequest("GET", "/monitor", nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, 200)
-
 	rbytes, err = ioutil.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
@@ -61,20 +60,19 @@ func TestSimpleHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, len(rbytes), 0)
+}
 
-	// ==== test server config api ====
-	req, err = http.NewRequest("GET", "/api/v1/config", nil)
+func TestNotifHandler(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	// ==== test version api ====
+	req, err := http.NewRequest("GET", "/notif", nil)
 	assert.NilError(t, err)
-	res = ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, 200)
-
-	rbytes, err = ioutil.ReadAll(res.Body)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := ioutil.ReadAll(res.Body)
+	_ = rbytes
 	assert.NilError(t, err)
 	res.Body.Close()
-	t.Log(string(rbytes))
-
-	// get the expected config file
-	configBytes, err := ioutil.ReadFile(testConfigFile)
-	assert.NilError(t, err)
-	assert.DeepEqual(t, rbytes, configBytes)
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
 }
