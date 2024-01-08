@@ -1,12 +1,12 @@
 module github.com/rdkcentral/webconfig
 
-go 1.19
+go 1.21
 
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/go-akka/configuration v0.0.0-20200606091224-a002c0330665
-	github.com/gocql/gocql v1.2.1
+	github.com/gocql/gocql v1.6.0
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
