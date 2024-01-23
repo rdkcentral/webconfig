@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -51,7 +51,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -61,7 +61,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -76,7 +76,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -85,7 +85,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -110,7 +110,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -120,7 +120,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -140,7 +140,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -149,7 +149,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
@@ -167,7 +167,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req, err = http.NewRequest("DELETE", url, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -176,7 +176,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -185,7 +185,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -217,7 +217,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	_ = rbytes
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -229,7 +229,7 @@ func TestPostWithDeviceId(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
-		rbytes, err = ioutil.ReadAll(res.Body)
+		rbytes, err = io.ReadAll(res.Body)
 		assert.NilError(t, err)
 		assert.Equal(t, res.StatusCode, http.StatusOK)
 		assert.DeepEqual(t, rbytes, lanBytes)
@@ -249,7 +249,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -260,7 +260,7 @@ func TestPostWithDeviceId(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
-		rbytes, err = ioutil.ReadAll(res.Body)
+		rbytes, err = io.ReadAll(res.Body)
 		assert.NilError(t, err)
 		assert.Equal(t, res.StatusCode, http.StatusOK)
 		assert.DeepEqual(t, rbytes, wanBytes)
@@ -292,7 +292,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -304,7 +304,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
 	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
 
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, gwrestoreBytes)
@@ -333,7 +333,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -348,7 +348,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	resHeaderExpiry := res.Header.Get(common.HeaderSubdocumentExpiry)
 	assert.Equal(t, reqHeaderExpiry, resHeaderExpiry)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, remotedebuggerBytes)
@@ -367,7 +367,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -377,7 +377,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -392,7 +392,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -426,7 +426,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	ifnonematch := strings.Join(subdocVersions, ",")
 	req.Header.Set(common.HeaderIfNoneMatch, ifnonematch)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusNotModified)
@@ -452,7 +452,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -464,7 +464,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
 	assert.Equal(t, reqHeaderVersion, resHeaderVersion)
 
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, gwrestoreBytes)
@@ -493,7 +493,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -508,7 +508,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	resHeaderExpiry := res.Header.Get(common.HeaderSubdocumentExpiry)
 	assert.Equal(t, reqHeaderExpiry, resHeaderExpiry)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, remotedebuggerBytes)
@@ -527,7 +527,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -537,7 +537,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -552,7 +552,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -580,7 +580,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	ifnonematch := strings.Join(subdocVersions, ",")
 	req.Header.Set(common.HeaderIfNoneMatch, ifnonematch)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusNotModified)
@@ -609,7 +609,7 @@ func TestBadHeaderExpiryHandler(t *testing.T) {
 
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }

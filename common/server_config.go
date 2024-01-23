@@ -19,7 +19,6 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/go-akka/configuration"
@@ -40,7 +39,7 @@ type ServerConfig struct {
 }
 
 func NewServerConfig(configFile string) (*ServerConfig, error) {
-	configBytes, err := ioutil.ReadFile(configFile)
+	configBytes, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, NewError(err)
 	}

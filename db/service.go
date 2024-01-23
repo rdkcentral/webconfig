@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -247,8 +248,13 @@ func HashRootVersion(itf interface{}) string {
 
 	// if len(mparts) == 0, then the murmur hash value is 0
 	buffer := bytes.NewBufferString("")
-	for _, version := range versionMap {
-		buffer.WriteString(version)
+	keys := []string{}
+	for k := range versionMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		buffer.WriteString(versionMap[k])
 	}
 	return util.GetMurmur3Hash(buffer.Bytes())
 }
@@ -386,7 +392,7 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	return nil
 }
 
-func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, fields log.Fields) error {
+func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, toDelete bool, fields log.Fields) error {
 	newRootVersion := upstreamRespEtag
 	if d.RootVersion() != newRootVersion {
 		err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
@@ -395,12 +401,27 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 		}
 	}
 
+	oldMap := map[string]struct{}{}
+	for k := range d.Items() {
+		oldMap[k] = struct{}{}
+	}
+
 	// need to set "state" to proper values like the download is complete
 	for subdocId, newSubdoc := range newDoc.Items() {
 		oldSubdoc := d.SubDocument(subdocId)
 		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, fields)
 		if err != nil {
 			return common.NewError(err)
+		}
+		delete(oldMap, subdocId)
+	}
+
+	if toDelete {
+		for subdocId := range oldMap {
+			err := c.DeleteSubDocument(cpeMac, subdocId)
+			if err != nil {
+				return common.NewError(err)
+			}
 		}
 	}
 	return nil
@@ -449,4 +470,13 @@ func RebuildDeviceVersionMap(versions []string, cloudVersionMap map[string]strin
 		}
 	}
 	return m
+}
+
+func RefreshRootDocumentVersion(doc *common.Document) {
+	versionMap := doc.VersionMap()
+	rootVersion := HashRootVersion(versionMap)
+	rootDoc := doc.GetRootDocument()
+	if rootDoc != nil {
+		rootDoc.Version = rootVersion
+	}
 }

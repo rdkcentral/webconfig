@@ -105,6 +105,7 @@ const (
 	HeaderSourceAppName              = "X-Source-App-Name"
 	HeaderTraceparent                = "Traceparent"
 	HeaderTracestate                 = "Tracestate"
+	HeaderContentLength              = "Content-Length"
 )
 
 // header X-System-Supported-Docs

@@ -22,14 +22,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
-	owcommon "github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/db/sqlite"
@@ -301,7 +300,7 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
-				if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
+				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
 			}
@@ -625,7 +624,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 
 	// extract traceparent from the header
-	traceparent := r.Header.Get(owcommon.HeaderTraceparent)
+	traceparent := r.Header.Get(common.HeaderTraceparent)
 	if len(traceparent) == 55 {
 		traceId = traceparent[3:35]
 		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
@@ -698,7 +697,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
-			bbytes, err := ioutil.ReadAll(r.Body)
+			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")

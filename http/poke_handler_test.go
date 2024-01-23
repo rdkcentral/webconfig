@@ -20,7 +20,7 @@ package http
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -62,7 +62,7 @@ func TestPokeHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusNoContent)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -89,7 +89,7 @@ func TestPokeHandlerWithCpe(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 }
@@ -121,7 +121,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -130,7 +130,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -153,7 +153,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -162,7 +162,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
@@ -189,7 +189,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req, err = http.NewRequest("POST", mqttUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusAccepted)
 
@@ -198,7 +198,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -210,7 +210,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -229,7 +229,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -238,7 +238,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes2)
@@ -255,7 +255,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req, err = http.NewRequest("POST", mqttUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusAccepted)
 
@@ -264,7 +264,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -301,7 +301,7 @@ func TestPokeHandlerInvalidMac(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 }

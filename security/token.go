@@ -22,7 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -110,7 +110,7 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 }
 
 func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
-	kbytes, err := ioutil.ReadFile(keyfile)
+	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -122,7 +122,7 @@ func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
 }
 
 func loadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
-	kbytes, err := ioutil.ReadFile(keyfile)
+	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
