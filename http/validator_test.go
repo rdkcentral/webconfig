@@ -22,7 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -49,7 +49,7 @@ func TestValidatorDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -58,7 +58,7 @@ func TestValidatorDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -75,7 +75,7 @@ func TestValidatorDisabled(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -89,7 +89,7 @@ func TestValidatorDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -98,7 +98,7 @@ func TestValidatorDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -113,7 +113,7 @@ func TestValidatorDisabled(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -142,7 +142,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 
@@ -152,7 +152,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -162,7 +162,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 
@@ -172,7 +172,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -188,7 +188,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req, err = http.NewRequest("GET", rootdocUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 
@@ -199,7 +199,7 @@ func TestValidatorEnabled(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -214,7 +214,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 
@@ -224,7 +224,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -233,7 +233,7 @@ func TestValidatorEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
@@ -248,7 +248,7 @@ func TestValidatorEnabled(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -275,7 +275,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -284,7 +284,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -304,7 +304,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
@@ -313,7 +313,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	req.Header.Set("Content-Type", "application/msgpack")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
@@ -331,7 +331,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
