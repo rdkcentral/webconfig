@@ -299,6 +299,9 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	document, err := c.GetDocument(mac, fields)
 	if err != nil {
+		if s.IsDbNotFound(err) {
+			return http.StatusNotFound, respHeader, nil, nil
+		}
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 	rootDocument, err := c.GetRootDocument(mac)

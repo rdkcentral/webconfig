@@ -33,6 +33,25 @@ import (
 	"gotest.tools/assert"
 )
 
+func TestFactoryResetWithoutData(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	server.SetUpstreamEnabled(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== no data ====
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err := http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, "NONE")
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+}
+
 func TestFactoryResetWithoutUpstream(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
