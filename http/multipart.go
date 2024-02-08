@@ -389,9 +389,8 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 	}
 
-	// 304
 	if finalDocument.Length() == 0 {
-		return http.StatusNotModified, upstreamRespHeader, nil, nil
+		return http.StatusOK, upstreamRespHeader, nil, nil
 	}
 
 	finalBytes, err := finalDocument.Bytes()
