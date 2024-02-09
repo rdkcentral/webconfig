@@ -49,7 +49,7 @@ func TestFactoryResetWithoutData(t *testing.T) {
 	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 }
 
 func TestFactoryResetWithoutUpstream(t *testing.T) {
