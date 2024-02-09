@@ -480,3 +480,42 @@ func RefreshRootDocumentVersion(doc *common.Document) {
 		rootDoc.Version = rootVersion
 	}
 }
+
+func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerId string, fields log.Fields) (*common.RootDocument, error) {
+	fieldsDict := make(util.Dict)
+	fieldsDict.Update(fields)
+
+	// ==== deviceRootDocument should always be created from request header ====
+	var bitmap int
+	var err error
+	supportedDocs := rHeader.Get(common.HeaderSupportedDocs)
+	if len(supportedDocs) > 0 {
+		bitmap, err = util.GetCpeBitmap(supportedDocs)
+		if err != nil {
+			log.WithFields(fields).Warn(common.NewError(err))
+		}
+	}
+
+	schemaVersion := strings.ToLower(rHeader.Get(common.HeaderSchemaVersion))
+	modelName := rHeader.Get(common.HeaderModelName)
+	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
+
+	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
+
+	// ==== read the cloudRootDocument from db ====
+	cloudRootDocument, err := c.GetRootDocument(mac)
+	if err != nil {
+		if !c.IsDbNotFound(err) {
+			return cloudRootDocument, common.NewError(err)
+		}
+		cloudRootDocument = deviceRootDocument.Clone()
+	} else {
+		cloudRootDocument.Update(deviceRootDocument)
+	}
+
+	if err := c.SetRootDocument(mac, cloudRootDocument); err != nil {
+		return cloudRootDocument, common.NewError(err)
+	}
+	return cloudRootDocument, nil
+}

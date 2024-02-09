@@ -297,6 +297,18 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
+	fieldsDict := make(util.Dict)
+	fieldsDict.Update(fields)
+	partnerId := rHeader.Get(common.HeaderPartnerID)
+	if len(partnerId) == 0 {
+		partnerId = fieldsDict.GetString("partner")
+	}
+
+	rootDocument, err := db.PreprocessRootDocument(c, rHeader, mac, partnerId, fields)
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+
 	document, err := c.GetDocument(mac, fields)
 	if err != nil {
 		if s.IsDbNotFound(err) {
@@ -305,10 +317,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		}
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
-	rootDocument, err := c.GetRootDocument(mac)
-	if err != nil {
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
-	}
+
 	document.SetRootDocument(rootDocument)
 	oldDocBytes, err := document.Bytes()
 	if err != nil {
@@ -321,12 +330,6 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 		return http.StatusNotFound, respHeader, nil, nil
-	}
-
-	// handle partner
-	partnerId := rHeader.Get(common.HeaderPartnerID)
-	if len(partnerId) == 0 && rootDocument != nil {
-		partnerId = rootDocument.PartnerId
 	}
 
 	// =============================

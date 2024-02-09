@@ -41,15 +41,31 @@ func TestFactoryResetWithoutData(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// ==== no data ====
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+
 	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
 	req, err := http.NewRequest("GET", deviceConfigUrl, nil)
 	assert.NilError(t, err)
 	req.Header.Set(common.HeaderIfNoneMatch, "NONE")
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	rootDocument, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+
+	assert.Equal(t, rootDocument.Bitmap, 32479)
 }
 
 func TestFactoryResetWithoutUpstream(t *testing.T) {
