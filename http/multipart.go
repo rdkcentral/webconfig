@@ -312,8 +312,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	document, err := c.GetDocument(mac, fields)
 	if err != nil {
 		if s.IsDbNotFound(err) {
-			// return http.StatusNotFound, respHeader, nil, nil
-			return http.StatusOK, respHeader, nil, nil
+			return http.StatusNotFound, respHeader, nil, nil
 		}
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
@@ -394,7 +393,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	}
 
 	if finalDocument.Length() == 0 {
-		return http.StatusOK, upstreamRespHeader, nil, nil
+		return http.StatusNotFound, upstreamRespHeader, nil, nil
 	}
 
 	finalBytes, err := finalDocument.Bytes()
