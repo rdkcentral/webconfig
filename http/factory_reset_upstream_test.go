@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -39,6 +40,25 @@ func TestFactoryResetWithoutData(t *testing.T) {
 	server.SetUpstreamEnabled(true)
 
 	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== setup upstream mock server ====
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// build the response
+			for k := range r.Header {
+				if k == common.HeaderContentLength {
+					continue
+				}
+				w.Header().Set(k, r.Header.Get(k))
+			}
+			w.WriteHeader(http.StatusNotFound)
+			w.Write(nil)
+		}))
+
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
 
 	// ==== no data ====
 	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
@@ -64,7 +84,6 @@ func TestFactoryResetWithoutData(t *testing.T) {
 
 	rootDocument, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-
 	assert.Equal(t, rootDocument.Bitmap, 32479)
 }
 
@@ -304,4 +323,68 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 	doc, err := server.GetDocument(cpeMac, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, doc.Length(), 1)
+}
+
+func TestFactoryResetUpstreamAddData(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	server.SetUpstreamEnabled(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== setup upstream mock server ====
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for k := range r.Header {
+				if k == common.HeaderContentLength {
+					continue
+				}
+				w.Header().Set(k, r.Header.Get(k))
+			}
+
+			// add a subdoc from upsream
+			mparts := []common.Multipart{
+				{
+					Bytes:   util.RandomBytes(100, 150),
+					Version: strconv.Itoa(int(time.Now().Unix())),
+					Name:    "network",
+					State:   common.PendingDownload,
+				},
+			}
+			respBytes, err := common.WriteMultipartBytes(mparts)
+			assert.NilError(t, err)
+			w.WriteHeader(http.StatusOK)
+			w.Write(respBytes)
+		}))
+
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
+
+	// ==== no data ====
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err := http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, "NONE")
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	rootDocument, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, rootDocument.Bitmap, 32479)
 }

@@ -311,13 +311,16 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	document, err := c.GetDocument(mac, fields)
 	if err != nil {
-		if s.IsDbNotFound(err) {
-			return http.StatusNotFound, respHeader, nil, nil
+		if !s.IsDbNotFound(err) {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+	if document == nil {
+		document = common.NewDocument(rootDocument)
+	} else {
+		document.SetRootDocument(rootDocument)
 	}
 
-	document.SetRootDocument(rootDocument)
 	oldDocBytes, err := document.Bytes()
 	if err != nil {
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
