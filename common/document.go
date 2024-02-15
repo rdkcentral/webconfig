@@ -148,6 +148,10 @@ func (d *Document) FilterForGet(versionMap map[string]string) *Document {
 }
 
 func (d *Document) Bytes() ([]byte, error) {
+	if len(d.docmap) == 0 {
+		return nil, nil
+	}
+
 	// build the http stream
 	mparts := []Multipart{}
 	for subdocId, subdoc := range d.docmap {
