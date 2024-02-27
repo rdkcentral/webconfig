@@ -369,7 +369,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	return nil
 }
 
-func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, fields log.Fields) error {
+func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, versionMap map[string]string, fields log.Fields) error {
 	var oldState int
 	if oldSubdoc != nil && oldSubdoc.State() != nil {
 		oldState = *oldSubdoc.State()
@@ -384,6 +384,14 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	newSubdoc.SetUpdatedTime(&updatedTime)
 	newState := common.InDeployment
+	if oldVersion, ok := versionMap[subdocId]; ok {
+		if newSubdoc.Version() != nil {
+			if oldVersion == *newSubdoc.Version() {
+				newState = common.Deployed
+			}
+		}
+	}
+
 	newSubdoc.SetState(&newState)
 	err = c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 	if err != nil {
@@ -392,7 +400,7 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	return nil
 }
 
-func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, toDelete bool, fields log.Fields) error {
+func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, toDelete bool, versionMap map[string]string, fields log.Fields) error {
 	newRootVersion := upstreamRespEtag
 	if d.RootVersion() != newRootVersion {
 		err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
@@ -409,7 +417,7 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 	// need to set "state" to proper values like the download is complete
 	for subdocId, newSubdoc := range newDoc.Items() {
 		oldSubdoc := d.SubDocument(subdocId)
-		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, fields)
+		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, versionMap, fields)
 		if err != nil {
 			return common.NewError(err)
 		}

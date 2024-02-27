@@ -267,15 +267,16 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
+
+	// update states based on the final document
+	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, false, deviceVersionMap, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
+	}
+
 	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)
 	for _, subdocId := range c.BlockedSubdocIds() {
 		finalFilteredDocument.DeleteSubDocument(subdocId)
-	}
-
-	// update states based on the final document
-	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalFilteredDocument, document, false, fields)
-	if err != nil {
-		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 	}
 
 	// 304
@@ -390,7 +391,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	}
 
 	// update states based on the final document
-	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, true, fields)
+	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, true, nil, fields)
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 	}
