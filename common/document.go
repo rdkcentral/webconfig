@@ -105,6 +105,9 @@ func (d *Document) GetRootDocument() *RootDocument {
 }
 
 func (d *Document) RootVersion() string {
+	if d.rootDocument == nil {
+		return ""
+	}
 	return d.rootDocument.Version
 }
 
