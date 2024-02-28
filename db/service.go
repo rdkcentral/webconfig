@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -247,8 +248,13 @@ func HashRootVersion(itf interface{}) string {
 
 	// if len(mparts) == 0, then the murmur hash value is 0
 	buffer := bytes.NewBufferString("")
-	for _, version := range versionMap {
-		buffer.WriteString(version)
+	keys := []string{}
+	for k := range versionMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		buffer.WriteString(versionMap[k])
 	}
 	return util.GetMurmur3Hash(buffer.Bytes())
 }
@@ -363,7 +369,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	return nil
 }
 
-func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, fields log.Fields) error {
+func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, versionMap map[string]string, fields log.Fields) error {
 	var oldState int
 	if oldSubdoc != nil && oldSubdoc.State() != nil {
 		oldState = *oldSubdoc.State()
@@ -378,6 +384,14 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	updatedTime := int(time.Now().UnixNano() / 1000000)
 	newSubdoc.SetUpdatedTime(&updatedTime)
 	newState := common.InDeployment
+	if oldVersion, ok := versionMap[subdocId]; ok {
+		if newSubdoc.Version() != nil {
+			if oldVersion == *newSubdoc.Version() {
+				newState = common.Deployed
+			}
+		}
+	}
+
 	newSubdoc.SetState(&newState)
 	err = c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 	if err != nil {
@@ -386,7 +400,7 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	return nil
 }
 
-func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, fields log.Fields) error {
+func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string, newDoc *common.Document, d *common.Document, toDelete bool, versionMap map[string]string, fields log.Fields) error {
 	newRootVersion := upstreamRespEtag
 	if d.RootVersion() != newRootVersion {
 		err := c.SetRootDocumentVersion(cpeMac, newRootVersion)
@@ -395,12 +409,27 @@ func WriteDocumentFromUpstream(c DatabaseClient, cpeMac, upstreamRespEtag string
 		}
 	}
 
+	oldMap := map[string]struct{}{}
+	for k := range d.Items() {
+		oldMap[k] = struct{}{}
+	}
+
 	// need to set "state" to proper values like the download is complete
 	for subdocId, newSubdoc := range newDoc.Items() {
 		oldSubdoc := d.SubDocument(subdocId)
-		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, fields)
+		err := UpdateSubDocument(c, cpeMac, subdocId, &newSubdoc, oldSubdoc, versionMap, fields)
 		if err != nil {
 			return common.NewError(err)
+		}
+		delete(oldMap, subdocId)
+	}
+
+	if toDelete {
+		for subdocId := range oldMap {
+			err := c.DeleteSubDocument(cpeMac, subdocId)
+			if err != nil {
+				return common.NewError(err)
+			}
 		}
 	}
 	return nil
@@ -449,4 +478,52 @@ func RebuildDeviceVersionMap(versions []string, cloudVersionMap map[string]strin
 		}
 	}
 	return m
+}
+
+func RefreshRootDocumentVersion(doc *common.Document) {
+	versionMap := doc.VersionMap()
+	rootVersion := HashRootVersion(versionMap)
+	rootDoc := doc.GetRootDocument()
+	if rootDoc != nil {
+		rootDoc.Version = rootVersion
+	}
+}
+
+func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerId string, fields log.Fields) (*common.RootDocument, error) {
+	fieldsDict := make(util.Dict)
+	fieldsDict.Update(fields)
+
+	// ==== deviceRootDocument should always be created from request header ====
+	var bitmap int
+	var err error
+	supportedDocs := rHeader.Get(common.HeaderSupportedDocs)
+	if len(supportedDocs) > 0 {
+		bitmap, err = util.GetCpeBitmap(supportedDocs)
+		if err != nil {
+			log.WithFields(fields).Warn(common.NewError(err))
+		}
+	}
+
+	schemaVersion := strings.ToLower(rHeader.Get(common.HeaderSchemaVersion))
+	modelName := rHeader.Get(common.HeaderModelName)
+	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
+
+	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
+
+	// ==== read the cloudRootDocument from db ====
+	cloudRootDocument, err := c.GetRootDocument(mac)
+	if err != nil {
+		if !c.IsDbNotFound(err) {
+			return cloudRootDocument, common.NewError(err)
+		}
+		cloudRootDocument = deviceRootDocument.Clone()
+	} else {
+		cloudRootDocument.Update(deviceRootDocument)
+	}
+
+	if err := c.SetRootDocument(mac, cloudRootDocument); err != nil {
+		return cloudRootDocument, common.NewError(err)
+	}
+	return cloudRootDocument, nil
 }

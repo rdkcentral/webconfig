@@ -25,7 +25,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
 	wchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/rdkcentral/webconfig/kafka"

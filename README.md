@@ -8,7 +8,7 @@ Webconfig supports 2 types of transport between cloud and devices
 2. mqtt
 
 ## Install go
-This project is written and tested with Go **1.17**.
+This project is written and tested with Go **1.21**.
 
 ## Build the binary
 ```shell
