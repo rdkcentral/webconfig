@@ -213,11 +213,11 @@ func ParseKidFromTokenHeader(tokenString string) (string, error) {
 
 	rawKid, ok := headers["kid"]
 	if !ok {
-		return kid, common.NewError(common.NotOK)
+		return kid, common.NewError(common.ErrNotOK)
 	}
 	kid, ok = rawKid.(string)
 	if !ok {
-		return kid, common.NewError(common.NotOK)
+		return kid, common.NewError(common.ErrNotOK)
 	}
 
 	return kid, nil
