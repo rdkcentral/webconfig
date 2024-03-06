@@ -151,10 +151,6 @@ func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 		err = fmt.Errorf("Unsupported database.active_driver %v is configured", activeDriver)
 		panic(err)
 	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		panic(err)
-	}
 	return tdbclient
 }
 
@@ -767,6 +763,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 					err1 := common.NewError(err)
 					fields["response"] = ObfuscatedMap
 					fields["response_text"] = err1.Error()
+				} else {
+					fields["response"] = itf
 				}
 			} else {
 				fields["response"] = ObfuscatedMap
