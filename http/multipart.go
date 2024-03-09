@@ -88,9 +88,6 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	}
 
 	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, common.RouteHttp, fields)
-	if err != nil && respBytes == nil {
-		respBytes = []byte(err.Error())
-	}
 
 	// REMINDER 404 use standard response
 	if status == http.StatusNotFound {
@@ -100,6 +97,11 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 	for k := range respHeader {
 		w.Header().Set(k, respHeader.Get(k))
+	}
+
+	if err != nil && respBytes == nil {
+		Error(w, status, common.NewError(err))
+		return
 	}
 
 	w.WriteHeader(status)
