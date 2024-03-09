@@ -207,7 +207,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	// =============================
 	// upstream handling
 	// =============================
-	upstreamHeader := make(http.Header)
+	upstreamHeader := rHeader.Clone()
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 	if itf, ok := fields["audit_id"]; ok {
@@ -338,18 +338,16 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	// =============================
 	// upstream handling
 	// =============================
-	upstreamHeader := make(http.Header)
+	upstreamHeader := rHeader.Clone()
 	upstreamHeader.Set("Content-type", common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 	upstreamHeader.Set(common.HeaderUpstreamNewPartnerId, partnerId)
+
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
 		if len(auditId) > 0 {
 			upstreamHeader.Set(common.HeaderAuditid, auditId)
 		}
-	}
-	if x := rHeader.Get(common.HeaderTransactionId); len(x) > 0 {
-		upstreamHeader.Set(common.HeaderTransactionId, x)
 	}
 
 	if s.TokenManager != nil {
@@ -363,9 +361,6 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	}
 
 	// call /upstream to handle factory reset
-	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
-	upstreamHeader.Set(common.HeaderIfNoneMatch, ifNoneMatch)
-
 	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeader, oldDocBytes, fields)
 	if err != nil {
 		var rherr common.RemoteHttpError
