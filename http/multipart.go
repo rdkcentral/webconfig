@@ -147,6 +147,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			document.DeleteSubDocument(subdocId)
 		}
 
+		document, err = db.LoadRefSubDocuments(c, document, fields)
+		if err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
 		respBytes, err := document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -178,9 +182,20 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		document = common.NewDocument(rootDocument)
 	}
 
+	if userAgent == "mget" {
+		postUpstream = false
+	}
+
 	var respBytes []byte
 	respStatus := http.StatusNotModified
 	if document.Length() > 0 {
+
+		if !postUpstream {
+			document, err = db.LoadRefSubDocuments(c, document, fields)
+			if err != nil {
+				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			}
+		}
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -286,6 +301,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		return http.StatusNotModified, upstreamRespHeader, nil, nil
 	}
 
+	finalFilteredDocument, err = db.LoadRefSubDocuments(c, finalFilteredDocument, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+	}
 	finalFilteredBytes, err := finalFilteredDocument.Bytes()
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, finalFilteredBytes, common.NewError(err)
@@ -397,6 +416,10 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		return http.StatusNotFound, upstreamRespHeader, nil, nil
 	}
 
+	finalDocument, err = db.LoadRefSubDocuments(c, finalDocument, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+	}
 	finalBytes, err := finalDocument.Bytes()
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, finalBytes, common.NewError(err)
