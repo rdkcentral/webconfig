@@ -64,4 +64,8 @@ type DatabaseClient interface {
 	GetRefSubDocument(string) (*common.RefSubDocument, error)
 	SetRefSubDocument(string, *common.RefSubDocument) error
 	DeleteRefSubDocument(string) error
+
+	// enable state correction
+	StateCorrectionEnabled() bool
+	SetStateCorrectionEnabled(bool)
 }

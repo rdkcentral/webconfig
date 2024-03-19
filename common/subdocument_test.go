@@ -32,6 +32,12 @@ func TestSubDocumentString(t *testing.T) {
 	errorCode := 103
 	errorDetails := "cannot parse"
 
-	doc := NewSubDocument(bbytes, &version, &state, &updatedTime, &errorCode, &errorDetails)
-	assert.Assert(t, doc != nil)
+	subdoc := NewSubDocument(bbytes, &version, &state, &updatedTime, &errorCode, &errorDetails)
+	assert.Assert(t, subdoc != nil)
+
+	subdoc = &SubDocument{}
+	tgtVersion := subdoc.GetVersion()
+	assert.Equal(t, tgtVersion, "")
+	tgtState := subdoc.GetState()
+	assert.Equal(t, tgtState, 0)
 }
