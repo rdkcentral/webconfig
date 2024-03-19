@@ -133,7 +133,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	wanMpartVersion := mpart.Version
 	_ = wanMpartVersion
 
-	// ==== cal GET /config with if-none-match ====
+	// ==== call GET /config with if-none-match ====
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
@@ -144,7 +144,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusNotModified)
 
-	// ==== cal GET /config with if-none-match partial match ====
+	// ==== call GET /config with if-none-match partial match ====
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
@@ -819,7 +819,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	wanMpartVersion := mpart.Version
 	_ = wanMpartVersion
 
-	// ==== cal GET /config with if-none-match ====
+	// ==== call GET /config with if-none-match ====
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
@@ -831,7 +831,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	// ==== cal GET /config with if-none-match ====
+	// ==== call GET /config with if-none-match ====
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	header2 := "NONE,123"
@@ -842,7 +842,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	// ==== cal GET /config with if-none-match ====
+	// ==== call GET /config with if-none-match ====
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	header3 := etag + ",123"
@@ -852,4 +852,255 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+}
+
+func TestStateCorrectionEnabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+	assert.NilError(t, err)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== group 3 mesh ====
+	subdocId = "mesh"
+	meshBytes := util.RandomBytes(m, n)
+	assert.NilError(t, err)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(meshBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, meshBytes)
+
+	// ==== group 3 moca ====
+	subdocId = "moca"
+	mocaBytes := util.RandomBytes(m, n)
+	assert.NilError(t, err)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(mocaBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, mocaBytes)
+
+	// ==== GET /config ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mpartMap, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mpartMap), 4)
+	etag := res.Header.Get(common.HeaderEtag)
+
+	// parse the actual data
+	mpart, ok := mpartMap["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanVersion := mpart.Version
+
+	mpart, ok = mpartMap["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanVersion := mpart.Version
+
+	mpart, ok = mpartMap["mesh"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, meshBytes)
+	meshVersion := mpart.Version
+
+	mpart, ok = mpartMap["moca"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, mocaBytes)
+	mocaVersion := mpart.Version + "x"
+
+	// verify all states are in-deployment
+	lanSubdocument, err := server.GetSubDocument(cpeMac, "lan")
+	assert.NilError(t, err)
+	assert.Equal(t, lanSubdocument.GetState(), common.InDeployment)
+
+	wanSubdocument, err := server.GetSubDocument(cpeMac, "wan")
+	assert.NilError(t, err)
+	assert.Equal(t, wanSubdocument.GetState(), common.InDeployment)
+
+	meshSubdocument, err := server.GetSubDocument(cpeMac, "mesh")
+	assert.NilError(t, err)
+	assert.Equal(t, meshSubdocument.GetState(), common.InDeployment)
+
+	mocaSubdocument, err := server.GetSubDocument(cpeMac, "moca")
+	assert.NilError(t, err)
+	assert.Equal(t, mocaSubdocument.GetState(), common.InDeployment)
+
+	// ==== setup special error conditions to test state correction scenario ====
+	lanState := common.PendingDownload
+	lanSubdocument.SetState(&lanState)
+	err = server.SetSubDocument(cpeMac, "lan", lanSubdocument)
+	assert.NilError(t, err)
+
+	wanState := common.InDeployment
+	wanSubdocument.SetState(&wanState)
+	err = server.SetSubDocument(cpeMac, "wan", wanSubdocument)
+	assert.NilError(t, err)
+
+	meshState := common.Failure
+	meshSubdocument.SetState(&meshState)
+	err = server.SetSubDocument(cpeMac, "mesh", meshSubdocument)
+	assert.NilError(t, err)
+
+	mocaState := common.PendingDownload
+	mocaSubdocument.SetState(&mocaState)
+	err = server.SetSubDocument(cpeMac, "moca", mocaSubdocument)
+	assert.NilError(t, err)
+
+	// ==== call GET /config again with if-none-match and expect 304 ====
+	server.SetStateCorrectionEnabled(false)
+
+	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,lan,wan,mesh,moca", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	header1 := fmt.Sprintf("%v,%v,%v,%v,%v", etag, lanVersion, wanVersion, meshVersion, mocaVersion)
+	req.Header.Set(common.HeaderIfNoneMatch, header1)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+
+	// verify the states remain unchanged in the case of 304
+	lanSubdocument, err = server.GetSubDocument(cpeMac, "lan")
+	assert.NilError(t, err)
+	assert.Equal(t, lanSubdocument.GetState(), common.PendingDownload)
+
+	wanSubdocument, err = server.GetSubDocument(cpeMac, "wan")
+	assert.NilError(t, err)
+	assert.Equal(t, wanSubdocument.GetState(), common.InDeployment)
+
+	meshSubdocument, err = server.GetSubDocument(cpeMac, "mesh")
+	assert.NilError(t, err)
+	assert.Equal(t, meshSubdocument.GetState(), common.Failure)
+
+	mocaSubdocument, err = server.GetSubDocument(cpeMac, "moca")
+	assert.NilError(t, err)
+	assert.Equal(t, mocaSubdocument.GetState(), common.PendingDownload)
+
+	// ==== enable the state correction flag and call GET /config again with if-none-match and expect 304 ====
+	server.SetStateCorrectionEnabled(true)
+	defer func() {
+		server.SetStateCorrectionEnabled(false)
+	}()
+
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, header1)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+
+	// verify all version-matched states remain unchanged in the case of 304
+	lanSubdocument, err = server.GetSubDocument(cpeMac, "lan")
+	assert.NilError(t, err)
+	assert.Equal(t, lanSubdocument.GetState(), common.Deployed)
+
+	wanSubdocument, err = server.GetSubDocument(cpeMac, "wan")
+	assert.NilError(t, err)
+	assert.Equal(t, wanSubdocument.GetState(), common.Deployed)
+
+	meshSubdocument, err = server.GetSubDocument(cpeMac, "mesh")
+	assert.NilError(t, err)
+	assert.Equal(t, meshSubdocument.GetState(), common.Deployed)
+
+	mocaSubdocument, err = server.GetSubDocument(cpeMac, "moca")
+	assert.NilError(t, err)
+	assert.Equal(t, mocaSubdocument.GetState(), common.PendingDownload)
 }

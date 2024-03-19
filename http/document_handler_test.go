@@ -419,7 +419,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	subdocVersions = append(subdocVersions, mpart.Version)
 
 	// ==== step 5 get document again ====
-	// ==== cal GET /config with if-none-match ====
+	// ==== call GET /config with if-none-match ====
 	configUrl = fmt.Sprintf("/api/v1/device/%v/config?group_id=root,gwrestore,remotedebugger,lan", cpeMac)
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
