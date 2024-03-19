@@ -15,7 +15,7 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package cassandra
+package sqlite
 
 import (
 	"testing"
@@ -24,20 +24,14 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestCassandraClient(t *testing.T) {
+func TestSqliteClient(t *testing.T) {
 	configFile := "../../config/sample_webconfig.conf"
 	sc, err := common.GetTestServerConfig(configFile)
 
 	assert.NilError(t, err)
-	dbc, err := GetTestCassandraClient(sc.Config, true)
+	dbc, err := GetTestSqliteClient(sc.Config, true)
 	assert.NilError(t, err)
 	assert.Assert(t, dbc != nil)
-
-	_ = tdbclient.LocalDc()
-	assert.Assert(t, tdbclient.Codec() != nil)
-
-	tgtSubdocIds := tdbclient.EncryptedSubdocIds()
-	assert.Assert(t, len(tgtSubdocIds) == 4)
 
 	// state correction flag
 	enabled := true
@@ -46,18 +40,4 @@ func TestCassandraClient(t *testing.T) {
 	enabled = false
 	tdbclient.SetStateCorrectionEnabled(enabled)
 	assert.Equal(t, tdbclient.StateCorrectionEnabled(), enabled)
-}
-
-func TestGetConfig(t *testing.T) {
-	configFile := "../../config/sample_webconfig.conf"
-	sc, err := common.GetTestServerConfig(configFile)
-	assert.NilError(t, err)
-
-	subConfig := sc.Config.GetConfig("webconfig.database.cassandra")
-	x := subConfig.GetString("keyspace")
-	assert.Equal(t, x, "webconfig")
-
-	subConfig = sc.Config.GetConfig("webconfig.database.yugabyte")
-	y := subConfig.GetString("keyspace")
-	assert.Equal(t, y, "yugabytedb")
 }
