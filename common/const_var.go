@@ -152,6 +152,7 @@ var (
 		},
 		8: {
 			{1, 15},
+			{2, 32},
 		},
 		9: {
 			{1, 16},
@@ -221,6 +222,7 @@ var (
 		"connectedbuilding":       29,
 		"lldqoscontrol":           30,
 		"clienttosteeringprofile": 31,
+		"rfc":                     32,
 	}
 )
 
