@@ -105,6 +105,8 @@ const (
 	HeaderSourceAppName              = "X-Source-App-Name"
 	HeaderTraceparent                = "Traceparent"
 	HeaderTracestate                 = "Tracestate"
+	HeaderContentLength              = "Content-Length"
+	HeaderRefSubdocumentVersion      = "X-Refsubdocument-Version"
 )
 
 // header X-System-Supported-Docs
@@ -143,13 +145,15 @@ var (
 			{1, 12},
 		},
 		6: {
-			{1, 13},
+			{1, 13}, // mesh
+			{2, 31}, // clienttosteeringprofile
 		},
 		7: {
 			{1, 14},
 		},
 		8: {
 			{1, 15},
+			{2, 32},
 		},
 		9: {
 			{1, 16},
@@ -188,36 +192,38 @@ var (
 
 var (
 	SubdocBitIndexMap = map[string]int{
-		"portforwarding":    1,
-		"lan":               2,
-		"wan":               3,
-		"macbinding":        4,
-		"hotspot":           5,
-		"bridge":            6,
-		"privatessid":       7,
-		"homessid":          8,
-		"radio":             9,
-		"moca":              10,
-		"xdns":              11,
-		"advsecurity":       12,
-		"mesh":              13,
-		"aker":              14,
-		"telemetry":         15,
-		"statusreport":      16,
-		"trafficreport":     17,
-		"interfacereport":   18,
-		"radioreport":       19,
-		"telcovoip":         20,
-		"wanmanager":        21,
-		"voiceservice":      22,
-		"wanfailover":       23,
-		"cellularconfig":    24,
-		"telcovoice":        25,
-		"gwfailover":        26,
-		"gwrestore":         27,
-		"prioritizedmacs":   28,
-		"connectedbuilding": 29,
-		"lldqoscontrol":     30,
+		"portforwarding":          1,
+		"lan":                     2,
+		"wan":                     3,
+		"macbinding":              4,
+		"hotspot":                 5,
+		"bridge":                  6,
+		"privatessid":             7,
+		"homessid":                8,
+		"radio":                   9,
+		"moca":                    10,
+		"xdns":                    11,
+		"advsecurity":             12,
+		"mesh":                    13,
+		"aker":                    14,
+		"telemetry":               15,
+		"statusreport":            16,
+		"trafficreport":           17,
+		"interfacereport":         18,
+		"radioreport":             19,
+		"telcovoip":               20,
+		"wanmanager":              21,
+		"voiceservice":            22,
+		"wanfailover":             23,
+		"cellularconfig":          24,
+		"telcovoice":              25,
+		"gwfailover":              26,
+		"gwrestore":               27,
+		"prioritizedmacs":         28,
+		"connectedbuilding":       29,
+		"lldqoscontrol":           30,
+		"clienttosteeringprofile": 31,
+		"rfc":                     32,
 	}
 )
 

@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	neturl "net/url"
@@ -260,7 +259,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	}
 
 	fields[fmt.Sprintf("%v_status", loggerName)] = res.StatusCode
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	if err != nil {
 		fields[errorKey] = err.Error()
 		if userAgent != "mget" {

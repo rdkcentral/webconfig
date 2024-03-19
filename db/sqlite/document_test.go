@@ -48,8 +48,9 @@ func TestSubDocumentDb(t *testing.T) {
 	// read a SubDocument from db and verify identical
 	targetSubDocument, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
-	err = sourceDoc.Equals(targetSubDocument)
+	ok, err := sourceDoc.Equals(targetSubDocument)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// ==== update an existing doc with the same cpeMac and groupId ====
 	srcVersion2 := "red white blue"
@@ -61,8 +62,9 @@ func TestSubDocumentDb(t *testing.T) {
 	assert.NilError(t, err)
 
 	expectedDoc := common.NewSubDocument(srcBytes, &srcVersion2, &srcState, &srcUpdatedTime, nil, nil)
-	err = targetSubDocument.Equals(expectedDoc)
+	ok, err = targetSubDocument.Equals(expectedDoc)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// ==== delete a doc ====
 	err = tdbclient.DeleteSubDocument(cpeMac, groupId)
@@ -106,10 +108,12 @@ func TestDbReadDocument(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, Document.Length(), 2)
 
-	err = pdoc.Equals(Document.SubDocument("privatessid"))
+	ok, err := pdoc.Equals(Document.SubDocument("privatessid"))
 	assert.NilError(t, err)
-	err = hdoc.Equals(Document.SubDocument("homessid"))
+	assert.Assert(t, ok)
+	ok, err = hdoc.Equals(Document.SubDocument("homessid"))
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// ==== delete all SubDocuments ====
 	err = tdbclient.DeleteDocument(cpeMac)

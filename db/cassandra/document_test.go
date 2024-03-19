@@ -57,7 +57,9 @@ func TestMocaSubDocument(t *testing.T) {
 	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
 	assert.NilError(t, err)
 
-	assert.Assert(t, srcSubdoc.Equals(fetchedSubdoc))
+	ok, err := srcSubdoc.Equals(fetchedSubdoc)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
 }
 
 func TestPrivatessidSubDocument(t *testing.T) {
@@ -82,7 +84,9 @@ func TestPrivatessidSubDocument(t *testing.T) {
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 
-	assert.Assert(t, srcDoc.Equals(fetchedDoc))
+	ok, err := srcDoc.Equals(fetchedDoc)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
 }
 
 func TestMultiSubDocuments(t *testing.T) {
@@ -114,8 +118,9 @@ func TestMultiSubDocuments(t *testing.T) {
 		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 		assert.NilError(t, err)
 
-		err = srcDoc.Equals(fetchedDoc)
+		ok, err := srcDoc.Equals(fetchedDoc)
 		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 
 	doc, err := tdbclient.GetDocument(cpeMac)
@@ -125,7 +130,9 @@ func TestMultiSubDocuments(t *testing.T) {
 	for k, v := range srcmap {
 		dv := doc.SubDocument(k)
 		assert.Assert(t, dv != nil)
-		assert.Assert(t, v.Equals(dv))
+		ok, err := v.Equals(dv)
+		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 
 	// ==== delete a document ====
@@ -178,8 +185,9 @@ func TestBlockedSubdocIds(t *testing.T) {
 		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 		assert.NilError(t, err)
 
-		err = srcDoc.Equals(fetchedDoc)
+		ok, err := srcDoc.Equals(fetchedDoc)
 		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 	// add version1 and bitmap1
 	version1 := "indigo violet"

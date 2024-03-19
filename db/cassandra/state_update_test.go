@@ -48,8 +48,9 @@ func TestStateUpdate1(t *testing.T) {
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 
-	err = srcDoc.Equals(fetchedDoc)
+	ok, err := srcDoc.Equals(fetchedDoc)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// update to state failure
 	template1 := `{"application_status": "failure", "error_code": 204, "error_details": "failed_retrying:Error unsupported namespace", "device_id": "mac:%v", "namespace": "privatessid", "version": "2023-05-05 07:42:22.515324", "transaction_uuid": "becd74ee-2c17-4abe-aa60-332a218c91aa"}`
@@ -98,8 +99,9 @@ func TestStateUpdate2(t *testing.T) {
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 
-	err = srcDoc.Equals(fetchedDoc)
+	ok, err := srcDoc.Equals(fetchedDoc)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// update to state failure
 	template1 := `{"application_status": "failure", "error_code": 204, "error_details": "failed_retrying:Error unsupported namespace", "device_id": "mac:%v", "namespace": "privatessid", "version": "2023-05-05 07:42:22.515324", "transaction_uuid": "becd74ee-2c17-4abe-aa60-332a218c91aa"}`

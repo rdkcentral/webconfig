@@ -22,14 +22,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
-	owcommon "github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/db/sqlite"
@@ -48,15 +47,16 @@ const (
 )
 
 const (
-	MetricsEnabledDefault            = true
-	FactoryResetEnabledDefault       = false
-	serverApiTokenAuthEnabledDefault = false
-	deviceApiTokenAuthEnabledDefault = true
-	tokenApiEnabledDefault           = false
-	activeDriverDefault              = "cassandra"
-	defaultJwksEnabled               = false
-	defaultTraceparentParentID       = "0000000000000001"
-	defaultTracestateVendorID        = "webconfig"
+	MetricsEnabledDefault                = true
+	FactoryResetEnabledDefault           = false
+	serverApiTokenAuthEnabledDefault     = false
+	deviceApiTokenAuthEnabledDefault     = true
+	tokenApiEnabledDefault               = false
+	activeDriverDefault                  = "cassandra"
+	defaultJwksEnabled                   = false
+	defaultTraceparentParentID           = "0000000000000001"
+	defaultTracestateVendorID            = "webconfig"
+	defaultSupplementaryAppendingEnabled = true
 )
 
 var (
@@ -85,21 +85,22 @@ type WebconfigServer struct {
 	*XconfConnector
 	*MqttConnector
 	*UpstreamConnector
-	tlsConfig                 *tls.Config
-	notLoggedHeaders          []string
-	metricsEnabled            bool
-	factoryResetEnabled       bool
-	serverApiTokenAuthEnabled bool
-	deviceApiTokenAuthEnabled bool
-	tokenApiEnabled           bool
-	kafkaEnabled              bool
-	upstreamEnabled           bool
-	appName                   string
-	validateMacEnabled        bool
-	validPartners             []string
-	jwksEnabled               bool
-	traceparentParentID       string
-	tracestateVendorID        string
+	tlsConfig                     *tls.Config
+	notLoggedHeaders              []string
+	metricsEnabled                bool
+	factoryResetEnabled           bool
+	serverApiTokenAuthEnabled     bool
+	deviceApiTokenAuthEnabled     bool
+	tokenApiEnabled               bool
+	kafkaEnabled                  bool
+	upstreamEnabled               bool
+	appName                       string
+	validateMacEnabled            bool
+	validPartners                 []string
+	jwksEnabled                   bool
+	traceparentParentID           string
+	tracestateVendorID            string
+	supplementaryAppendingEnabled bool
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -148,10 +149,6 @@ func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 		}
 	default:
 		err = fmt.Errorf("Unsupported database.active_driver %v is configured", activeDriver)
-		panic(err)
-	}
-	err = tdbclient.SetUp()
-	if err != nil {
 		panic(err)
 	}
 	return tdbclient
@@ -243,35 +240,38 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
 	tracestateVendorID := conf.GetString("webconfig.tracestate_vendor_id", defaultTracestateVendorID)
 
+	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
+
 	return &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
 			WriteTimeout: time.Duration(conf.GetInt32("webconfig.server.write_timeout_in_secs", 3)) * time.Second,
 		},
-		DatabaseClient:            dbclient,
-		TokenManager:              security.NewTokenManager(conf),
-		JwksManager:               jwksManager,
-		ServerConfig:              sc,
-		WebpaConnector:            NewWebpaConnector(conf, tlsConfig),
-		XconfConnector:            NewXconfConnector(conf, tlsConfig),
-		MqttConnector:             NewMqttConnector(conf, tlsConfig),
-		UpstreamConnector:         NewUpstreamConnector(conf, tlsConfig),
-		tlsConfig:                 tlsConfig,
-		notLoggedHeaders:          notLoggedHeaders,
-		metricsEnabled:            metricsEnabled,
-		factoryResetEnabled:       factoryResetEnabled,
-		serverApiTokenAuthEnabled: serverApiTokenAuthEnabled,
-		deviceApiTokenAuthEnabled: deviceApiTokenAuthEnabled,
-		tokenApiEnabled:           tokenApiEnabled,
-		kafkaEnabled:              kafkaEnabled,
-		upstreamEnabled:           upstreamEnabled,
-		appName:                   appName,
-		validateMacEnabled:        validateMacEnabled,
-		validPartners:             validPartners,
-		jwksEnabled:               jwksEnabled,
-		traceparentParentID:       traceparentParentID,
-		tracestateVendorID:        tracestateVendorID,
+		DatabaseClient:                dbclient,
+		TokenManager:                  security.NewTokenManager(conf),
+		JwksManager:                   jwksManager,
+		ServerConfig:                  sc,
+		WebpaConnector:                NewWebpaConnector(conf, tlsConfig),
+		XconfConnector:                NewXconfConnector(conf, tlsConfig),
+		MqttConnector:                 NewMqttConnector(conf, tlsConfig),
+		UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
+		tlsConfig:                     tlsConfig,
+		notLoggedHeaders:              notLoggedHeaders,
+		metricsEnabled:                metricsEnabled,
+		factoryResetEnabled:           factoryResetEnabled,
+		serverApiTokenAuthEnabled:     serverApiTokenAuthEnabled,
+		deviceApiTokenAuthEnabled:     deviceApiTokenAuthEnabled,
+		tokenApiEnabled:               tokenApiEnabled,
+		kafkaEnabled:                  kafkaEnabled,
+		upstreamEnabled:               upstreamEnabled,
+		appName:                       appName,
+		validateMacEnabled:            validateMacEnabled,
+		validPartners:                 validPartners,
+		jwksEnabled:                   jwksEnabled,
+		traceparentParentID:           traceparentParentID,
+		tracestateVendorID:            tracestateVendorID,
+		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
 }
 
@@ -296,7 +296,7 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
-				if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
+				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
 			}
@@ -556,6 +556,14 @@ func (s *WebconfigServer) SetTracestateVendorID(x string) {
 	s.tracestateVendorID = x
 }
 
+func (s *WebconfigServer) SupplementaryAppendingEnabled() bool {
+	return s.supplementaryAppendingEnabled
+}
+
+func (s *WebconfigServer) SetSupplementaryAppendingEnabled(enabled bool) {
+	s.supplementaryAppendingEnabled = enabled
+}
+
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	// if no valid partners are configured, all partners are accepted/validated
 	if len(s.validPartners) == 0 {
@@ -612,7 +620,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 
 	// extract traceparent from the header
-	traceparent := r.Header.Get(owcommon.HeaderTraceparent)
+	traceparent := r.Header.Get(common.HeaderTraceparent)
 	if len(traceparent) == 55 {
 		traceId = traceparent[3:35]
 		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
@@ -685,7 +693,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
-			bbytes, err := ioutil.ReadAll(r.Body)
+			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")
@@ -755,6 +763,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 					err1 := common.NewError(err)
 					fields["response"] = ObfuscatedMap
 					fields["response_text"] = err1.Error()
+				} else {
+					fields["response"] = itf
 				}
 			} else {
 				fields["response"] = ObfuscatedMap

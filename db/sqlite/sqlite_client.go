@@ -43,8 +43,9 @@ type SqliteClient struct {
 	db.BaseClient
 	*sql.DB
 	*common.AppMetrics
-	concurrentQueries chan bool
-	blockedSubdocIds  []string
+	concurrentQueries      chan bool
+	blockedSubdocIds       []string
+	stateCorrectionEnabled bool
 }
 
 func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
@@ -58,15 +59,18 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 
 	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
 
+	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
+
 	db, err := sql.Open("sqlite3", dbfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
 	return &SqliteClient{
-		DB:                db,
-		concurrentQueries: make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
-		blockedSubdocIds:  blockedSubdocIds,
+		DB:                     db,
+		concurrentQueries:      make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
+		blockedSubdocIds:       blockedSubdocIds,
+		stateCorrectionEnabled: stateCorrectionEnabled,
 	}, nil
 }
 
@@ -134,6 +138,14 @@ func (c *SqliteClient) BlockedSubdocIds() []string {
 
 func (c *SqliteClient) SetBlockedSubdocIds(x []string) {
 	c.blockedSubdocIds = x
+}
+
+func (c *SqliteClient) StateCorrectionEnabled() bool {
+	return c.stateCorrectionEnabled
+}
+
+func (c *SqliteClient) SetStateCorrectionEnabled(enabled bool) {
+	c.stateCorrectionEnabled = enabled
 }
 
 func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {

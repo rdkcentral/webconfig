@@ -51,15 +51,17 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 
 	// append the extra query_params if any
 	var queryParams string
-	rootdoc, err := s.GetRootDocument(mac)
-	if err != nil {
-		if !s.IsDbNotFound(err) {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
+	if s.SupplementaryAppendingEnabled() {
+		rootdoc, err := s.GetRootDocument(mac)
+		if err != nil {
+			if !s.IsDbNotFound(err) {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
 		}
-	}
-	if rootdoc != nil {
-		queryParams = rootdoc.QueryParams
+		if rootdoc != nil {
+			queryParams = rootdoc.QueryParams
+		}
 	}
 
 	// partner handling

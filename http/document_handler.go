@@ -160,6 +160,8 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		metricsAgent = "default"
 	}
 
+	rootVersionMap := make(map[string]string)
+	var newRootVersion string
 	for _, deviceId := range deviceIds {
 		fields["src_caller"] = common.GetCaller()
 
@@ -189,15 +191,22 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		}
 
 		doc.SetSubDocument(subdocId, subdoc)
-		newRootVersion := db.HashRootVersion(doc.VersionMap())
+		newRootVersion = db.HashRootVersion(doc.VersionMap())
 		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
+		rootVersionMap[deviceId] = newRootVersion
+	}
+	d := make(util.Dict)
+	if len(rootVersionMap) == 1 {
+		d["root_version"] = newRootVersion
+	} else {
+		d["root_version"] = rootVersionMap
 	}
 
-	WriteOkResponse(w, nil)
+	WriteByMarshal(w, http.StatusOK, d)
 }
 
 func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {

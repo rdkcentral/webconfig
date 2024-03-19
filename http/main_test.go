@@ -45,9 +45,8 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	_ = GetTestDatabaseClient(sc)
 	log.SetOutput(io.Discard)
-
 	returnCode := m.Run()
-
 	os.Exit(returnCode)
 }

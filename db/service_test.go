@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
@@ -46,4 +47,31 @@ func TestHashRootVersion(t *testing.T) {
 	doc.SetSubDocument("privatessid", subdoc)
 	root = HashRootVersion(doc.VersionMap())
 	assert.Assert(t, root != "0")
+}
+
+func TestUpdateRootVersion(t *testing.T) {
+	doc := common.NewDocument(nil)
+	tt := int(123)
+
+	bbytes1 := util.RandomBytes(100, 150)
+	v1 := util.GetMurmur3Hash(bbytes1)
+	subdoc1 := common.NewSubDocument(bbytes1, &v1, nil, &tt, nil, nil)
+	doc.SetSubDocument("advsecurity", subdoc1)
+
+	bbytes2 := util.RandomBytes(100, 150)
+	v2 := util.GetMurmur3Hash(bbytes2)
+	subdoc2 := common.NewSubDocument(bbytes2, &v2, nil, &tt, nil, nil)
+	doc.SetSubDocument("mesh", subdoc2)
+
+	rootVersion := HashRootVersion(doc.VersionMap())
+	assert.Assert(t, rootVersion != "0")
+	rootDoc := common.NewRootDocument(123, "fw_ver_123", "model_123", "partner_123", "", rootVersion, "")
+	doc.SetRootDocument(rootDoc)
+
+	doc.DeleteSubDocument("mesh")
+
+	RefreshRootDocumentVersion(doc)
+
+	newRootVersion := doc.RootVersion()
+	assert.Assert(t, rootVersion != newRootVersion)
 }

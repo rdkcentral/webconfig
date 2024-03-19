@@ -48,10 +48,11 @@ type CassandraClient struct {
 	*gocql.ClusterConfig
 	*security.AesCodec
 	*common.AppMetrics
-	concurrentQueries  chan bool
-	localDc            string
-	blockedSubdocIds   []string
-	encryptedSubdocIds []string
+	concurrentQueries      chan bool
+	localDc                string
+	blockedSubdocIds       []string
+	encryptedSubdocIds     []string
+	stateCorrectionEnabled bool
 }
 
 /*
@@ -159,15 +160,17 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
 	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
+	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
 
 	return &CassandraClient{
-		Session:            session,
-		ClusterConfig:      cluster,
-		AesCodec:           codec,
-		concurrentQueries:  make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
-		localDc:            localDc,
-		blockedSubdocIds:   blockedSubdocIds,
-		encryptedSubdocIds: encryptedSubdocIds,
+		Session:                session,
+		ClusterConfig:          cluster,
+		AesCodec:               codec,
+		concurrentQueries:      make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
+		localDc:                localDc,
+		blockedSubdocIds:       blockedSubdocIds,
+		encryptedSubdocIds:     encryptedSubdocIds,
+		stateCorrectionEnabled: stateCorrectionEnabled,
 	}, nil
 }
 
@@ -214,6 +217,14 @@ func (c *CassandraClient) EncryptedSubdocIds() []string {
 
 func (c *CassandraClient) SetEncryptedSubdocIds(x []string) {
 	c.encryptedSubdocIds = x
+}
+
+func (c *CassandraClient) StateCorrectionEnabled() bool {
+	return c.stateCorrectionEnabled
+}
+
+func (c *CassandraClient) SetStateCorrectionEnabled(enabled bool) {
+	c.stateCorrectionEnabled = enabled
 }
 
 // TODO we hardcoded for now but it should be changed to be configurable
