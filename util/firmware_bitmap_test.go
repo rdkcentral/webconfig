@@ -163,6 +163,7 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -215,6 +216,8 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
+
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
 
@@ -266,6 +269,7 @@ func TestBitmapParsing(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -318,6 +322,7 @@ func TestParseVoiceService(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -380,6 +385,7 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -430,6 +436,7 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -480,6 +487,7 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 	expectedEnabled["connectedbuilding"] = false
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
+	expectedEnabled["rfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -520,6 +528,7 @@ func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 		"connectedbuilding":       false,
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
+		"rfc":                     false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -569,6 +578,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacs(t *testing.T) {
 		"connectedbuilding":       false,
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
+		"rfc":                     false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -618,6 +628,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacsAndConnectedbuilding(t *test
 		"connectedbuilding":       true,
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": false,
+		"rfc":                     false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -667,6 +678,7 @@ func TestParseSupportedDocsHeaderClienttosteeringprofile(t *testing.T) {
 		"connectedbuilding":       true,
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": true,
+		"rfc":                     false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
