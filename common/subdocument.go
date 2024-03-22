@@ -102,12 +102,28 @@ func (d *SubDocument) SetVersion(version *string) {
 	d.version = version
 }
 
+// convenient function
+func (d *SubDocument) GetVersion() string {
+	if d.version != nil {
+		return *d.version
+	}
+	return ""
+}
+
 func (d *SubDocument) State() *int {
 	return d.state
 }
 
 func (d *SubDocument) SetState(state *int) {
 	d.state = state
+}
+
+// convenient function
+func (d *SubDocument) GetState() int {
+	if d.state != nil {
+		return *d.state
+	}
+	return 0
 }
 
 func (d *SubDocument) UpdatedTime() *int {

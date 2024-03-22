@@ -28,6 +28,7 @@ import (
 
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -136,6 +137,36 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
 		}
+	}
+
+	if c.StateCorrectionEnabled() {
+		if document == nil {
+			document, err = c.GetDocument(mac, fields)
+			if err != nil {
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			}
+		}
+		for subdocId, subdocument := range document.Items() {
+			cloudVersion := subdocument.GetVersion()
+			cloudState := subdocument.GetState()
+			if len(cloudVersion) == 0 {
+				continue
+			}
+			deviceVersion := deviceVersionMap[subdocId]
+			if cloudVersion == deviceVersion && cloudState >= common.PendingDownload && cloudState <= common.Failure {
+				labels := prometheus.Labels{
+					"model":     modelName,
+					"fwversion": firmwareVersion,
+				}
+				// update state
+				newState := common.Deployed
+				subdocument.SetState(&newState)
+				if err := c.SetSubDocument(mac, subdocId, &subdocument, cloudState, labels, fields); err != nil {
+					return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+				}
+			}
+		}
+
 	}
 
 	switch rootCmpEnum {
