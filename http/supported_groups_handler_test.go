@@ -99,6 +99,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -285,6 +286,7 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -368,6 +370,7 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	// call GET /supported_groups to verify response
