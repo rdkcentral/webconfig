@@ -164,6 +164,7 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -217,6 +218,7 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -270,6 +272,7 @@ func TestBitmapParsing(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -323,6 +326,7 @@ func TestParseVoiceService(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -386,6 +390,7 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -437,6 +442,7 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -488,6 +494,7 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 	expectedEnabled["lldqoscontrol"] = false
 	expectedEnabled["clienttosteeringprofile"] = false
 	expectedEnabled["rfc"] = false
+	expectedEnabled["defaultrfc"] = false
 
 	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
 }
@@ -529,6 +536,7 @@ func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -579,6 +587,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacs(t *testing.T) {
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -629,6 +638,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacsAndConnectedbuilding(t *test
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": false,
 		"rfc":                     false,
+		"defaultrfc":              false,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
@@ -679,6 +689,58 @@ func TestParseSupportedDocsHeaderClienttosteeringprofile(t *testing.T) {
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": true,
 		"rfc":                     false,
+		"defaultrfc":              false,
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	for subdocId, enabled := range expectedEnabled {
+		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
+		assert.Equal(t, parsedEnabled, enabled)
+	}
+
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+}
+
+func TestParseSupportedDocsHeaderRfc(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663299,117440513,134217735,201326594,218103809,251658241,268435457,285212673"
+
+	// build expected
+	expectedEnabled := map[string]bool{
+		"advsecurity":             true,
+		"aker":                    true,
+		"bridge":                  false,
+		"cellularconfig":          false,
+		"gwfailover":              true,
+		"homessid":                true,
+		"hotspot":                 true,
+		"interfacereport":         false,
+		"lan":                     true,
+		"macbinding":              true,
+		"mesh":                    true,
+		"moca":                    true,
+		"portforwarding":          true,
+		"privatessid":             true,
+		"radio":                   false,
+		"radioreport":             false,
+		"statusreport":            false,
+		"telcovoice":              false,
+		"telcovoip":               false,
+		"telemetry":               true,
+		"trafficreport":           false,
+		"voiceservice":            true,
+		"wan":                     true,
+		"wanfailover":             true,
+		"wanmanager":              false,
+		"xdns":                    true,
+		"gwrestore":               false,
+		"prioritizedmacs":         true,
+		"connectedbuilding":       true,
+		"lldqoscontrol":           true,
+		"clienttosteeringprofile": true,
+		"rfc":                     true,
+		"defaultrfc":              true,
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
