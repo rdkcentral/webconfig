@@ -98,8 +98,10 @@ func TestSupportedGroupsHandler(t *testing.T) {
 		"connectedbuilding":       false,
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
-		"rfc":                     false,
 		"defaultrfc":              false,
+		"rfc":                     false,
+		"wifimotionsettings":      false,
+		"xmspeedboost":            false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -285,8 +287,10 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 		"connectedbuilding":       false,
 		"lldqoscontrol":           false,
 		"clienttosteeringprofile": false,
-		"rfc":                     false,
 		"defaultrfc":              false,
+		"rfc":                     false,
+		"wifimotionsettings":      false,
+		"xmspeedboost":            false,
 	}
 
 	// call GET /supported_groups to verify response
@@ -369,8 +373,10 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 		"connectedbuilding":       true,
 		"lldqoscontrol":           true,
 		"clienttosteeringprofile": false,
-		"rfc":                     false,
 		"defaultrfc":              false,
+		"rfc":                     false,
+		"wifimotionsettings":      false,
+		"xmspeedboost":            false,
 	}
 
 	// call GET /supported_groups to verify response
