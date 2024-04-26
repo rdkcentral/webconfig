@@ -127,7 +127,8 @@ var (
 			{4, 4},
 			{5, 5},
 			{6, 6},
-			{7, 29},
+			{7, 29}, // connectedbuilding
+			{8, 35}, // xmspeedboost
 		},
 		2: {
 			{1, 7},
@@ -146,12 +147,19 @@ var (
 		6: {
 			{1, 13}, // mesh
 			{2, 31}, // clienttosteeringprofile
+			{3, 36}, // meshsteeringprofiles
+			{4, 37}, // wifistatsconfig
+			{5, 38}, // mwoconfigs
+			{6, 39}, // interference
+			{7, 34}, // wifimotionsettings
 		},
 		7: {
 			{1, 14},
 		},
 		8: {
 			{1, 15},
+			{2, 32},
+			{3, 33},
 		},
 		9: {
 			{1, 16},
@@ -221,6 +229,10 @@ var (
 		"connectedbuilding":       29,
 		"lldqoscontrol":           30,
 		"clienttosteeringprofile": 31,
+		"defaultrfc":              32,
+		"rfc":                     33,
+		"wifimotionsettings":      34,
+		"xmspeedboost":            35,
 	}
 )
 
