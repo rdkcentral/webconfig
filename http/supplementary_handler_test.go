@@ -760,3 +760,43 @@ func TestSupplementaryAppendingFlag(t *testing.T) {
 	// ==== step 5 verify the query params ====
 	assert.Assert(t, !strings.Contains(ss, "&stormReadyWifi=true"))
 }
+
+func TestSupplementaryApiBadRequest(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	validPartners := []string{"comcast", "comcast-dev", "cox", "rogers", "shaw", "sky-de", "sky-italia", "sky-italia-dev", "sky-roi", "sky-roi-dev", "sky-uk", "sky-uk-dev", "videotron"}
+	server.SetValidPartners(validPartners)
+
+	// ==== setup mock server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Bad Request"))
+		}))
+	defer mockServer.Close()
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+
+	// ==== setup data ====
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 verify /config expect 200 with 1 mpart ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, "TG1682G")
+	req.Header.Set(common.HeaderPartnerID, "R NOT")
+	req.Header.Set(common.HeaderAccountID, "ERROR: ld.so: object '/usr/lib/libwayland-egl.so.0' from LD_PRE")
+	req.Header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+}
