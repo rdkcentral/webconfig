@@ -77,11 +77,8 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
-			if rherr.StatusCode == http.StatusNotFound {
-				Error(w, http.StatusNotFound, nil)
-				return
-			}
-
+			Error(w, rherr.StatusCode, rherr)
+			return
 		}
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return

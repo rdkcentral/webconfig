@@ -103,6 +103,10 @@ func GetTelemetryQueryString(header http.Header, mac, queryParams, partnerId str
 	if len(queryParams) > 0 && len(ret) > 0 {
 		ret += "&" + queryParams
 	}
+
+	ret = url.QueryEscape(ret)
+	ret = strings.ReplaceAll(ret, "%3D", "=")
+	ret = strings.ReplaceAll(ret, "%26", "&")
 	return ret
 }
 
