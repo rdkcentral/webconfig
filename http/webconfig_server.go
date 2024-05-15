@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
@@ -101,6 +103,7 @@ type WebconfigServer struct {
 	traceparentParentID           string
 	tracestateVendorID            string
 	supplementaryAppendingEnabled bool
+	otelTracer                    *otelTracing // For OpenTelemetry Tracing
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -239,6 +242,11 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
 	tracestateVendorID := conf.GetString("webconfig.tracestate_vendor_id", defaultTracestateVendorID)
+	otelTracer, err := newOtel(conf)
+	if err != nil {
+		// Just log err and continue
+		log.Error("Could not initialize open telemetry for tracing, but continuing")
+	}
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
@@ -271,6 +279,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		jwksEnabled:                   jwksEnabled,
 		traceparentParentID:           traceparentParentID,
 		tracestateVendorID:            tracestateVendorID,
+		otelTracer:                    &otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
 }
@@ -308,8 +317,9 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw := s.logRequestStarts(w, r)
+		xw, ctx := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
+		r = r.WithContext(ctx)
 		next.ServeHTTP(xw, r)
 	}
 	return http.HandlerFunc(fn)
@@ -318,8 +328,9 @@ func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 // Token valid and mac must match
 func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw := s.logRequestStarts(w, r)
+		xw, ctx := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
+		r = r.WithContext(ctx)
 
 		isValid := false
 		token := xw.Token()
@@ -358,8 +369,9 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 // Token valid enough
 func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw := s.logRequestStarts(w, r)
+		xw, ctx := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
+		r = r.WithContext(ctx)
 
 		isValid := false
 		token := xw.Token()
@@ -596,7 +608,7 @@ func getFilteredHeader(r *http.Request, notLoggedHeaders []string) http.Header {
 	return header
 }
 
-func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XResponseWriter {
+func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) (*XResponseWriter, context.Context) {
 	remoteIp := r.RemoteAddr
 	host := r.Host
 	header := getFilteredHeader(r, s.notLoggedHeaders)
@@ -626,11 +638,12 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
 	}
 
-	// extrac tracestate from the header
+	// extract tracestate from the header
 	tracestate := r.Header.Get(common.HeaderTracestate)
 	if len(tracestate) > 0 {
 		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
+	ctx := injectTrace(r, outTraceparent, outTracestate)
 
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
@@ -697,7 +710,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")
-				return xwriter
+				return xwriter, ctx
 			}
 			xwriter.SetBodyBytes(bbytes)
 		}
@@ -708,7 +721,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		log.WithFields(tfields).Info("request starts")
 	}
 
-	return xwriter
+	return xwriter, ctx
 }
 
 func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
@@ -842,4 +855,14 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 		return BadJsonResponseMap, string(rbytes)
 	}
 	return itf, ""
+}
+
+func injectTrace(r *http.Request, traceparent string, tracestate string) (context.Context) {
+	propagator := propagation.TraceContext{} 
+	ctx := r.Context()
+	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
+	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
+	textMapCarrier.Set(common.HeaderTraceparent, traceparent)
+	textMapCarrier.Set(common.HeaderTracestate, tracestate)
+	return propagation.TraceContext{}.Extract(ctx, textMapCarrier)
 }
