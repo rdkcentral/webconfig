@@ -106,6 +106,7 @@ const (
 	HeaderTraceparent                = "Traceparent"
 	HeaderTracestate                 = "Tracestate"
 	HeaderContentLength              = "Content-Length"
+	HeaderRefSubdocumentVersion      = "X-Refsubdocument-Version"
 )
 
 // header X-System-Supported-Docs

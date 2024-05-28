@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -30,6 +31,14 @@ import (
 	"github.com/rdkcentral/webconfig/util"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	referenceIndicatorByteLength = 4
+)
+
+var (
+	referenceIndicatorBytes = make([]byte, referenceIndicatorByteLength)
 )
 
 // TODO s.MultipartSupplementaryHandler(w, r) should be handled separately
@@ -557,4 +566,31 @@ func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerI
 		return cloudRootDocument, common.NewError(err)
 	}
 	return cloudRootDocument, nil
+}
+
+func GetRefId(payload []byte) (string, bool) {
+	if len(payload) > referenceIndicatorByteLength {
+		prefixBytes := payload[:referenceIndicatorByteLength]
+		if slices.Equal(referenceIndicatorBytes, prefixBytes) {
+			suffixBytes := payload[referenceIndicatorByteLength:]
+			return string(suffixBytes), true
+		}
+	}
+	return "", false
+}
+
+func LoadRefSubDocuments(c DatabaseClient, document *common.Document, fields log.Fields) (*common.Document, error) {
+	newDocument := common.NewDocument(document.GetRootDocument())
+	for subdocId, subDocument := range document.Items() {
+		payload := subDocument.Payload()
+		if refId, ok := GetRefId(payload); ok {
+			refsubdocument, err := c.GetRefSubDocument(refId)
+			if err != nil {
+				return nil, common.NewError(err)
+			}
+			subDocument.SetPayload(refsubdocument.Payload())
+		}
+		newDocument.SetSubDocument(subdocId, &subDocument)
+	}
+	return newDocument, nil
 }

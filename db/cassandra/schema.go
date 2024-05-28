@@ -45,6 +45,11 @@ var (
     schema_version text,
     version text
 )`,
+		`CREATE TABLE IF NOT EXISTS reference_document (
+    ref_id text PRIMARY KEY,
+    payload blob,
+    version text
+)`,
 	}
 
 	CassandraSchemas = map[string]map[string]gocql.Type{
