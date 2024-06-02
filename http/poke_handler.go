@@ -161,11 +161,9 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			// webpa error handling
-			status := http.StatusInternalServerError
+			status := rherr.StatusCode
 			if rherr.StatusCode == http.StatusNotFound {
 				status = 521
-			} else if rherr.StatusCode > http.StatusInternalServerError {
-				status = rherr.StatusCode
 			}
 
 			// parse the core message
