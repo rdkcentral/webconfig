@@ -857,8 +857,8 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func injectTrace(r *http.Request, traceparent string, tracestate string) (context.Context) {
-	propagator := propagation.TraceContext{} 
+func injectTrace(r *http.Request, traceparent string, tracestate string) context.Context {
+	propagator := propagation.TraceContext{}
 	ctx := r.Context()
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
 	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
