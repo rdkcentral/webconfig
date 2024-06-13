@@ -1,3 +1,20 @@
+/**
+* Copyright 2021 Comcast Cable Communications Management, LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+* SPDX-License-Identifier: Apache-2.0
+*/
 package http
 
 import (
@@ -25,6 +42,7 @@ import (
 // Tracing contains the core dependencies to make tracing possible across an application.
 type otelTracing struct {
 	providerName   string
+	envName        string
 	tracerProvider trace.TracerProvider
 	propagator	   propagation.TextMapPropagator
 }
@@ -39,6 +57,8 @@ var (
 		"stdout": stdoutTraceProvider,
 		"noop": noopTraceProvider,
 	}
+
+	otelTracer otelTracing
 )
 
 // DefaultTracerProvider is used when no provider is given.
@@ -48,30 +68,28 @@ const defaultTracerProvider = "noop"
 
 // newOtel creates a structure with components that apps can use to initialize OpenTelemetry
 // tracing instrumentation code.
-func newOtel(conf *configuration.Config) (otelTracing, error) {
+func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	if IsNoOpTracing(conf) {
 		log.Debug("open telemetry tracing disabled (noop)")
 	} else {
 		log.Debug("opentelemetry tracing enabled")
 	}
 
-	providerName := conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
-	var tracing = otelTracing{
-		providerName: providerName,
-	}
+	otelTracer.providerName = conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
+	otelTracer.envName = conf.GetString("webconfig.opentelemetry.env_name", "dev")
 	tracerProvider, err := newTracerProvider(conf)
 	if err != nil {
-		return otelTracing{}, err
+		return &otelTracer, err
 	}
-	tracing.tracerProvider = tracerProvider
+	otelTracer.tracerProvider = tracerProvider
 	otel.SetTracerProvider(tracerProvider)
 
 	// Set up propagator.
 	prop := newPropagator()
-	tracing.propagator = prop
+	otelTracer.propagator = prop
 	otel.SetTextMapPropagator(prop)
 
-	return tracing, nil
+	return &otelTracer, nil
 }
 
 // IsNoOpTracing returns true if the provider is set to "noop"
@@ -165,6 +183,7 @@ func httpTraceProvider(conf *configuration.Config) (trace.TracerProvider, error)
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(appName),
+				semconv.ServiceNamespaceKey.String(otelTracer.envName),
 			),
 		),
 	), nil

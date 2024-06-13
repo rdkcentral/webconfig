@@ -28,7 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -279,7 +281,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		jwksEnabled:                   jwksEnabled,
 		traceparentParentID:           traceparentParentID,
 		tracestateVendorID:            tracestateVendorID,
-		otelTracer:                    &otelTracer,
+		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
 }
@@ -371,8 +373,8 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		xw, ctx := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 
+		r = r.WithContext(ctx)
 		isValid := false
 		token := xw.Token()
 		if len(token) > 0 {
@@ -857,12 +859,18 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func injectTrace(r *http.Request, traceparent string, tracestate string) (context.Context) {
-	propagator := propagation.TraceContext{} 
+func injectTrace(r *http.Request, traceparent string, tracestate string) context.Context {
 	ctx := r.Context()
+
+	propagator := propagation.TraceContext{}
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
 	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
 	textMapCarrier.Set(common.HeaderTraceparent, traceparent)
 	textMapCarrier.Set(common.HeaderTracestate, tracestate)
+
+	span := trace.SpanFromContext(ctx)
+	attr := attribute.String("env", otelTracer.envName)
+	span.SetAttributes(attr)
+
 	return propagation.TraceContext{}.Extract(ctx, textMapCarrier)
 }
