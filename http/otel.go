@@ -43,8 +43,10 @@ import (
 type otelTracing struct {
 	providerName   string
 	envName        string
+	appName        string
 	tracerProvider trace.TracerProvider
 	propagator	   propagation.TextMapPropagator
+	tracer         trace.Tracer
 }
 
 type providerConstructor func(conf *configuration.Config) (trace.TracerProvider, error)
@@ -75,6 +77,7 @@ func newOtel(conf *configuration.Config) (*otelTracing, error) {
 		log.Debug("opentelemetry tracing enabled")
 	}
 
+	otelTracer.appName = conf.GetString("webconfig.app_name")
 	otelTracer.providerName = conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
 	otelTracer.envName = conf.GetString("webconfig.opentelemetry.env_name", "dev")
 	tracerProvider, err := newTracerProvider(conf)
@@ -89,6 +92,7 @@ func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	otelTracer.propagator = prop
 	otel.SetTextMapPropagator(prop)
 
+	otelTracer.tracer = otel.Tracer(otelTracer.appName)
 	return &otelTracer, nil
 }
 
@@ -158,6 +162,13 @@ func stdoutTraceProvider(conf *configuration.Config) (trace.TracerProvider, erro
 		sdktrace.WithBatcher(exporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			sdktrace.WithBatchTimeout(time.Second)),
+		sdktrace.WithResource(
+			resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String(otelTracer.appName),
+				semconv.ServiceNamespaceKey.String(otelTracer.envName),
+			),
+		),
 	)
 	return tp, nil
 }
@@ -176,13 +187,12 @@ func httpTraceProvider(conf *configuration.Config) (trace.TracerProvider, error)
 		return nil, fmt.Errorf("%w: %v", ErrTracerProviderBuildFailed, err)
 	}
 
-	appName := conf.GetString("webconfig.app_name")
 	return sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(appName),
+				semconv.ServiceNameKey.String(otelTracer.appName),
 				semconv.ServiceNamespaceKey.String(otelTracer.envName),
 			),
 		),

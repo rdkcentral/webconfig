@@ -20,6 +20,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,7 +30,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/rdkcentral/webconfig/common"
@@ -77,6 +77,7 @@ var (
 		"privatessid",
 		"homessid",
 	}
+	ws *WebconfigServer
 )
 
 type WebconfigServer struct {
@@ -252,7 +253,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	return &WebconfigServer{
+	ws = &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -284,6 +285,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
+	return ws
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -645,7 +647,8 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(tracestate) > 0 {
 		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
-	ctx := injectTrace(r, outTraceparent, outTracestate)
+	ctx := r.Context()
+	// ctx := injectTrace(r, outTraceparent, outTracestate)
 
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
@@ -859,18 +862,74 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
+/*
 func injectTrace(r *http.Request, traceparent string, tracestate string) context.Context {
 	ctx := r.Context()
 
-	propagator := propagation.TraceContext{}
-	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
 	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
 	textMapCarrier.Set(common.HeaderTraceparent, traceparent)
 	textMapCarrier.Set(common.HeaderTracestate, tracestate)
 
-	span := trace.SpanFromContext(ctx)
-	attr := attribute.String("env", otelTracer.envName)
-	span.SetAttributes(attr)
+	propagator := propagation.TraceContext{}
+	return propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
+	// return propagator.Extract(ctx, textMapCarrier)
+}
+*/
 
-	return propagation.TraceContext{}.Extract(ctx, textMapCarrier)
+func spanMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		spanContext := trace.SpanContextFromContext(ctx)
+		remote := spanContext.IsRemote()
+		sc := trace.SpanContext{}.WithRemote(remote)
+
+		traceIDStr, traceFlagsStr := parseTraceparent(r)
+		if traceIDStr != "" {
+			traceID, _ := trace.TraceIDFromHex(traceIDStr)
+			sc = sc.WithTraceID(traceID)
+		}
+		if traceFlagsStr != "" {
+			traceFlags := trace.TraceFlags(hexStringToBytes(traceFlagsStr)[0])
+			sc = sc.WithTraceFlags(traceFlags)
+		}
+		tracestateStr := getTracestate(r)
+		if tracestateStr != "" {
+			tracestate, _ := trace.ParseTraceState(tracestateStr)
+			sc = sc.WithTraceState(tracestate)
+		}
+		ctx = trace.ContextWithSpanContext(ctx, sc)
+		ctx, span := otelTracer.tracer.Start(ctx, "mytest")
+		defer span.End()
+
+		attr := attribute.String("env", otelTracer.envName)
+		span.SetAttributes(attr)
+
+		// Pass the context with the span to the next handler
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// extract traceparent from the header
+func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
+	inTraceparent := r.Header.Get(common.HeaderTraceparent)
+	if len(inTraceparent) == 55 {
+		traceID = inTraceparent[3:35]
+		traceFlags = inTraceparent[53:55]
+	}
+	return
+}
+
+// extract tracestate from the header
+func getTracestate(r *http.Request) string {
+	inTracestate := r.Header.Get(common.HeaderTracestate)
+	var outTracestate string
+	if len(inTracestate) > 0 {
+		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, ws.TracestateVendorID(), ws.TraceparentParentID())
+	}
+	return outTracestate
+}
+
+func hexStringToBytes(hexString string) []byte {
+	bytes, _ := hex.DecodeString(hexString)
+	return bytes
 }
