@@ -42,8 +42,11 @@ import (
 // Tracing contains the core dependencies to make tracing possible across an application.
 type otelTracing struct {
 	providerName   string
+	envName        string
+	appName        string
 	tracerProvider trace.TracerProvider
 	propagator	   propagation.TextMapPropagator
+	tracer         trace.Tracer
 }
 
 type providerConstructor func(conf *configuration.Config) (trace.TracerProvider, error)
@@ -56,6 +59,8 @@ var (
 		"stdout": stdoutTraceProvider,
 		"noop": noopTraceProvider,
 	}
+
+	otelTracer otelTracing
 )
 
 // DefaultTracerProvider is used when no provider is given.
@@ -65,30 +70,30 @@ const defaultTracerProvider = "noop"
 
 // newOtel creates a structure with components that apps can use to initialize OpenTelemetry
 // tracing instrumentation code.
-func newOtel(conf *configuration.Config) (otelTracing, error) {
+func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	if IsNoOpTracing(conf) {
 		log.Debug("open telemetry tracing disabled (noop)")
 	} else {
 		log.Debug("opentelemetry tracing enabled")
 	}
 
-	providerName := conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
-	var tracing = otelTracing{
-		providerName: providerName,
-	}
+	otelTracer.appName = conf.GetString("webconfig.app_name")
+	otelTracer.providerName = conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
+	otelTracer.envName = conf.GetString("webconfig.opentelemetry.env_name", "dev")
 	tracerProvider, err := newTracerProvider(conf)
 	if err != nil {
-		return otelTracing{}, err
+		return &otelTracer, err
 	}
-	tracing.tracerProvider = tracerProvider
+	otelTracer.tracerProvider = tracerProvider
 	otel.SetTracerProvider(tracerProvider)
 
 	// Set up propagator.
 	prop := newPropagator()
-	tracing.propagator = prop
+	otelTracer.propagator = prop
 	otel.SetTextMapPropagator(prop)
 
-	return tracing, nil
+	otelTracer.tracer = otel.Tracer(otelTracer.appName)
+	return &otelTracer, nil
 }
 
 // IsNoOpTracing returns true if the provider is set to "noop"
@@ -157,6 +162,13 @@ func stdoutTraceProvider(conf *configuration.Config) (trace.TracerProvider, erro
 		sdktrace.WithBatcher(exporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			sdktrace.WithBatchTimeout(time.Second)),
+		sdktrace.WithResource(
+			resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String(otelTracer.appName),
+				semconv.ServiceNamespaceKey.String(otelTracer.envName),
+			),
+		),
 	)
 	return tp, nil
 }
@@ -175,13 +187,13 @@ func httpTraceProvider(conf *configuration.Config) (trace.TracerProvider, error)
 		return nil, fmt.Errorf("%w: %v", ErrTracerProviderBuildFailed, err)
 	}
 
-	appName := conf.GetString("webconfig.app_name")
 	return sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(appName),
+				semconv.ServiceNameKey.String(otelTracer.appName),
+				semconv.ServiceNamespaceKey.String(otelTracer.envName),
 			),
 		),
 	), nil

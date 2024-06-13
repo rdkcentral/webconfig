@@ -91,6 +91,7 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 	sub1.HandleFunc("", s.DeleteSubDocumentHandler).Methods("DELETE")
 
 	sub2 := router.Path("/api/v1/device/{mac}/poke").Subrouter()
+	sub2.Use(spanMiddleware)
 	if testOnly {
 		sub2.Use(s.TestingMiddleware)
 	} else {

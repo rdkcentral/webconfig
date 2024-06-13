@@ -20,6 +20,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -75,6 +77,7 @@ var (
 		"privatessid",
 		"homessid",
 	}
+	ws *WebconfigServer
 )
 
 type WebconfigServer struct {
@@ -250,7 +253,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	return &WebconfigServer{
+	ws = &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -279,9 +282,10 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		jwksEnabled:                   jwksEnabled,
 		traceparentParentID:           traceparentParentID,
 		tracestateVendorID:            tracestateVendorID,
-		otelTracer:                    &otelTracer,
+		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
+	return ws
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -317,9 +321,8 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 		next.ServeHTTP(xw, r)
 	}
 	return http.HandlerFunc(fn)
@@ -328,9 +331,8 @@ func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 // Token valid and mac must match
 func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 
 		isValid := false
 		token := xw.Token()
@@ -369,9 +371,8 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 // Token valid enough
 func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 
 		isValid := false
 		token := xw.Token()
@@ -608,7 +609,7 @@ func getFilteredHeader(r *http.Request, notLoggedHeaders []string) http.Header {
 	return header
 }
 
-func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) (*XResponseWriter, context.Context) {
+func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XResponseWriter {
 	remoteIp := r.RemoteAddr
 	host := r.Host
 	header := getFilteredHeader(r, s.notLoggedHeaders)
@@ -643,8 +644,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(tracestate) > 0 {
 		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
-	ctx := injectTrace(r, outTraceparent, outTracestate)
-
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
 	if len(auditId) == 0 {
@@ -710,7 +709,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")
-				return xwriter, ctx
+				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
 		}
@@ -721,7 +720,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		log.WithFields(tfields).Info("request starts")
 	}
 
-	return xwriter, ctx
+	return xwriter
 }
 
 func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
@@ -857,12 +856,60 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func injectTrace(r *http.Request, traceparent string, tracestate string) context.Context {
-	propagator := propagation.TraceContext{}
-	ctx := r.Context()
-	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
-	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
-	textMapCarrier.Set(common.HeaderTraceparent, traceparent)
-	textMapCarrier.Set(common.HeaderTracestate, tracestate)
-	return propagation.TraceContext{}.Extract(ctx, textMapCarrier)
+func spanMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		spanContext := trace.SpanContextFromContext(ctx)
+		remote := spanContext.IsRemote()
+		sc := trace.SpanContext{}.WithRemote(remote)
+
+		traceIDStr, traceFlagsStr := parseTraceparent(r)
+		if traceIDStr != "" {
+			traceID, _ := trace.TraceIDFromHex(traceIDStr)
+			sc = sc.WithTraceID(traceID)
+		}
+		if traceFlagsStr != "" {
+			traceFlags := trace.TraceFlags(hexStringToBytes(traceFlagsStr)[0])
+			sc = sc.WithTraceFlags(traceFlags)
+		}
+		tracestateStr := getTracestate(r)
+		if tracestateStr != "" {
+			tracestate, _ := trace.ParseTraceState(tracestateStr)
+			sc = sc.WithTraceState(tracestate)
+		}
+		ctx = trace.ContextWithSpanContext(ctx, sc)
+		ctx, span := otelTracer.tracer.Start(ctx, "oswebconfig_poke_handler")
+		defer span.End()
+
+		attr := attribute.String("env", otelTracer.envName)
+		span.SetAttributes(attr)
+
+		// Pass the context with the span to the next handler
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// extract traceparent from the header
+func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
+	inTraceparent := r.Header.Get(common.HeaderTraceparent)
+	if len(inTraceparent) == 55 {
+		traceID = inTraceparent[3:35]
+		traceFlags = inTraceparent[53:55]
+	}
+	return
+}
+
+// extract tracestate from the header
+func getTracestate(r *http.Request) string {
+	inTracestate := r.Header.Get(common.HeaderTracestate)
+	var outTracestate string
+	if len(inTracestate) > 0 {
+		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, ws.TracestateVendorID(), ws.TraceparentParentID())
+	}
+	return outTracestate
+}
+
+func hexStringToBytes(hexString string) []byte {
+	bytes, _ := hex.DecodeString(hexString)
+	return bytes
 }
