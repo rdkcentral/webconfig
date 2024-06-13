@@ -30,6 +30,7 @@ var (
 		"/app/webconfig/test_webconfig.conf",
 		"../config/sample_webconfig.conf",
 		"/app/webconfig/webconfig.conf",
+		"/app/webconfig/conf/webconfig.conf",
 	}
 )
 
