@@ -321,9 +321,8 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 		next.ServeHTTP(xw, r)
 	}
 	return http.HandlerFunc(fn)
@@ -332,9 +331,8 @@ func (s *WebconfigServer) NoAuthMiddleware(next http.Handler) http.Handler {
 // Token valid and mac must match
 func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
-		r = r.WithContext(ctx)
 
 		isValid := false
 		token := xw.Token()
@@ -373,10 +371,9 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 // Token valid enough
 func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		xw, ctx := s.logRequestStarts(w, r)
+		xw := s.logRequestStarts(w, r)
 		defer s.logRequestEnds(xw, r)
 
-		r = r.WithContext(ctx)
 		isValid := false
 		token := xw.Token()
 		if len(token) > 0 {
@@ -612,7 +609,7 @@ func getFilteredHeader(r *http.Request, notLoggedHeaders []string) http.Header {
 	return header
 }
 
-func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) (*XResponseWriter, context.Context) {
+func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Request) *XResponseWriter {
 	remoteIp := r.RemoteAddr
 	host := r.Host
 	header := getFilteredHeader(r, s.notLoggedHeaders)
@@ -647,9 +644,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	if len(tracestate) > 0 {
 		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
-	ctx := r.Context()
-	// ctx := injectTrace(r, outTraceparent, outTracestate)
-
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
 	if len(auditId) == 0 {
@@ -715,7 +709,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			if err != nil {
 				fields["error"] = err
 				log.WithFields(fields).Error("request starts")
-				return xwriter, ctx
+				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
 		}
@@ -726,7 +720,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		log.WithFields(tfields).Info("request starts")
 	}
 
-	return xwriter, ctx
+	return xwriter
 }
 
 func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
@@ -862,20 +856,6 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-/*
-func injectTrace(r *http.Request, traceparent string, tracestate string) context.Context {
-	ctx := r.Context()
-
-	var textMapCarrier propagation.TextMapCarrier = propagation.MapCarrier{}
-	textMapCarrier.Set(common.HeaderTraceparent, traceparent)
-	textMapCarrier.Set(common.HeaderTracestate, tracestate)
-
-	propagator := propagation.TraceContext{}
-	return propagator.Extract(ctx, propagation.HeaderCarrier(r.Header))
-	// return propagator.Extract(ctx, textMapCarrier)
-}
-*/
-
 func spanMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -898,7 +878,7 @@ func spanMiddleware(next http.Handler) http.Handler {
 			sc = sc.WithTraceState(tracestate)
 		}
 		ctx = trace.ContextWithSpanContext(ctx, sc)
-		ctx, span := otelTracer.tracer.Start(ctx, "mytest")
+		ctx, span := otelTracer.tracer.Start(ctx, "oswebconfig_poke_handler")
 		defer span.End()
 
 		attr := attribute.String("env", otelTracer.envName)
