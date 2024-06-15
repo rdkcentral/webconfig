@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// NOTE this
 func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {
 	var err error
 	var payload []byte
@@ -283,7 +282,11 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 		if c.IsEncryptedGroup(groupId) {
 			payload, err = c.DecryptBytes(payload)
 			if err != nil {
-				return nil, common.NewError(err)
+				tfields := common.FilterLogFields(fields)
+				tfields["logger"] = "subdoc"
+				tfields["subdoc_id"] = groupId
+				log.WithFields(tfields).Warn(err)
+				continue
 			}
 		}
 
