@@ -732,9 +732,6 @@ func TestSupplementaryAppendingFlag(t *testing.T) {
 	// ==== step 3 verify the query params ====
 	assert.Assert(t, strings.Contains(ss, "&stormReadyWifi=true"))
 
-	// okok := false
-	// assert.Assert(t, okok)
-
 	// ==== step 4 set append flag false ====
 	appendEnabled = false
 	server.SetSupplementaryAppendingEnabled(appendEnabled)

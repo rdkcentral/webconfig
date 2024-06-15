@@ -301,6 +301,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
+			WriteOkResponse(w, nil)
 		} else {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
