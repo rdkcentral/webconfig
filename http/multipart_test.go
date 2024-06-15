@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/vmihailenco/msgpack/v4"
@@ -1103,4 +1104,167 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	mocaSubdocument, err = server.GetSubDocument(cpeMac, "moca")
 	assert.NilError(t, err)
 	assert.Equal(t, mocaSubdocument.GetState(), common.PendingDownload)
+}
+
+func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	tdbclient, ok := server.DatabaseClient.(*cassandra.CassandraClient)
+	if !ok {
+		t.Skip("Only test in cassandra env")
+	}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	encSubdocIds := []string{}
+	tdbclient.SetEncryptedSubdocIds(encSubdocIds)
+	readSubDocIds := tdbclient.EncryptedSubdocIds()
+	assert.DeepEqual(t, encSubdocIds, readSubDocIds)
+	assert.Assert(t, !tdbclient.IsEncryptedGroup("privatessid"))
+
+	// ==== step 1 setup lan subdoc ====
+	// post
+	subdocId := "lan"
+	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	lanBytes := util.RandomBytes(100, 150)
+	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	_ = rbytes
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", lanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== step 2 setup wan subdoc ====
+	// post
+	subdocId = "wan"
+	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	wanBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", wanUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== step 3 setup privatessid subdoc ====
+	// post
+	subdocId = "privatessid"
+	privatessidUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	privatessidBytes := util.RandomBytes(100, 150)
+	req, err = http.NewRequest("POST", privatessidUrl, bytes.NewReader(privatessidBytes))
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", privatessidUrl, nil)
+	req.Header.Set("Content-Type", "application/msgpack")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, privatessidBytes)
+
+	// ==== step 4 read the document ====
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, "0")
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mpartMap, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mpartMap), 3)
+
+	// parse the actual data
+	mpart, ok := mpartMap["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+
+	mpart, ok = mpartMap["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	mpart, ok = mpartMap["privatessid"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, privatessidBytes)
+
+	// ==== step 5 set privatessid as an encrypted subdoc ====
+	encSubdocIds = []string{"privatessid"}
+	tdbclient.SetEncryptedSubdocIds(encSubdocIds)
+	readSubDocIds = tdbclient.EncryptedSubdocIds()
+	assert.DeepEqual(t, encSubdocIds, readSubDocIds)
+	assert.Assert(t, tdbclient.IsEncryptedGroup("privatessid"))
+
+	// ==== step 6 read the document expect no error but 1 less subdoc ====
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderIfNoneMatch, "0")
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mpartMap, err = util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mpartMap), 2)
+
+	// parse the actual data
+	mpart, ok = mpartMap["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+
+	mpart, ok = mpartMap["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	_, ok = mpartMap["privatessid"]
+	assert.Assert(t, !ok)
 }

@@ -32,13 +32,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 )
 
 const (
@@ -104,7 +103,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	return &HttpClient{
 		Client: &http.Client{
 			Transport: transport,
-			Timeout: time.Duration(readTimeout) * time.Second,
+			Timeout:   time.Duration(readTimeout) * time.Second,
 		},
 		retries:              retries,
 		retryInMsecs:         retryInMsecs,

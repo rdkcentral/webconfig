@@ -77,7 +77,6 @@ var (
 		"privatessid",
 		"homessid",
 	}
-	ws *WebconfigServer
 )
 
 type WebconfigServer struct {
@@ -253,7 +252,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	ws = &WebconfigServer{
+	return &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -285,7 +284,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
-	return ws
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -856,7 +854,7 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func spanMiddleware(next http.Handler) http.Handler {
+func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		spanContext := trace.SpanContextFromContext(ctx)
@@ -872,7 +870,7 @@ func spanMiddleware(next http.Handler) http.Handler {
 			traceFlags := trace.TraceFlags(hexStringToBytes(traceFlagsStr)[0])
 			sc = sc.WithTraceFlags(traceFlags)
 		}
-		tracestateStr := getTracestate(r)
+		tracestateStr := s.getTracestate(r)
 		if tracestateStr != "" {
 			tracestate, _ := trace.ParseTraceState(tracestateStr)
 			sc = sc.WithTraceState(tracestate)
@@ -900,11 +898,11 @@ func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
 }
 
 // extract tracestate from the header
-func getTracestate(r *http.Request) string {
+func (s *WebconfigServer) getTracestate(r *http.Request) string {
 	inTracestate := r.Header.Get(common.HeaderTracestate)
 	var outTracestate string
 	if len(inTracestate) > 0 {
-		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, ws.TracestateVendorID(), ws.TraceparentParentID())
+		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
 	return outTracestate
 }
