@@ -861,7 +861,7 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 		remote := spanContext.IsRemote()
 		sc := trace.SpanContext{}.WithRemote(remote)
 
-		traceIDStr, traceFlagsStr := parseTraceparent(r)
+		traceIDStr, traceFlagsStr := s.parseTraceparent(r)
 		if traceIDStr != "" {
 			traceID, _ := trace.TraceIDFromHex(traceIDStr)
 			sc = sc.WithTraceID(traceID)
@@ -876,7 +876,14 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 			sc = sc.WithTraceState(tracestate)
 		}
 		ctx = trace.ContextWithSpanContext(ctx, sc)
-		ctx, span := otelTracer.tracer.Start(ctx, "oswebconfig_poke_handler")
+
+		// Feedback: Better to use the "path"/API rather than a hard coded name
+		spanName := "oswebconfig_poke_handler"
+		pathTemplate, _ := mux.CurrentRoute(r).GetPathTemplate()
+		if pathTemplate != "" {
+			spanName = pathTemplate
+		}
+		ctx, span := otelTracer.tracer.Start(ctx, spanName)
 		defer span.End()
 
 		attr := attribute.String("env", otelTracer.envName)
@@ -888,7 +895,7 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 }
 
 // extract traceparent from the header
-func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
+func (s *WebconfigServer) parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
 	inTraceparent := r.Header.Get(common.HeaderTraceparent)
 	if len(inTraceparent) == 55 {
 		traceID = inTraceparent[3:35]
