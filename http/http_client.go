@@ -32,11 +32,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 const (
@@ -82,20 +84,26 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 	userAgent := conf.GetString("webconfig.http_client.user_agent")
 
+	var transport http.RoundTripper = &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   time.Duration(connectTimeout) * time.Second,
+			KeepAlive: time.Duration(keepaliveTimeout) * time.Second,
+		}).DialContext,
+		MaxIdleConns:          0,
+		MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+		IdleConnTimeout:       time.Duration(keepaliveTimeout) * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       tlsConfig,
+	}
+	transport = otelhttp.NewTransport(transport,
+		otelhttp.WithPropagators(otelTracer.propagator),
+		otelhttp.WithTracerProvider(otelTracer.tracerProvider),
+	)
+
 	return &HttpClient{
 		Client: &http.Client{
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   time.Duration(connectTimeout) * time.Second,
-					KeepAlive: time.Duration(keepaliveTimeout) * time.Second,
-				}).DialContext,
-				MaxIdleConns:          0,
-				MaxIdleConnsPerHost:   maxIdleConnsPerHost,
-				IdleConnTimeout:       time.Duration(keepaliveTimeout) * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-				TLSClientConfig:       tlsConfig,
-			},
+			Transport: transport,
 			Timeout: time.Duration(readTimeout) * time.Second,
 		},
 		retries:              retries,
