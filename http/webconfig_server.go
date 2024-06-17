@@ -20,6 +20,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,6 +28,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
@@ -73,6 +77,7 @@ var (
 		"privatessid",
 		"homessid",
 	}
+	ws *WebconfigServer
 )
 
 type WebconfigServer struct {
@@ -101,6 +106,7 @@ type WebconfigServer struct {
 	traceparentParentID           string
 	tracestateVendorID            string
 	supplementaryAppendingEnabled bool
+	otelTracer                    *otelTracing // For OpenTelemetry Tracing
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -239,10 +245,15 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
 	tracestateVendorID := conf.GetString("webconfig.tracestate_vendor_id", defaultTracestateVendorID)
+	otelTracer, err := newOtel(conf)
+	if err != nil {
+		// Just log err and continue
+		log.Error("Could not initialize open telemetry for tracing, but continuing")
+	}
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	return &WebconfigServer{
+	ws = &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -271,8 +282,10 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		jwksEnabled:                   jwksEnabled,
 		traceparentParentID:           traceparentParentID,
 		tracestateVendorID:            tracestateVendorID,
+		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
+	return ws
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -626,12 +639,11 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
 	}
 
-	// extrac tracestate from the header
+	// extract tracestate from the header
 	tracestate := r.Header.Get(common.HeaderTracestate)
 	if len(tracestate) > 0 {
 		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
-
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
 	if len(auditId) == 0 {
@@ -842,4 +854,62 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 		return BadJsonResponseMap, string(rbytes)
 	}
 	return itf, ""
+}
+
+func spanMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		spanContext := trace.SpanContextFromContext(ctx)
+		remote := spanContext.IsRemote()
+		sc := trace.SpanContext{}.WithRemote(remote)
+
+		traceIDStr, traceFlagsStr := parseTraceparent(r)
+		if traceIDStr != "" {
+			traceID, _ := trace.TraceIDFromHex(traceIDStr)
+			sc = sc.WithTraceID(traceID)
+		}
+		if traceFlagsStr != "" {
+			traceFlags := trace.TraceFlags(hexStringToBytes(traceFlagsStr)[0])
+			sc = sc.WithTraceFlags(traceFlags)
+		}
+		tracestateStr := getTracestate(r)
+		if tracestateStr != "" {
+			tracestate, _ := trace.ParseTraceState(tracestateStr)
+			sc = sc.WithTraceState(tracestate)
+		}
+		ctx = trace.ContextWithSpanContext(ctx, sc)
+		ctx, span := otelTracer.tracer.Start(ctx, "oswebconfig_poke_handler")
+		defer span.End()
+
+		attr := attribute.String("env", otelTracer.envName)
+		span.SetAttributes(attr)
+
+		// Pass the context with the span to the next handler
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// extract traceparent from the header
+func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
+	inTraceparent := r.Header.Get(common.HeaderTraceparent)
+	if len(inTraceparent) == 55 {
+		traceID = inTraceparent[3:35]
+		traceFlags = inTraceparent[53:55]
+	}
+	return
+}
+
+// extract tracestate from the header
+func getTracestate(r *http.Request) string {
+	inTracestate := r.Header.Get(common.HeaderTracestate)
+	var outTracestate string
+	if len(inTracestate) > 0 {
+		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, ws.TracestateVendorID(), ws.TraceparentParentID())
+	}
+	return outTracestate
+}
+
+func hexStringToBytes(hexString string) []byte {
+	bytes, _ := hex.DecodeString(hexString)
+	return bytes
 }

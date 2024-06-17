@@ -35,7 +35,8 @@ import (
 )
 
 var (
-	mockedWebpaPokeResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	mockWebpaPokeResponse    = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	mockWebpaPoke403Response = []byte(`{"message": "Invalid partner_id", "statusCode": 403}`)
 )
 
 func TestPokeHandler(t *testing.T) {
@@ -47,7 +48,7 @@ func TestPokeHandler(t *testing.T) {
 	webpaMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(mockedWebpaPokeResponse)
+			_, _ = w.Write(mockWebpaPokeResponse)
 		}))
 	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
@@ -286,7 +287,7 @@ func TestPokeHandlerInvalidMac(t *testing.T) {
 	webpaMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(mockedWebpaPokeResponse)
+			_, _ = w.Write(mockWebpaPokeResponse)
 		}))
 	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
@@ -301,6 +302,35 @@ func TestPokeHandlerInvalidMac(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+}
+
+func TestPokeHandlerWebpa403(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// webpa mock server
+	webpaMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write(mockWebpaPoke403Response)
+		}))
+	defer webpaMockServer.Close()
+	server.SetWebpaHost(webpaMockServer.URL)
+	targetWebpaHost := server.WebpaHost()
+	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
+
+	// ==== post new data ====
+	lowerCpeMac := strings.ToLower(cpeMac)
+	url := fmt.Sprintf("/api/v1/device/%v/poke?cpe_action=true", lowerCpeMac)
+	req, err := http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()

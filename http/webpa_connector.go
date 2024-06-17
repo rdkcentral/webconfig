@@ -251,17 +251,25 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 }
 
 func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
-	var cont bool
-
+	tfields := common.FilterLogFields(fields)
+	tfields["logger"] = "asyncwebpa"
 	for i := 1; i <= c.retries; i++ {
 		cbytes := make([]byte, len(bbytes))
 		copy(cbytes, bbytes)
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, _, cont = c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
+		_, _, _, cont := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
+			msg := fmt.Sprintf("finished success after 1 retry")
+			if i > 1 {
+				fmt.Sprintf("finished success after %v retries", i)
+			}
+			log.WithFields(tfields).Info(msg)
 			break
+		}
+		if i == c.retries {
+			log.WithFields(tfields).Infof("finished failure after %v retries", i)
 		}
 	}
 	<-c.queue
