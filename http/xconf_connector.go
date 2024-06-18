@@ -44,7 +44,8 @@ func NewXconfConnector(conf *configuration.Config, tlsConfig *tls.Config) *Xconf
 	host := conf.GetString(confKey, xconfHostDefault)
 
 	return &XconfConnector{
-		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig),
+		// last param indicates no traces to be generated
+		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig, false),
 		host:        host,
 		serviceName: serviceName,
 	}
