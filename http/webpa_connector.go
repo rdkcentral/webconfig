@@ -130,9 +130,10 @@ func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *Webpa
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", webpaServiceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 
-	syncClient := NewHttpClient(conf, webpaServiceName, tlsConfig)
+	genTrace := conf.GetBoolean("webconfig.opentelemetry.trace_patch", false)
+	syncClient := NewHttpClient(conf, webpaServiceName, tlsConfig, genTrace)
 	syncClient.SetStatusHandler(520, syncHandle520)
-	asyncClient := NewHttpClient(conf, asyncWebpaServiceName, tlsConfig)
+	asyncClient := NewHttpClient(conf, asyncWebpaServiceName, tlsConfig, genTrace)
 	asyncClient.SetStatusHandler(520, asyncHandle520)
 
 	confKey = fmt.Sprintf("webconfig.%v.api_version", webpaServiceName)

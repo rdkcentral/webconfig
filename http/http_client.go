@@ -63,7 +63,8 @@ type HttpClient struct {
 	userAgent            string
 }
 
-func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
+// genTrace is a bool that indicates enabling otel or not
+func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config, genTrace bool) *HttpClient {
 	confKey := fmt.Sprintf("webconfig.%v.connect_timeout_in_secs", serviceName)
 	connectTimeout := int(conf.GetInt32(confKey, defaultConnectTimeout))
 
@@ -95,10 +96,12 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig:       tlsConfig,
 	}
-	transport = otelhttp.NewTransport(transport,
-		otelhttp.WithPropagators(otelTracer.propagator),
-		otelhttp.WithTracerProvider(otelTracer.tracerProvider),
-	)
+	if genTrace {
+		transport = otelhttp.NewTransport(transport,
+			otelhttp.WithPropagators(otelTracer.propagator),
+			otelhttp.WithTracerProvider(otelTracer.tracerProvider),
+		)
+	}
 
 	return &HttpClient{
 		Client: &http.Client{
