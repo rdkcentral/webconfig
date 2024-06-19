@@ -45,9 +45,8 @@ func NewMqttConnector(conf *configuration.Config, tlsConfig *tls.Config) *MqttCo
 	confKey := fmt.Sprintf("webconfig.%v.host", serviceName)
 	host := conf.GetString(confKey, mqttHostDefault)
 
-	genTrace := conf.GetBoolean("webconfig.opentelemetry.trace_post", false)
 	return &MqttConnector{
-		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig, genTrace),
+		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig),
 		host:        host,
 		serviceName: serviceName,
 	}

@@ -156,7 +156,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transactionId, err := s.Poke(mac, token, pokeStr, fields)
+	transactionId, err := s.Poke(r.Context(), mac, token, pokeStr, fields)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {

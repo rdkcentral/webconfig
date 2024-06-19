@@ -37,7 +37,6 @@ import (
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -63,8 +62,7 @@ type HttpClient struct {
 	userAgent            string
 }
 
-// genTrace is a bool that indicates enabling otel or not
-func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config, genTrace bool) *HttpClient {
+func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
 	confKey := fmt.Sprintf("webconfig.%v.connect_timeout_in_secs", serviceName)
 	connectTimeout := int(conf.GetInt32(confKey, defaultConnectTimeout))
 
@@ -95,12 +93,6 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig:       tlsConfig,
-	}
-	if genTrace {
-		transport = otelhttp.NewTransport(transport,
-			otelhttp.WithPropagators(otelTracer.propagator),
-			otelhttp.WithTracerProvider(otelTracer.tracerProvider),
-		)
 	}
 
 	return &HttpClient{
