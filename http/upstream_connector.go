@@ -47,9 +47,8 @@ func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config) *Up
 	confKey = fmt.Sprintf("webconfig.%v.url_template", serviceName)
 	upstreamUrlTemplate := conf.GetString(confKey, upstreamUrlTemplateDefault)
 
-	genTrace := conf.GetBoolean("webconfig.opentelemetry.trace_post", false)
 	return &UpstreamConnector{
-		HttpClient:          NewHttpClient(conf, serviceName, tlsConfig, genTrace),
+		HttpClient:          NewHttpClient(conf, serviceName, tlsConfig),
 		host:                host,
 		serviceName:         serviceName,
 		upstreamUrlTemplate: upstreamUrlTemplate,

@@ -106,6 +106,7 @@ type WebconfigServer struct {
 	tracestateVendorID            string
 	supplementaryAppendingEnabled bool
 	otelTracer                    *otelTracing // For OpenTelemetry Tracing
+	webpaPokeSpanName             string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -252,7 +253,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	return &WebconfigServer{
+	ws := &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -284,6 +285,10 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
+	// Init the child poke span name
+	ws.webpaPokeSpanName = ws.WebpaConnector.PokeSpanName()
+
+	return ws
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -590,7 +595,10 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	return fmt.Errorf("invalid partner")
 }
 
-func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
+func (c *WebconfigServer) Poke(ctx context.Context, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
+	ctx, span := newSpan(ctx, c.webpaPokeSpanName)
+	defer span.End()
+
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
 	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
 	if err != nil {
@@ -883,11 +891,8 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 		if pathTemplate != "" {
 			spanName = pathTemplate
 		}
-		ctx, span := otelTracer.tracer.Start(ctx, spanName)
+		ctx, span := newSpan(ctx, spanName)
 		defer span.End()
-
-		attr := attribute.String("env", otelTracer.envName)
-		span.SetAttributes(attr)
 
 		// Pass the context with the span to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -912,6 +917,15 @@ func (s *WebconfigServer) getTracestate(r *http.Request) string {
 		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
 	return outTracestate
+}
+
+func newSpan(ctx context.Context, spanName string) (context.Context, trace.Span) {
+	var span trace.Span
+	ctx, span = otelTracer.tracer.Start(ctx, spanName)
+	attr := attribute.String("env", otelTracer.envName)
+	span.SetAttributes(attr)
+
+	return ctx, span
 }
 
 func hexStringToBytes(hexString string) []byte {

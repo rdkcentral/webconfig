@@ -130,10 +130,9 @@ func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *Webpa
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", webpaServiceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 
-	genTrace := conf.GetBoolean("webconfig.opentelemetry.trace_patch", false)
-	syncClient := NewHttpClient(conf, webpaServiceName, tlsConfig, genTrace)
+	syncClient := NewHttpClient(conf, webpaServiceName, tlsConfig)
 	syncClient.SetStatusHandler(520, syncHandle520)
-	asyncClient := NewHttpClient(conf, asyncWebpaServiceName, tlsConfig, genTrace)
+	asyncClient := NewHttpClient(conf, asyncWebpaServiceName, tlsConfig)
 	asyncClient.SetStatusHandler(520, asyncHandle520)
 
 	confKey = fmt.Sprintf("webconfig.%v.api_version", webpaServiceName)
@@ -167,6 +166,11 @@ func (c *WebpaConnector) ApiVersion() string {
 
 func (c *WebpaConnector) SetApiVersion(apiVersion string) {
 	c.apiVersion = apiVersion
+}
+
+func (c *WebpaConnector) PokeSpanName() string {
+	// By convention, span name won't have the host, but only the base template
+	return fmt.Sprintf(webpaUrlTemplate[2:], c.apiVersion)
 }
 
 func (c *WebpaConnector) NewQueue(capacity int) error {
