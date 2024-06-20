@@ -596,9 +596,6 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 }
 
 func (c *WebconfigServer) Poke(ctx context.Context, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
-	ctx, span := newSpan(ctx, c.webpaPokeSpanName)
-	defer span.End()
-
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
 	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
 	if err != nil {
@@ -891,8 +888,8 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 		if pathTemplate != "" {
 			spanName = pathTemplate
 		}
-		ctx, span := newSpan(ctx, spanName)
-		defer span.End()
+		ctx, span := newSpan(ctx, spanName, "POST")
+		defer endSpanWithResponseWriter(span, w)
 
 		// Pass the context with the span to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -919,13 +916,32 @@ func (s *WebconfigServer) getTracestate(r *http.Request) string {
 	return outTracestate
 }
 
-func newSpan(ctx context.Context, spanName string) (context.Context, trace.Span) {
+func newSpan(ctx context.Context, spanName string, method string) (context.Context, trace.Span) {
 	var span trace.Span
 	ctx, span = otelTracer.tracer.Start(ctx, spanName)
-	attr := attribute.String("env", otelTracer.envName)
-	span.SetAttributes(attr)
 
+	envAttr := attribute.String("env", otelTracer.envName)
+	span.SetAttributes(envAttr)
+
+	methodAttr := attribute.String("http.method", method)
+	span.SetAttributes(methodAttr)
 	return ctx, span
+}
+
+func endSpanWithStatusCode(span trace.Span, statusCodePtr *int) {
+	if statusCodePtr != nil {
+		statusAttr := attribute.Int("http.status_code", *statusCodePtr)
+		span.SetAttributes(statusAttr)
+	}
+	span.End()
+}
+
+func endSpanWithResponseWriter(span trace.Span, w http.ResponseWriter) {
+	if xw, ok := w.(*XResponseWriter); ok {
+		statusAttr := attribute.Int("http.status_code", xw.Status())
+		span.SetAttributes(statusAttr)
+	}
+	span.End()
 }
 
 func hexStringToBytes(hexString string) []byte {

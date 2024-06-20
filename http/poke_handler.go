@@ -156,10 +156,21 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transactionId, err := s.Poke(r.Context(), mac, token, pokeStr, fields)
+	statusCode := http.StatusOK
+	statusCodePtr := &statusCode
+	ctx, span := newSpan(r.Context(), s.webpaPokeSpanName, "PATCH")
+
+	// TODO: endSpan should reflect the real status of the webpa patch call
+	// not the transformed custom status e.g 404 from webpa patch gets converted
+	// to 521. Clumsy way of doing this...
+	defer endSpanWithStatusCode(span, statusCodePtr)
+
+	transactionId, err := s.Poke(ctx, mac, token, pokeStr, fields)
+
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
+			statusCode = rherr.StatusCode
 			// webpa error handling
 			status := rherr.StatusCode
 			if rherr.StatusCode == http.StatusNotFound {
@@ -186,6 +197,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		statusCode = http.StatusInternalServerError
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
 	}
