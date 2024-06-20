@@ -170,7 +170,7 @@ func (c *WebpaConnector) SetApiVersion(apiVersion string) {
 
 func (c *WebpaConnector) PokeSpanName() string {
 	// By convention, span name won't have the host, but only the base template
-	return fmt.Sprintf(webpaUrlTemplate[2:], c.apiVersion)
+	return fmt.Sprintf(webpaUrlTemplate[2:], c.apiVersion, "<mac>") + " PATCH"
 }
 
 func (c *WebpaConnector) NewQueue(capacity int) error {
