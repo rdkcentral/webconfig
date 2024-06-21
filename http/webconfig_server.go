@@ -29,6 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -38,9 +41,6 @@ import (
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 )
 
 // TODO enum, probably no need
@@ -595,10 +595,7 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	return fmt.Errorf("invalid partner")
 }
 
-func (c *WebconfigServer) Poke(ctx context.Context, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
-	ctx, span := newSpan(ctx, c.webpaPokeSpanName)
-	defer span.End()
-
+func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
 	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
 	if err != nil {
@@ -891,8 +888,8 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 		if pathTemplate != "" {
 			spanName = pathTemplate
 		}
-		ctx, span := newSpan(ctx, spanName)
-		defer span.End()
+		ctx, span := newSpan(ctx, spanName, "POST")
+		defer endSpan(span, w)
 
 		// Pass the context with the span to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -919,13 +916,34 @@ func (s *WebconfigServer) getTracestate(r *http.Request) string {
 	return outTracestate
 }
 
-func newSpan(ctx context.Context, spanName string) (context.Context, trace.Span) {
+func newSpan(ctx context.Context, spanName string, method string) (context.Context, trace.Span) {
 	var span trace.Span
-	ctx, span = otelTracer.tracer.Start(ctx, spanName)
-	attr := attribute.String("env", otelTracer.envName)
-	span.SetAttributes(attr)
+	spanNameWithMethod := spanName + " " + method
+	ctx, span = otelTracer.tracer.Start(ctx, spanNameWithMethod)
+
+	envAttr := attribute.String("env", otelTracer.envName)
+	span.SetAttributes(envAttr)
+
+	resourceNameAttr := attribute.String("resource.name", spanNameWithMethod)
+	span.SetAttributes(resourceNameAttr)
+
+	/*
+	methodAttr := attribute.String("http.method", method)
+	span.SetAttributes(methodAttr)
+	*/
 
 	return ctx, span
+}
+
+func endSpan(span trace.Span, w http.ResponseWriter) {
+	if xw, ok := w.(*XResponseWriter); ok {
+		fmt.Println("RV DEBUG endSpan status", xw.Status())
+		statusAttr := attribute.Int("http.status_code", xw.Status())
+		span.SetAttributes(statusAttr)
+	} else {
+		fmt.Println("RV DEBUG endSpan no status")
+	}
+	span.End()
 }
 
 func hexStringToBytes(hexString string) []byte {
