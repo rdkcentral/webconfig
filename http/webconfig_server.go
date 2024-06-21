@@ -29,6 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -38,9 +41,6 @@ import (
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 )
 
 // TODO enum, probably no need
@@ -77,7 +77,6 @@ var (
 		"privatessid",
 		"homessid",
 	}
-	ws *WebconfigServer
 )
 
 type WebconfigServer struct {
@@ -107,6 +106,7 @@ type WebconfigServer struct {
 	tracestateVendorID            string
 	supplementaryAppendingEnabled bool
 	otelTracer                    *otelTracing // For OpenTelemetry Tracing
+	webpaPokeSpanName             string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -253,7 +253,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
-	ws = &WebconfigServer{
+	ws := &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -285,6 +285,9 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
+	// Init the child poke span name
+	ws.webpaPokeSpanName = ws.WebpaConnector.PokeSpanName()
+
 	return ws
 }
 
@@ -856,14 +859,14 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func spanMiddleware(next http.Handler) http.Handler {
+func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		spanContext := trace.SpanContextFromContext(ctx)
 		remote := spanContext.IsRemote()
 		sc := trace.SpanContext{}.WithRemote(remote)
 
-		traceIDStr, traceFlagsStr := parseTraceparent(r)
+		traceIDStr, traceFlagsStr := s.parseTraceparent(r)
 		if traceIDStr != "" {
 			traceID, _ := trace.TraceIDFromHex(traceIDStr)
 			sc = sc.WithTraceID(traceID)
@@ -872,17 +875,21 @@ func spanMiddleware(next http.Handler) http.Handler {
 			traceFlags := trace.TraceFlags(hexStringToBytes(traceFlagsStr)[0])
 			sc = sc.WithTraceFlags(traceFlags)
 		}
-		tracestateStr := getTracestate(r)
+		tracestateStr := s.getTracestate(r)
 		if tracestateStr != "" {
 			tracestate, _ := trace.ParseTraceState(tracestateStr)
 			sc = sc.WithTraceState(tracestate)
 		}
 		ctx = trace.ContextWithSpanContext(ctx, sc)
-		ctx, span := otelTracer.tracer.Start(ctx, "oswebconfig_poke_handler")
-		defer span.End()
 
-		attr := attribute.String("env", otelTracer.envName)
-		span.SetAttributes(attr)
+		// Feedback: Better to use the "path"/API rather than a hard coded name
+		spanName := "oswebconfig_poke_handler"
+		pathTemplate, _ := mux.CurrentRoute(r).GetPathTemplate()
+		if pathTemplate != "" {
+			spanName = pathTemplate
+		}
+		ctx, span := newSpan(ctx, spanName, "POST")
+		defer endSpan(span, w)
 
 		// Pass the context with the span to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -890,7 +897,7 @@ func spanMiddleware(next http.Handler) http.Handler {
 }
 
 // extract traceparent from the header
-func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
+func (s *WebconfigServer) parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
 	inTraceparent := r.Header.Get(common.HeaderTraceparent)
 	if len(inTraceparent) == 55 {
 		traceID = inTraceparent[3:35]
@@ -900,13 +907,38 @@ func parseTraceparent(r *http.Request) (traceID string, traceFlags string) {
 }
 
 // extract tracestate from the header
-func getTracestate(r *http.Request) string {
+func (s *WebconfigServer) getTracestate(r *http.Request) string {
 	inTracestate := r.Header.Get(common.HeaderTracestate)
 	var outTracestate string
 	if len(inTracestate) > 0 {
-		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, ws.TracestateVendorID(), ws.TraceparentParentID())
+		outTracestate = fmt.Sprintf("%v,%v=%v", inTracestate, s.TracestateVendorID(), s.TraceparentParentID())
 	}
 	return outTracestate
+}
+
+func newSpan(ctx context.Context, spanName string, method string) (context.Context, trace.Span) {
+	var span trace.Span
+	ctx, span = otelTracer.tracer.Start(ctx, spanName + " " + method)
+
+	envAttr := attribute.String("env", otelTracer.envName)
+	span.SetAttributes(envAttr)
+
+	/*
+	methodAttr := attribute.String("http.method", method)
+	span.SetAttributes(methodAttr)
+	*/
+	return ctx, span
+}
+
+func endSpan(span trace.Span, w http.ResponseWriter) {
+	if xw, ok := w.(*XResponseWriter); ok {
+		fmt.Println("RV DEBUG endSpan status", xw.Status())
+		statusAttr := attribute.Int("http.status_code", xw.Status())
+		span.SetAttributes(statusAttr)
+	} else {
+		fmt.Println("RV DEBUG endSpan no status")
+	}
+	span.End()
 }
 
 func hexStringToBytes(hexString string) []byte {

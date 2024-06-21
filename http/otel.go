@@ -27,10 +27,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -45,7 +45,7 @@ type otelTracing struct {
 	envName        string
 	appName        string
 	tracerProvider trace.TracerProvider
-	propagator	   propagation.TextMapPropagator
+	propagator     propagation.TextMapPropagator
 	tracer         trace.Tracer
 }
 
@@ -54,10 +54,10 @@ type providerConstructor func(conf *configuration.Config) (trace.TracerProvider,
 var (
 	ErrTracerProviderNotFound    = errors.New("TracerProvider builder could not be found")
 	ErrTracerProviderBuildFailed = errors.New("Failed building TracerProvider")
-	providersConfig = map[string]providerConstructor{
-		"http": httpTraceProvider,
+	providersConfig              = map[string]providerConstructor{
+		"http":   httpTraceProvider,
 		"stdout": stdoutTraceProvider,
-		"noop": noopTraceProvider,
+		"noop":   noopTraceProvider,
 	}
 
 	otelTracer otelTracing
