@@ -918,7 +918,10 @@ func (s *WebconfigServer) getTracestate(r *http.Request) string {
 
 func newSpan(ctx context.Context, spanName string, method string) (context.Context, trace.Span) {
 	var span trace.Span
-	ctx, span = otelTracer.tracer.Start(ctx, spanName + " " + method)
+
+	// Convention: method followed by path template
+	spanNameWithMethod := method + " " + spanName
+	ctx, span = otelTracer.tracer.Start(ctx, spanNameWithMethod)
 
 	envAttr := attribute.String("env", otelTracer.envName)
 	span.SetAttributes(envAttr)
@@ -932,11 +935,8 @@ func newSpan(ctx context.Context, spanName string, method string) (context.Conte
 
 func endSpan(span trace.Span, w http.ResponseWriter) {
 	if xw, ok := w.(*XResponseWriter); ok {
-		fmt.Println("RV DEBUG endSpan status", xw.Status())
 		statusAttr := attribute.Int("http.status_code", xw.Status())
 		span.SetAttributes(statusAttr)
-	} else {
-		fmt.Println("RV DEBUG endSpan no status")
 	}
 	span.End()
 }
