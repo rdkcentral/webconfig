@@ -29,6 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -38,9 +41,6 @@ import (
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 )
 
 // TODO enum, probably no need
@@ -889,7 +889,7 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 			spanName = pathTemplate
 		}
 		ctx, span := newSpan(ctx, spanName, "POST")
-		defer endSpanWithResponseWriter(span, w)
+		defer endSpan(span, w)
 
 		// Pass the context with the span to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -928,15 +928,7 @@ func newSpan(ctx context.Context, spanName string, method string) (context.Conte
 	return ctx, span
 }
 
-func endSpanWithStatusCode(span trace.Span, statusCodePtr *int) {
-	if statusCodePtr != nil {
-		statusAttr := attribute.Int("http.status_code", *statusCodePtr)
-		span.SetAttributes(statusAttr)
-	}
-	span.End()
-}
-
-func endSpanWithResponseWriter(span trace.Span, w http.ResponseWriter) {
+func endSpan(span trace.Span, w http.ResponseWriter) {
 	if xw, ok := w.(*XResponseWriter); ok {
 		statusAttr := attribute.Int("http.status_code", xw.Status())
 		span.SetAttributes(statusAttr)
