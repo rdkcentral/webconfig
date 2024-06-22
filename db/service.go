@@ -45,14 +45,23 @@ var (
 // (1) need to have a dedicate function update states AFTER this function is executed
 // (2) read from the existing "root_document" table and build those into the header for upstream
 // (3) return a new variable to indicate goUpstream
-func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, fields log.Fields) (*common.Document, *common.RootDocument, *common.RootDocument, map[string]string, bool, error) {
+func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fields log.Fields) (*common.Document, *common.RootDocument, *common.RootDocument, map[string]string, bool, error) {
 	fieldsDict := make(util.Dict)
 	fieldsDict.Update(fields)
+	tfields := common.FilterLogFields(fields)
+	tfields["logger"] = "request"
+
+	// XPC-21583 Validate all headers
+	rHeader := common.NewReqHeader(inHeader)
 
 	// ==== deviceRootDocument should always be created from request header ====
 	var bitmap int
 	var err error
-	supportedDocs := rHeader.Get(common.HeaderSupportedDocs)
+	supportedDocs, err := rHeader.Get(common.HeaderSupportedDocs)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+
 	if len(supportedDocs) > 0 {
 		bitmap, err = util.GetCpeBitmap(supportedDocs)
 		if err != nil {
@@ -60,26 +69,43 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 		}
 	}
 
-	schemaVersion := strings.ToLower(rHeader.Get(common.HeaderSchemaVersion))
-	modelName := rHeader.Get(common.HeaderModelName)
+	schemaVersion, err := rHeader.Get(common.HeaderSchemaVersion)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+	schemaVersion = strings.ToLower(schemaVersion)
 
-	partnerId := rHeader.Get(common.HeaderPartnerID)
+	modelName, err := rHeader.Get(common.HeaderModelName)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+
+	partnerId, err := rHeader.Get(common.HeaderPartnerID)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
 	if len(partnerId) == 0 {
 		partnerId = fieldsDict.GetString("partner")
 	}
 
-	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
+	firmwareVersion, err := rHeader.Get(common.HeaderFirmwareVersion)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
 
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
 	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
 
 	// ==== parse mac ====
-	mac := rHeader.Get(common.HeaderDeviceId)
+	mac, err := rHeader.Get(common.HeaderDeviceId)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
 
 	var document *common.Document
 
 	// get version map
-	deviceVersionMap, versions, err := parseVersionMap(rHeader)
+	deviceVersionMap, versions, err := parseVersionMap(rHeader, tfields)
 	if err != nil {
 		var gvmErr common.GroupVersionMismatchError
 		if errors.As(err, &gvmErr) {
@@ -126,13 +152,17 @@ func BuildGetDocument(c DatabaseClient, rHeader http.Header, route string, field
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
 	var rootCmpEnum int
 	// mget fakes no meta change so that meta are not updated
-	if rHeader.Get("User-Agent") == "mget" {
+	userAgent, err := rHeader.Get("User-Agent")
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+	if userAgent == "mget" {
 		rootCmpEnum = common.RootDocumentVersionOnlyChanged
 	} else {
 		rootCmpEnum = cloudRootDocument.Compare(deviceRootDocument)
 	}
 
-	if isDiff := cloudRootDocument.IsDifferent(deviceRootDocument); isDiff {
+	if isEqual := cloudRootDocument.Equals(deviceRootDocument); !isEqual {
 		// need to update rootDoc meta
 		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
 		clonedRootDoc := deviceRootDocument.Clone()
@@ -250,16 +280,22 @@ func GetSetColumnsStr(columns []string) string {
 }
 
 // deviceVersionMap := parseVersionMap(rHeader, d)
-func parseVersionMap(rHeader http.Header) (map[string]string, []string, error) {
+func parseVersionMap(rHeader *common.ReqHeader, tfields log.Fields) (map[string]string, []string, error) {
 	deviceVersionMap := make(map[string]string)
 
-	queryStr := rHeader.Get(common.HeaderDocName)
+	queryStr, err := rHeader.Get(common.HeaderDocName)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
 	subdocIds := strings.Split(queryStr, ",")
 	if len(queryStr) == 0 {
 		return deviceVersionMap, nil, nil
 	}
 
-	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
+	ifNoneMatch, err := rHeader.Get(common.HeaderIfNoneMatch)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
 	versions := strings.Split(ifNoneMatch, ",")
 
 	if len(subdocIds) != len(versions) {
