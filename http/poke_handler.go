@@ -25,12 +25,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gorilla/mux"
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
