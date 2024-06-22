@@ -233,3 +233,77 @@ func TestPostRootDocumentHandler(t *testing.T) {
 
 	assert.Equal(t, getResp.Data, *srcDoc1)
 }
+
+func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 GET /rootdocument and expect 404 ====
+	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
+	req, err := http.NewRequest("GET", rootdocUrl, nil)
+	req.Header.Set("Content-Type", "application/json")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// ==== step 2 GET /config device ====
+	// boots up but with out data in db
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+
+	res = ExecuteRequest(req, router).Result()
+	assert.NilError(t, err)
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	_ = rbytes
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// read from db to compare version
+	rootdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+
+	expectedBitmap1, err := util.GetCpeBitmap(supportedDocs1)
+	assert.NilError(t, err)
+	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
+	assert.DeepEqual(t, rootdoc, expectedRootdoc)
+
+	// ==== step 2 ====
+	supportedDocs2 := "16777231,33554435,50331649,67108865,83886081,100663297,117440513,134217729" + string(util.RandomBytes(10, 15))
+	firmwareVersion2 := "CGM4331COM_4.11p7s1_PROD_sey" + string(util.RandomBytes(10, 15))
+	modelName2 := "CGM4331COM" + string(util.RandomBytes(10, 15))
+	partner2 := "comcast" + string(util.RandomBytes(10, 15))
+	schemaVersion2 := "33554433-1.3,33554434-1.3" + string(util.RandomBytes(10, 15))
+
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs2)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion2)
+	req.Header.Set(common.HeaderModelName, modelName2)
+	req.Header.Set(common.HeaderPartnerID, partner2)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion2)
+	res = ExecuteRequest(req, router).Result()
+	assert.NilError(t, err)
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	_ = rbytes
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// read from db to compare version
+	rootdoc2, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, rootdoc.Equals(rootdoc2))
+}
