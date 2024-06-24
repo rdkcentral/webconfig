@@ -457,18 +457,20 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	}
 	labels["client"] = "default"
 
-	updatedTime := int(time.Now().UnixNano() / 1000000)
-	newSubdoc.SetUpdatedTime(&updatedTime)
-	newState := common.InDeployment
 	if oldVersion, ok := versionMap[subdocId]; ok {
 		if newSubdoc.Version() != nil {
 			if oldVersion == *newSubdoc.Version() {
-				newState = common.Deployed
+				return nil
 			}
 		}
 	}
 
+	updatedTime := int(time.Now().UnixNano() / 1000000)
+	newSubdoc.SetUpdatedTime(&updatedTime)
+
+	newState := common.InDeployment
 	newSubdoc.SetState(&newState)
+
 	err = c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 	if err != nil {
 		return common.NewError(err)
