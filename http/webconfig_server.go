@@ -929,10 +929,11 @@ func newSpan(ctx context.Context, spanName string, method string) (context.Conte
 	resourceNameAttr := attribute.String("resource.name", spanNameWithMethod)
 	span.SetAttributes(resourceNameAttr)
 
-	/*
-		methodAttr := attribute.String("http.method", method)
-		span.SetAttributes(methodAttr)
-	*/
+	routeAttr := attribute.String("http.route", spanName)
+	span.SetAttributes(routeAttr)
+
+	methodAttr := attribute.String("http.method", method)
+	span.SetAttributes(methodAttr)
 
 	return ctx, span
 }
