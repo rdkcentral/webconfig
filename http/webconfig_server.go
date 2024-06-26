@@ -925,12 +925,15 @@ func newSpan(ctx context.Context, spanName string, method string) (context.Conte
 
 	envAttr := attribute.String("env", otelTracer.envName)
 	span.SetAttributes(envAttr)
- 
+
 	resourceNameAttr := attribute.String("resource.name", spanNameWithMethod)
 	span.SetAttributes(resourceNameAttr)
 
 	routeAttr := attribute.String("http.route", spanName)
 	span.SetAttributes(routeAttr)
+
+	methodAttr := attribute.String("http.method", method)
+	span.SetAttributes(methodAttr)
 
 	return ctx, span
 }
