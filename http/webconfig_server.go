@@ -29,9 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -41,6 +38,9 @@ import (
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
+	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO enum, probably no need
@@ -927,8 +927,8 @@ func newSpan(ctx context.Context, spanName string, method string) (context.Conte
 	span.SetAttributes(envAttr)
 
 	/*
-	methodAttr := attribute.String("http.method", method)
-	span.SetAttributes(methodAttr)
+		methodAttr := attribute.String("http.method", method)
+		span.SetAttributes(methodAttr)
 	*/
 	return ctx, span
 }
