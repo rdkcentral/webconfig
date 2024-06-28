@@ -107,6 +107,11 @@ const (
 	HeaderTracestate                 = "Tracestate"
 	HeaderContentLength              = "Content-Length"
 	HeaderRefSubdocumentVersion      = "X-Refsubdocument-Version"
+	HeaderUpstreamResponse           = "X-Upstream-Response"
+)
+
+const (
+	SkipDbUpdate = "skip-db-update"
 )
 
 // header X-System-Supported-Docs
