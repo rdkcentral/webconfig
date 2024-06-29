@@ -106,7 +106,7 @@ type WebconfigServer struct {
 	tracestateVendorID            string
 	supplementaryAppendingEnabled bool
 	otelTracer                    *otelTracing // For OpenTelemetry Tracing
-	webpaPokeSpanName             string
+	webpaPokeSpanTemplate         string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -286,7 +286,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 	}
 	// Init the child poke span name
-	ws.webpaPokeSpanName = ws.WebpaConnector.PokeSpanName()
+	ws.webpaPokeSpanTemplate = ws.WebpaConnector.PokeSpanTemplate()
 
 	return ws
 }
@@ -882,13 +882,7 @@ func (s *WebconfigServer) spanMiddleware(next http.Handler) http.Handler {
 		}
 		ctx = trace.ContextWithSpanContext(ctx, sc)
 
-		// Feedback: Better to use the "path"/API rather than a hard coded name
-		spanName := "oswebconfig_poke_handler"
-		pathTemplate, _ := mux.CurrentRoute(r).GetPathTemplate()
-		if pathTemplate != "" {
-			spanName = pathTemplate
-		}
-		ctx, span := newSpan(ctx, spanName, "POST")
+		ctx, span := s.newParentPokeSpan(ctx, r)
 		defer endSpan(span, w)
 
 		// Pass the context with the span to the next handler
@@ -916,26 +910,45 @@ func (s *WebconfigServer) getTracestate(r *http.Request) string {
 	return outTracestate
 }
 
-func newSpan(ctx context.Context, spanName string, method string) (context.Context, trace.Span) {
+func (s *WebconfigServer) newParentPokeSpan(ctx context.Context, r *http.Request) (context.Context, trace.Span) {
 	var span trace.Span
 
-	// Convention: method followed by path template
-	spanNameWithMethod := method + " " + spanName
-	ctx, span = otelTracer.tracer.Start(ctx, spanNameWithMethod)
+	ctx, span = otelTracer.tracer.Start(ctx, otelTracer.opName)
+	// ctx, span = otelTracer.tracer.Start(ctx, otelTracer.opName, trace.WithSpanKind(trace.SpanKindServer))
 
+	// Feedback: Better to use the "path"/API rather than a hard coded name
+	route := "oswebconfig_poke_handler"
+	if mux.CurrentRoute(r) != nil { // This can be nil in unit tests
+		route, _ = mux.CurrentRoute(r).GetPathTemplate()
+	}
+	s.addAttributes(span, route, r.URL.Path, r.URL.String(), r.Method)
+	return ctx, span
+}
+
+func (s *WebconfigServer) newChildPokeSpan(ctx context.Context, route string, path string, fullPath string, method string) (context.Context, trace.Span) {
+	var span trace.Span
+	ctx, span = otelTracer.tracer.Start(ctx, otelTracer.opName)
+	// ctx, span = otelTracer.tracer.Start(ctx, otelTracer.opName, trace.WithSpanKind(trace.SpanKindClient))
+ 
+	s.addAttributes(span, route, path, fullPath, method)
+ 	return ctx, span
+ }
+ 
+func (s *WebconfigServer) addAttributes(span trace.Span, route string, path string, fullPath string, method string) {
 	envAttr := attribute.String("env", otelTracer.envName)
 	span.SetAttributes(envAttr)
 
-	resourceNameAttr := attribute.String("resource.name", spanNameWithMethod)
-	span.SetAttributes(resourceNameAttr)
-
-	routeAttr := attribute.String("http.route", spanName)
+	routeAttr := attribute.String("http.route", route)
 	span.SetAttributes(routeAttr)
+
+	pathAttr := attribute.String("http.url_details.path", path)
+	span.SetAttributes(pathAttr)
+
+	fullPathAttr := attribute.String("http.url", fullPath)
+	span.SetAttributes(fullPathAttr)
 
 	methodAttr := attribute.String("http.method", method)
 	span.SetAttributes(methodAttr)
-
-	return ctx, span
 }
 
 func endSpan(span trace.Span, w http.ResponseWriter) {

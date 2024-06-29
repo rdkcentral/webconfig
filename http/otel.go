@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-akka/configuration"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -44,6 +43,7 @@ type otelTracing struct {
 	providerName   string
 	envName        string
 	appName        string
+	opName         string
 	tracerProvider trace.TracerProvider
 	propagator     propagation.TextMapPropagator
 	tracer         trace.Tracer
@@ -71,7 +71,7 @@ const defaultTracerProvider = "noop"
 // newOtel creates a structure with components that apps can use to initialize OpenTelemetry
 // tracing instrumentation code.
 func newOtel(conf *configuration.Config) (*otelTracing, error) {
-	if IsNoOpTracing(conf) {
+	if IsNoopTracing(conf) {
 		log.Debug("open telemetry tracing disabled (noop)")
 	} else {
 		log.Debug("opentelemetry tracing enabled")
@@ -80,6 +80,7 @@ func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	otelTracer.appName = conf.GetString("webconfig.app_name")
 	otelTracer.providerName = conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
 	otelTracer.envName = conf.GetString("webconfig.opentelemetry.env_name", "dev")
+	otelTracer.opName = conf.GetString("webconfig.opentelemetryl.operation_name", "http.request")
 	tracerProvider, err := newTracerProvider(conf)
 	if err != nil {
 		return &otelTracer, err
@@ -96,8 +97,8 @@ func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	return &otelTracer, nil
 }
 
-// IsNoOpTracing returns true if the provider is set to "noop"
-func IsNoOpTracing(conf *configuration.Config) bool {
+// IsNoopTracing returns true if the provider is set to "noop"
+func IsNoopTracing(conf *configuration.Config) bool {
 	providerName := conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
 	return strings.EqualFold(providerName, "noop")
 }
