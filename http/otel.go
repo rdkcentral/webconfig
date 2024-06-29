@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -35,6 +35,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-akka/configuration"
+
 	log "github.com/sirupsen/logrus"
 )
 
