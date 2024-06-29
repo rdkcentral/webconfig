@@ -95,3 +95,28 @@ func TestUpdateLogFields(t *testing.T) {
 
 	assert.DeepEqual(t, src, expected)
 }
+
+func TestCopyCoreLogFields(t *testing.T) {
+	body := map[string]interface{}{
+		"device_id":        "mac:29cf4fe3914e",
+		"http_status_code": 304,
+		"transaction_uuid": "f160f5f2-c899-4652-b066-c9b68328d74f",
+		"version":          "1719689278",
+	}
+	src := log.Fields{
+		"red":      "maroon",
+		"orange":   "auburn",
+		"yellow":   "amber",
+		"green":    "viridian",
+		"audit_id": "3787b860bdf64d0d87929ac8fc46b54e",
+		"cpe_mac":  "29CF4FE3914E",
+		"body":     body,
+	}
+	expected := log.Fields{
+		"audit_id": "3787b860bdf64d0d87929ac8fc46b54e",
+		"cpe_mac":  "29CF4FE3914E",
+		"body":     body,
+	}
+	copied := CopyCoreLogFields(src)
+	assert.DeepEqual(t, copied, expected)
+}

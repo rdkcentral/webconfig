@@ -28,6 +28,12 @@ var (
 		"out_traceparent",
 		"out_tracestate",
 	}
+	coreFields = []string{
+		"app_name",
+		"audit_id",
+		"body",
+		"cpe_mac",
+	}
 )
 
 func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
@@ -52,4 +58,14 @@ func UpdateLogFields(fields, newfields log.Fields) {
 	for k, v := range newfields {
 		fields[k] = v
 	}
+}
+
+func CopyCoreLogFields(src log.Fields) log.Fields {
+	fields := log.Fields{}
+	for _, k := range coreFields {
+		if itf, ok := src[k]; ok {
+			fields[k] = itf
+		}
+	}
+	return fields
 }
