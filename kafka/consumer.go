@@ -253,6 +253,10 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				}
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
 			}
+
+			if c.KafkaProducerEnabled() {
+				c.ForwardKafkaMessage(message, fields)
+			}
 		case <-session.Context().Done():
 			return nil
 		}
