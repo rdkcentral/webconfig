@@ -14,7 +14,8 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
+*/
+
 package http
 
 import (
@@ -35,7 +36,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-akka/configuration"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -81,7 +81,7 @@ func newOtel(conf *configuration.Config) (*otelTracing, error) {
 	otelTracer.appName = conf.GetString("webconfig.app_name")
 	otelTracer.providerName = conf.GetString("webconfig.opentelemetry.provider", defaultTracerProvider)
 	otelTracer.envName = conf.GetString("webconfig.opentelemetry.env_name", "dev")
-	otelTracer.opName = conf.GetString("webconfig.opentelemetryl.operation_name", "http.request")
+	otelTracer.opName = conf.GetString("webconfig.opentelemetry.operation_name", "http.request")
 	tracerProvider, err := newTracerProvider(conf)
 	if err != nil {
 		return &otelTracer, err

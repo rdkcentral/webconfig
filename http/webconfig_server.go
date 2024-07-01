@@ -980,6 +980,9 @@ func (s *WebconfigServer) addAttributes(span trace.Span, route string, path stri
 	envAttr := attribute.String("env", otelTracer.envName)
 	span.SetAttributes(envAttr)
 
+	operationNameAttr := attribute.String("operation.name", otelTracer.opName)
+	span.SetAttributes(operationNameAttr)
+
 	routeAttr := attribute.String("http.route", route)
 	span.SetAttributes(routeAttr)
 
