@@ -30,7 +30,9 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 
 	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
@@ -977,29 +979,35 @@ func (s *WebconfigServer) newChildPokeSpan(ctx context.Context, route string, pa
 }
 
 func (s *WebconfigServer) addAttributes(span trace.Span, route string, path string, fullPath string, method string) {
-	envAttr := attribute.String("env", otelTracer.envName)
-	span.SetAttributes(envAttr)
+	span.SetAttributes(
+		attribute.String("env", otelTracer.envName),
+		attribute.String("operation.name", otelTracer.opName),
+		attribute.String("http.url_details.path", path),
+		semconv.HTTPMethodKey.String(method),
+		semconv.HTTPRouteKey.String(route),
+		semconv.HTTPURLKey.String(fullPath),
+	)
 
-	operationNameAttr := attribute.String("operation.name", otelTracer.opName)
-	span.SetAttributes(operationNameAttr)
-
-	routeAttr := attribute.String("http.route", route)
-	span.SetAttributes(routeAttr)
-
-	pathAttr := attribute.String("http.url_details.path", path)
-	span.SetAttributes(pathAttr)
-
-	fullPathAttr := attribute.String("http.url", fullPath)
-	span.SetAttributes(fullPathAttr)
-
-	methodAttr := attribute.String("http.method", method)
-	span.SetAttributes(methodAttr)
+	log.Debug(fmt.Sprintf("added span attribute key=env, value=%s", otelTracer.envName))
+	log.Debug(fmt.Sprintf("added span attribute key=operation.name, value=%s", otelTracer.opName))
+	log.Debug(fmt.Sprintf("added span attribute key=http.url_details.path, value=%s", path))
+	log.Debug(fmt.Sprintf("added span attribute key=http.method, value=%s", method))
+	log.Debug(fmt.Sprintf("added span attribute key=http.route, value=%s", route))
+	log.Debug(fmt.Sprintf("added span attribute key=http.url, value=%s", fullPath))
 }
 
 func endSpan(span trace.Span, w http.ResponseWriter) {
 	if xw, ok := w.(*XResponseWriter); ok {
-		statusAttr := attribute.Int("http.status_code", xw.Status())
+		statusCode := xw.Status()
+		statusAttr := attribute.Int("http.status_code", statusCode)
 		span.SetAttributes(statusAttr)
+		log.Debug(fmt.Sprintf("added span attribute key=http.status_code, value=%d", statusCode))
+		if statusCode >= http.StatusInternalServerError {
+			statusText := http.StatusText(statusCode)
+			span.SetStatus(codes.Error, statusText)
+			span.SetAttributes(attribute.String("http.response.error", statusText))
+			log.Debug(fmt.Sprintf("added span attribute key=http.response.error, value=%s", statusText))
+		}
 	}
 	span.End()
 }
