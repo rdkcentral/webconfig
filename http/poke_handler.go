@@ -158,7 +158,10 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	statusCode := http.StatusOK
-	_, span := newSpan(r.Context(), s.webpaPokeSpanName, "PATCH")
+	pokeSpanPath := s.WebpaConnector.PokeSpanPath(mac)
+	// We are not passing any qparams to webpa, so fullPath = path
+	fullPath := pokeSpanPath
+	_, span := s.newChildPokeSpan(r.Context(), s.webpaPokeSpanTemplate, pokeSpanPath, fullPath, "PATCH")
 
 	// endSpan should reflect the real status of the webpa patch call
 	// not the transformed custom status
@@ -174,8 +177,8 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
-			statusCode = rherr.StatusCode
 			// webpa error handling
+			statusCode = rherr.StatusCode
 			status := rherr.StatusCode
 			if rherr.StatusCode == http.StatusNotFound {
 				status = 521
