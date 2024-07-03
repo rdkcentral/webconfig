@@ -58,8 +58,9 @@ func TestStateUpdate1(t *testing.T) {
 	var m common.EventMessage
 	err = json.Unmarshal(bbytes, &m)
 	assert.NilError(t, err)
-	err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
+	ok, err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
 	assert.NilError(t, err)
+	assert.Assert(t, !ok)
 	subdoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 	assert.Equal(t, *subdoc.State(), common.Failure)
@@ -72,8 +73,9 @@ func TestStateUpdate1(t *testing.T) {
 	m = common.EventMessage{}
 	err = json.Unmarshal(bbytes, &m)
 	assert.NilError(t, err)
-	err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
+	ok, err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
 	assert.NilError(t, err)
+	assert.Assert(t, !ok)
 	subdoc, err = tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 	assert.Equal(t, *subdoc.State(), common.Deployed)
@@ -109,8 +111,9 @@ func TestStateUpdate2(t *testing.T) {
 	var m common.EventMessage
 	err = json.Unmarshal(bbytes, &m)
 	assert.NilError(t, err)
-	err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
+	ok, err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
 	assert.NilError(t, err)
+	assert.Assert(t, !ok)
 	subdoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 	assert.Equal(t, *subdoc.State(), common.Failure)
@@ -123,8 +126,9 @@ func TestStateUpdate2(t *testing.T) {
 	m = common.EventMessage{}
 	err = json.Unmarshal(bbytes, &m)
 	assert.NilError(t, err)
-	err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
+	ok, err = db.UpdateDocumentState(tdbclient, cpeMac, &m, fields)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 	subdoc, err = tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 	assert.Equal(t, *subdoc.State(), common.Deployed)

@@ -1017,17 +1017,24 @@ func hexStringToBytes(hexString string) []byte {
 	return bytes
 }
 
-func (s *WebconfigServer) ForwardKafkaMessage(message *sarama.ConsumerMessage, fields log.Fields) {
+func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields) {
+	tfields := common.CopyCoreLogFields(fields)
+
+	bbytes, err := json.Marshal(m)
+	if err != nil {
+		tfields["logger"] = "error"
+		log.WithFields(tfields).Error(common.NewError(err))
+		return
+	}
 	outMessage := &sarama.ProducerMessage{
 		Topic: s.KafkaProducerTopic(),
-		Key:   sarama.ByteEncoder(message.Key),
-		Value: sarama.ByteEncoder(message.Value),
+		Key:   sarama.ByteEncoder(kbytes),
+		Value: sarama.ByteEncoder(bbytes),
 	}
 	s.Input() <- outMessage
 
-	tfields := common.CopyCoreLogFields(fields)
 	tfields["logger"] = "kafkaproducer"
 	tfields["kafka_topic"] = outMessage.Topic
-	tfields["kafka_key"] = string(message.Key)
+	tfields["kafka_key"] = string(kbytes)
 	log.WithFields(tfields).Info("send")
 }
