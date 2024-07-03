@@ -256,7 +256,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
 			}
 
-			if c.KafkaProducerEnabled() {
+			if c.KafkaProducerEnabled() && m != nil {
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && updatedBy304 {
 						// build a root/success message
