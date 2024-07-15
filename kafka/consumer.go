@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -75,31 +76,31 @@ func (c *Consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common.EventMessage, error) {
+func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common.EventMessage, bool, error) {
 	var m common.EventMessage
 	err := json.Unmarshal(bbytes, &m)
 	if err != nil {
-		return nil, common.NewError(err)
+		return nil, false, common.NewError(err)
 	}
 
 	fields["body"] = m
 	cpeMac, err := m.Validate(true)
 	if err != nil {
-		return nil, common.NewError(err)
+		return nil, false, common.NewError(err)
 	}
 
 	if m.ErrorDetails != nil && *m.ErrorDetails == "max_retry_reached" {
-		return &m, nil
+		return &m, false, nil
 	}
 
 	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
-	err = db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
+	updatedBy304, err := db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
 	if err != nil {
 		// NOTE return the *eventMessage
-		return &m, common.NewError(err)
+		return &m, updatedBy304, common.NewError(err)
 	}
-	return &m, nil
+	return &m, updatedBy304, nil
 }
 
 // NOTE we choose to return an EventMessage object just to pass along the metricsAgent
@@ -203,6 +204,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			var err error
 			logMessage := "discarded"
 			var m *common.EventMessage
+			var updatedBy304 bool
 
 			eventName, rptHeaderValue := getEventName(message)
 			switch eventName {
@@ -212,10 +214,10 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			case "mqtt-state":
 				header, bbytes := util.ParseHttp(message.Value)
 				fields["destination"] = header.Get("Destination")
-				m, err = c.handleNotification(bbytes, fields)
+				m, updatedBy304, err = c.handleNotification(bbytes, fields)
 				logMessage = "ok"
 			case "webpa-state":
-				m, err = c.handleNotification(message.Value, fields)
+				m, updatedBy304, err = c.handleNotification(message.Value, fields)
 				logMessage = "ok"
 			}
 
@@ -252,6 +254,26 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 					status = "fail"
 				}
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
+			}
+
+			if c.KafkaProducerEnabled() && m != nil {
+				if len(m.Reports) == 0 {
+					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && updatedBy304 {
+						// build a root/success message
+						namespace := "root"
+						applicationStatus := "success"
+						em := &common.EventMessage{
+							Namespace:         &namespace,
+							ApplicationStatus: &applicationStatus,
+							DeviceId:          m.DeviceId,
+							TransactionUuid:   m.TransactionUuid,
+							Version:           m.Version,
+						}
+						c.ForwardKafkaMessage(message.Key, em, fields)
+					} else if m.ApplicationStatus != nil && *m.ApplicationStatus == "success" && m.Namespace != nil && *m.Namespace != "telemetry" {
+						c.ForwardKafkaMessage(message.Key, m, fields)
+					}
+				}
 			}
 		case <-session.Context().Done():
 			return nil

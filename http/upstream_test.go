@@ -263,8 +263,9 @@ func TestUpstream(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
+		assert.Assert(t, !ok)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -525,8 +526,9 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
+		assert.Assert(t, !ok)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -775,8 +777,9 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
+		assert.Assert(t, !ok)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -1074,8 +1077,9 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
+		assert.Assert(t, !ok)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -1362,8 +1366,9 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
+		assert.Assert(t, !ok)
 	}
 
 	// ==== step 9 verify all states deployed ====

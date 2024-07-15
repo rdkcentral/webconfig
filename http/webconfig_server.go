@@ -34,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 
+	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
@@ -91,6 +92,7 @@ type WebconfigServer struct {
 	*XconfConnector
 	*MqttConnector
 	*UpstreamConnector
+	sarama.AsyncProducer
 	tlsConfig                     *tls.Config
 	notLoggedHeaders              []string
 	metricsEnabled                bool
@@ -109,6 +111,8 @@ type WebconfigServer struct {
 	supplementaryAppendingEnabled bool
 	otelTracer                    *otelTracing // For OpenTelemetry Tracing
 	webpaPokeSpanTemplate         string
+	kafkaProducerEnabled          bool
+	kafkaProducerTopic            string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -255,6 +259,25 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
 
+	// kafka producer
+	var kafkaProducer sarama.AsyncProducer
+	kafkaProducerEnabled := conf.GetBoolean("webconfig.kafka_producer.enabled")
+	var kafkaProducerTopic string
+	if kafkaProducerEnabled {
+		brokersStr := conf.GetString("webconfig.kafka_producer.brokers")
+		if len(brokersStr) == 0 {
+			panic(fmt.Errorf("webconfig.kafka_producer.brokers is empty"))
+		}
+		brokers := strings.Split(brokersStr, ",")
+		kafkaProducerTopic = conf.GetString("webconfig.kafka_producer.topic")
+
+		saramaConfig := sarama.NewConfig()
+		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	ws := &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
@@ -269,6 +292,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		XconfConnector:                NewXconfConnector(conf, tlsConfig),
 		MqttConnector:                 NewMqttConnector(conf, tlsConfig),
 		UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
+		AsyncProducer:                 kafkaProducer,
 		tlsConfig:                     tlsConfig,
 		notLoggedHeaders:              notLoggedHeaders,
 		metricsEnabled:                metricsEnabled,
@@ -286,6 +310,8 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		tracestateVendorID:            tracestateVendorID,
 		otelTracer:                    otelTracer,
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
+		kafkaProducerEnabled:          kafkaProducerEnabled,
+		kafkaProducerTopic:            kafkaProducerTopic,
 	}
 	// Init the child poke span name
 	ws.webpaPokeSpanTemplate = ws.WebpaConnector.PokeSpanTemplate()
@@ -580,6 +606,22 @@ func (s *WebconfigServer) SupplementaryAppendingEnabled() bool {
 
 func (s *WebconfigServer) SetSupplementaryAppendingEnabled(enabled bool) {
 	s.supplementaryAppendingEnabled = enabled
+}
+
+func (s *WebconfigServer) KafkaProducerEnabled() bool {
+	return s.kafkaProducerEnabled
+}
+
+func (s *WebconfigServer) SetKafkaProducerEnabled(enabled bool) {
+	s.kafkaProducerEnabled = enabled
+}
+
+func (s *WebconfigServer) KafkaProducerTopic() string {
+	return s.kafkaProducerTopic
+}
+
+func (s *WebconfigServer) SetKafkaProducerTopic(x string) {
+	s.kafkaProducerTopic = x
 }
 
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
@@ -973,4 +1015,26 @@ func endSpan(span trace.Span, w http.ResponseWriter) {
 func hexStringToBytes(hexString string) []byte {
 	bytes, _ := hex.DecodeString(hexString)
 	return bytes
+}
+
+func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields) {
+	tfields := common.CopyCoreLogFields(fields)
+
+	bbytes, err := json.Marshal(m)
+	if err != nil {
+		tfields["logger"] = "error"
+		log.WithFields(tfields).Error(common.NewError(err))
+		return
+	}
+	outMessage := &sarama.ProducerMessage{
+		Topic: s.KafkaProducerTopic(),
+		Key:   sarama.ByteEncoder(kbytes),
+		Value: sarama.ByteEncoder(bbytes),
+	}
+	s.Input() <- outMessage
+
+	tfields["logger"] = "kafkaproducer"
+	tfields["kafka_topic"] = outMessage.Topic
+	tfields["kafka_key"] = string(kbytes)
+	log.WithFields(tfields).Info("send")
 }
