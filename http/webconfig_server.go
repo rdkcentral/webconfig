@@ -31,8 +31,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
@@ -1034,7 +1034,8 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 	s.Input() <- outMessage
 
 	tfields["logger"] = "kafkaproducer"
-	tfields["kafka_topic"] = outMessage.Topic
-	tfields["kafka_key"] = string(kbytes)
+	tfields["output_topic"] = outMessage.Topic
+	tfields["output_key"] = string(kbytes)
+	tfields["output_body"] = m
 	log.WithFields(tfields).Info("send")
 }
