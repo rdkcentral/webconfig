@@ -257,6 +257,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			}
 
 			if c.KafkaProducerEnabled() && m != nil {
+				c.ForwardKafkaMessage(message.Key, m, fields)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && updatedBy304 {
 						// build a root/success message
@@ -270,8 +271,6 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 							Version:           m.Version,
 						}
 						c.ForwardKafkaMessage(message.Key, em, fields)
-					} else if m.ApplicationStatus != nil && *m.ApplicationStatus == "success" && m.Namespace != nil && *m.Namespace != "telemetry" {
-						c.ForwardKafkaMessage(message.Key, m, fields)
 					}
 				}
 			}
