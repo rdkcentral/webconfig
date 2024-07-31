@@ -42,6 +42,7 @@ import (
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -1038,4 +1039,37 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 	tfields["output_key"] = string(kbytes)
 	tfields["output_body"] = m
 	log.WithFields(tfields).Info("send")
+}
+
+func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {
+	tfields := common.CopyCoreLogFields(fields)
+	tfields["logger"] = "kafkaproducer"
+	tfields["output_topic"] = s.KafkaProducerTopic()
+
+	for _, m := range messages {
+		if len(m.DeviceId) != 16 {
+			log.WithFields(tfields).Warn("invalid device_id " + m.DeviceId)
+			continue
+		}
+		mac := m.DeviceId[4:]
+		transactionUuid := s.AppName() + "_____" + uuid.New().String()
+		m.TransactionUuid = &transactionUuid
+
+		bbytes, err := json.Marshal(m)
+		if err != nil {
+			tfields["logger"] = "error"
+			log.WithFields(tfields).Error(common.NewError(err))
+			return
+		}
+		outMessage := &sarama.ProducerMessage{
+			Topic: s.KafkaProducerTopic(),
+			Key:   sarama.ByteEncoder(mac),
+			Value: sarama.ByteEncoder(bbytes),
+		}
+		s.Input() <- outMessage
+
+		tfields["output_key"] = mac
+		tfields["output_body"] = m
+		log.WithFields(tfields).Info("send")
+	}
 }
