@@ -206,7 +206,7 @@ func TestBlockedSubdocIds(t *testing.T) {
 
 	rHeader.Set(common.HeaderSupportedDocs, rdkSupportedDocsHeaderStr)
 
-	document, _, _, _, _, err := db.BuildGetDocument(tdbclient, rHeader, common.RouteHttp, fields)
+	document, _, _, _, _, _, err := db.BuildGetDocument(tdbclient, rHeader, common.RouteHttp, fields)
 	assert.NilError(t, err)
 	assert.Assert(t, document.Length() == 3)
 	versionMap := document.VersionMap()
