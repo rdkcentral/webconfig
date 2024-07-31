@@ -45,7 +45,7 @@ var (
 // (1) need to have a dedicate function update states AFTER this function is executed
 // (2) read from the existing "root_document" table and build those into the header for upstream
 // (3) return a new variable to indicate goUpstream
-func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fields log.Fields) (*common.Document, *common.RootDocument, *common.RootDocument, map[string]string, bool, error) {
+func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fields log.Fields) (*common.Document, *common.RootDocument, *common.RootDocument, map[string]string, bool, []common.EventMessage, error) {
 	fieldsDict := make(util.Dict)
 	fieldsDict.Update(fields)
 	tfields := common.FilterLogFields(fields)
@@ -57,6 +57,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 	// ==== deviceRootDocument should always be created from request header ====
 	var bitmap int
 	var err error
+	messages := []common.EventMessage{}
 	supportedDocs, err := rHeader.Get(common.HeaderSupportedDocs)
 	if err != nil {
 		log.WithFields(tfields).Warn(err)
@@ -115,11 +116,11 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 			document, err = c.GetDocument(mac, fields)
 			if err != nil {
 				// TODO what about 404 should be included here
-				return nil, nil, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+				return nil, nil, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 			}
 			deviceVersionMap = RebuildDeviceVersionMap(versions, document.VersionMap())
 		} else {
-			return nil, nil, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			return nil, nil, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
 	}
 
@@ -130,7 +131,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 	cloudRootDocument, err := c.GetRootDocument(mac)
 	if err != nil {
 		if !c.IsDbNotFound(err) {
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
 		// no root doc in db, create a new one
 		// NOTE need to clone the deviceRootDocument and set the version "" to avoid device root update was set back to cloud
@@ -143,10 +144,10 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 			log.WithFields(tfields).Info(line)
 		}
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
 		// the returned err is dbNotFound
-		return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+		return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 	}
 
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
@@ -174,7 +175,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 			log.WithFields(tfields).Info(line)
 		}
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
-			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
 	}
 
@@ -182,7 +183,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		if document == nil {
 			document, err = c.GetDocument(mac, fields)
 			if err != nil {
-				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 			}
 		}
 		for subdocId, subdocument := range document.Items() {
@@ -201,11 +202,20 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 				newState := common.Deployed
 				subdocument.SetState(&newState)
 				if err := c.SetSubDocument(mac, subdocId, &subdocument, cloudState, labels, fields); err != nil {
-					return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+					return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 				}
+				applicationStatus := "success"
+				namespace := subdocId
+				version := cloudVersion
+				m := common.EventMessage{
+					DeviceId:          "mac:" + mac,
+					Namespace:         &namespace,
+					ApplicationStatus: &applicationStatus,
+					Version:           &version,
+				}
+				messages = append(messages, m)
 			}
 		}
-
 	}
 
 	switch rootCmpEnum {
@@ -213,7 +223,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		// create an empty "document"
 		document := common.NewDocument(cloudRootDocument)
 		// no need to update root doc
-		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
+		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, messages, nil
 	case common.RootDocumentVersionOnlyChanged, common.RootDocumentMissing:
 		// meta unchanged but subdoc versions change ==> new configs
 		// getDoc, then filter
@@ -221,7 +231,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 			document, err = c.GetDocument(mac, fields)
 			if err != nil {
 				// 404 should be included here
-				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, messages, common.NewError(err)
 			}
 		}
 		document.SetRootDocument(cloudRootDocument)
@@ -229,23 +239,23 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		for _, subdocId := range c.BlockedSubdocIds() {
 			filteredDocument.DeleteSubDocument(subdocId)
 		}
-		return filteredDocument, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
+		return filteredDocument, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, messages, nil
 	case common.RootDocumentMetaChanged:
 		// getDoc, send it upstream
 		if document == nil {
 			document, err = c.GetDocument(mac, fields)
 			if err != nil {
 				// 404 should be included here
-				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, common.NewError(err)
+				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, messages, common.NewError(err)
 			}
 		}
 		document.SetRootDocument(cloudRootDocument)
 
-		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, true, nil
+		return document, cloudRootDocument, deviceRootDocument, deviceVersionMap, true, messages, nil
 	}
 
 	// default, should not come here
-	return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil
+	return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, messages, nil
 }
 
 func GetValuesStr(length int) string {

@@ -128,7 +128,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		return status, respHeader, rbytes, nil
 	}
 
-	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
+	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, messages, err := db.BuildGetDocument(c, rHeader, route, fields)
+	if s.KafkaProducerEnabled() && s.StateCorrectionEnabled() && len(messages) > 0 {
+		s.ForwardSuccessKafkaMessages(messages, fields)
+	}
 	if uconn == nil {
 		if err != nil {
 			if !s.IsDbNotFound(err) {
