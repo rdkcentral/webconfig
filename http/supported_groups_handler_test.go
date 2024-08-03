@@ -46,6 +46,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
+	_ = rbytes
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	// call GET /config to add supported-doc header
@@ -66,43 +67,21 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
 	// call GET /supported_groups
-	expectedEnabled := map[string]bool{
-		"portforwarding":          true,
-		"lan":                     true,
-		"wan":                     true,
-		"macbinding":              true,
-		"hotspot":                 false,
-		"bridge":                  false,
-		"privatessid":             true,
-		"homessid":                true,
-		"radio":                   false,
-		"moca":                    true,
-		"xdns":                    true,
-		"advsecurity":             true,
-		"mesh":                    true,
-		"aker":                    true,
-		"telemetry":               true,
-		"statusreport":            false,
-		"trafficreport":           false,
-		"interfacereport":         false,
-		"radioreport":             false,
-		"telcovoip":               false,
-		"telcovoice":              false,
-		"wanmanager":              false,
-		"voiceservice":            false,
-		"wanfailover":             false,
-		"cellularconfig":          false,
-		"gwfailover":              false,
-		"gwrestore":               false,
-		"prioritizedmacs":         false,
-		"connectedbuilding":       false,
-		"lldqoscontrol":           false,
-		"clienttosteeringprofile": false,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"portforwarding",
+		"lan",
+		"wan",
+		"macbinding",
+		"privatessid",
+		"homessid",
+		"moca",
+		"xdns",
+		"advsecurity",
+		"mesh",
+		"aker",
+		"telemetry",
 	}
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 
 	// call GET /supported_groups to verify response
 	req, err = http.NewRequest("GET", sgUrl, nil)
@@ -115,7 +94,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+	assert.DeepEqual(t, supportedSubdocMap, supportedGroupsGetResponse.Data.Groups)
 
 	// ==== step 2 add lan data ====
 	subdocId := "lan"
@@ -132,6 +111,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
+	_ = rbytes
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
@@ -170,7 +150,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+	assert.DeepEqual(t, supportedSubdocMap, supportedGroupsGetResponse.Data.Groups)
 
 	// ==== step 5 setup supported docs for fw version 2 =====
 	sids := strings.Split(rdkSupportedDocsHeaderStr, ",")
@@ -179,17 +159,17 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	group1Bitmap, err := util.BitarrayToBitmap(newGroup1Bitarray)
 	assert.NilError(t, err)
 	sids[0] = fmt.Sprintf("%v", group1Bitmap)
-	expectedEnabled["wan"] = false
-	expectedEnabled["macbinding"] = false
-	expectedEnabled["hotspot"] = true
-	expectedEnabled["bridge"] = true
+	supportedSubdocMap["wan"] = false
+	supportedSubdocMap["macbinding"] = false
+	supportedSubdocMap["hotspot"] = true
+	supportedSubdocMap["bridge"] = true
 
 	newGroup2Bitarray := "00000010 0000 0000 0000 0000 0000 0110"
 	group2Bitmap, err := util.BitarrayToBitmap(newGroup2Bitarray)
 	assert.NilError(t, err)
 	sids[1] = fmt.Sprintf("%v", group2Bitmap)
-	expectedEnabled["privatessid"] = false
-	expectedEnabled["radio"] = true
+	supportedSubdocMap["privatessid"] = false
+	supportedSubdocMap["radio"] = true
 
 	rdkSupportedDocsHeaderStr = strings.Join(sids, ",")
 
@@ -218,7 +198,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+	assert.DeepEqual(t, supportedSubdocMap, supportedGroupsGetResponse.Data.Groups)
 }
 
 func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
@@ -235,6 +215,7 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
+	_ = rbytes
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	// call GET /config to add supported-doc header
@@ -255,43 +236,22 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
 	// call GET /supported_groups
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"homessid":                false,
-		"hotspot":                 false,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    false,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoip":               false,
-		"telcovoice":              true,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            false,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              true,
-		"xdns":                    true,
-		"gwfailover":              false,
-		"gwrestore":               false,
-		"prioritizedmacs":         false,
-		"connectedbuilding":       false,
-		"lldqoscontrol":           false,
-		"clienttosteeringprofile": false,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"lan",
+		"macbinding",
+		"mesh",
+		"portforwarding",
+		"privatessid",
+		"telcovoice",
+		"telemetry",
+		"wan",
+		"wanfailover",
+		"wanmanager",
+		"xdns",
 	}
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 
 	// call GET /supported_groups to verify response
 	req, err = http.NewRequest("GET", sgUrl, nil)
@@ -304,7 +264,7 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+	assert.DeepEqual(t, supportedSubdocMap, supportedGroupsGetResponse.Data.Groups)
 }
 
 func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testing.T) {
@@ -321,6 +281,7 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
+	_ = rbytes
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	// call GET /config to add supported-doc header
@@ -341,43 +302,28 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
 	// call GET /supported_groups
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoip":               false,
-		"telcovoice":              false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            true,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwfailover":              true,
-		"gwrestore":               false,
-		"prioritizedmacs":         true,
-		"connectedbuilding":       true,
-		"lldqoscontrol":           true,
-		"clienttosteeringprofile": false,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"gwfailover",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
 	}
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 
 	// call GET /supported_groups to verify response
 	req, err = http.NewRequest("GET", sgUrl, nil)
@@ -390,5 +336,5 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 	var supportedGroupsGetResponse common.SupportedGroupsGetResponse
 	err = json.Unmarshal(rbytes, &supportedGroupsGetResponse)
 	assert.NilError(t, err)
-	assert.DeepEqual(t, expectedEnabled, supportedGroupsGetResponse.Data.Groups)
+	assert.DeepEqual(t, supportedSubdocMap, supportedGroupsGetResponse.Data.Groups)
 }
