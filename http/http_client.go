@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -32,10 +32,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -263,6 +263,15 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	fields[fmt.Sprintf("%v_status", loggerName)] = res.StatusCode
 	rbytes, err := io.ReadAll(res.Body)
 	if err != nil {
+		// XPC-23206 catch the timeout/context_cancellation error
+		// ex: context deadline exceeded (Client.Timeout or context cancellation while reading body)
+		lowerErrText := strings.ToLower(err.Error())
+		if strings.Contains(lowerErrText, "timeout") {
+			err = common.RemoteHttpError{
+				Message:    err.Error(),
+				StatusCode: http.StatusGatewayTimeout,
+			}
+		}
 		fields[errorKey] = err.Error()
 		if userAgent != "mget" {
 			log.WithFields(fields).Info(endMessage)
