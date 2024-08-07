@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-akka/configuration"
-
 	log "github.com/sirupsen/logrus"
 )
 

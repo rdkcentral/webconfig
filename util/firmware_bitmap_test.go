@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
@@ -155,20 +156,15 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 	}
 
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
+	supportedSubdocIds := []string{}
+	for k, v := range expectedEnabled {
+		if v {
+			supportedSubdocIds = append(supportedSubdocIds, k)
+		}
+	}
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseTelcovoipAndWanmanager(t *testing.T) {
@@ -176,55 +172,30 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 	sids := strings.Split(rdkSupportedDocsHeaderStr, ",")
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"portforwarding":  true,
-		"lan":             true,
-		"wan":             true,
-		"macbinding":      true,
-		"hotspot":         false,
-		"bridge":          false,
-		"privatessid":     true,
-		"homessid":        false,
-		"radio":           false,
-		"moca":            false,
-		"xdns":            true,
-		"advsecurity":     true,
-		"mesh":            true,
-		"aker":            true,
-		"telemetry":       true,
-		"statusreport":    false,
-		"trafficreport":   false,
-		"interfacereport": false,
-		"radioreport":     false,
-		"telcovoip":       true,
-		"telcovoice":      false,
-		"wanmanager":      true,
-		"voiceservice":    false,
+	supportedSubdocIds := []string{
+		"portforwarding",
+		"lan",
+		"wan",
+		"macbinding",
+		"privatessid",
+		"xdns",
+		"advsecurity",
+		"mesh",
+		"aker",
+		"telemetry",
+		"telcovoip",
+		"wanmanager",
 	}
 
 	rdkSupportedDocsHeaderStr = strings.Join(sids, ",")
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
+	for _, subdocId := range supportedSubdocIds {
+		assert.Assert(t, IsSubdocSupported(cpeBitmap, subdocId))
 	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestBitmapParsing(t *testing.T) {
@@ -233,110 +204,52 @@ func TestBitmapParsing(t *testing.T) {
 	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v,33554435,50331649,67108865,83886081,100663297,117440513,134217729", newBitmap)
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"portforwarding":  true,
-		"lan":             true,
-		"wan":             false,
-		"macbinding":      true,
-		"hotspot":         false,
-		"bridge":          false,
-		"privatessid":     true,
-		"homessid":        true,
-		"radio":           false,
-		"moca":            true,
-		"xdns":            true,
-		"advsecurity":     true,
-		"mesh":            true,
-		"aker":            true,
-		"telemetry":       true,
-		"statusreport":    false,
-		"trafficreport":   false,
-		"interfacereport": false,
-		"radioreport":     false,
-		"telcovoip":       false,
-		"telcovoice":      false,
-		"wanmanager":      false,
-		"voiceservice":    false,
+	supportedSubdocIds := []string{
+		"portforwarding",
+		"lan",
+		"macbinding",
+		"privatessid",
+		"homessid",
+		"moca",
+		"xdns",
+		"advsecurity",
+		"mesh",
+		"aker",
+		"telemetry",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseVoiceService(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,218103809"
-	// sids := strings.Split(rdkSupportedDocsHeaderStr, ",")
 
-	// build expected
-	expectedEnabled := map[string]bool{
-		"portforwarding":  true,
-		"lan":             true,
-		"wan":             true,
-		"macbinding":      true,
-		"hotspot":         true,
-		"bridge":          false,
-		"privatessid":     true,
-		"homessid":        true,
-		"radio":           false,
-		"moca":            true,
-		"xdns":            true,
-		"advsecurity":     true,
-		"mesh":            true,
-		"aker":            true,
-		"telemetry":       true,
-		"statusreport":    false,
-		"trafficreport":   false,
-		"interfacereport": false,
-		"radioreport":     false,
-		"telcovoip":       false,
-		"telcovoice":      false,
-		"wanmanager":      false,
-		"voiceservice":    true,
+	supportedSubdocIds := []string{
+		"portforwarding",
+		"lan",
+		"wan",
+		"macbinding",
+		"hotspot",
+		"privatessid",
+		"homessid",
+		"moca",
+		"xdns",
+		"advsecurity",
+		"mesh",
+		"aker",
+		"telemetry",
+		"voiceservice",
 	}
 
-	// rdkSupportedDocsHeaderStr = strings.Join(sids, ",")
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["cellularconfig"] = false
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestManualBitmap(t *testing.T) {
@@ -355,425 +268,282 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v,%v", ss, xBitValue)
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"portforwarding":  true,
-		"lan":             true,
-		"wan":             true,
-		"macbinding":      true,
-		"hotspot":         true,
-		"bridge":          false,
-		"privatessid":     true,
-		"homessid":        true,
-		"radio":           false,
-		"moca":            true,
-		"xdns":            true,
-		"advsecurity":     true,
-		"mesh":            true,
-		"aker":            true,
-		"telemetry":       true,
-		"statusreport":    false,
-		"trafficreport":   false,
-		"interfacereport": false,
-		"radioreport":     false,
-		"telcovoip":       false,
-		"telcovoice":      false,
-		"wanmanager":      false,
-		"voiceservice":    true,
-		"cellularconfig":  true,
+	supportedSubdocIds := []string{
+		"portforwarding",
+		"lan",
+		"wan",
+		"macbinding",
+		"hotspot",
+		"privatessid",
+		"homessid",
+		"moca",
+		"xdns",
+		"advsecurity",
+		"mesh",
+		"aker",
+		"telemetry",
+		"voiceservice",
+		"cellularconfig",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["wanfailover"] = false
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777231,33554435,67108865,100663297,117440513,134217729,201326595,234881025"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":     false,
-		"aker":            true,
-		"bridge":          false,
-		"cellularconfig":  true,
-		"homessid":        true,
-		"hotspot":         false,
-		"interfacereport": false,
-		"lan":             true,
-		"macbinding":      true,
-		"mesh":            true,
-		"moca":            false,
-		"portforwarding":  true,
-		"privatessid":     true,
-		"radio":           false,
-		"radioreport":     false,
-		"statusreport":    false,
-		"telcovoip":       false,
-		"telcovoice":      false,
-		"telemetry":       true,
-		"trafficreport":   false,
-		"voiceservice":    false,
-		"wan":             true,
-		"wanfailover":     true,
-		"wanmanager":      true,
-		"xdns":            true,
+	supportedSubdocIds := []string{
+		"aker",
+		"cellularconfig",
+		"homessid",
+		"lan",
+		"macbinding",
+		"mesh",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"wan",
+		"wanfailover",
+		"wanmanager",
+		"xdns",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777231,33554433,67108865,83886081,100663297,117440513,134217729,184549378,201326595"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":     true,
-		"aker":            true,
-		"bridge":          false,
-		"cellularconfig":  false,
-		"homessid":        false,
-		"hotspot":         false,
-		"interfacereport": false,
-		"lan":             true,
-		"macbinding":      true,
-		"mesh":            true,
-		"moca":            false,
-		"portforwarding":  true,
-		"privatessid":     true,
-		"radio":           false,
-		"radioreport":     false,
-		"statusreport":    false,
-		"telcovoip":       false,
-		"telcovoice":      true,
-		"telemetry":       true,
-		"trafficreport":   false,
-		"voiceservice":    false,
-		"wan":             true,
-		"wanfailover":     true,
-		"wanmanager":      true,
-		"xdns":            true,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"lan",
+		"macbinding",
+		"mesh",
+		"portforwarding",
+		"privatessid",
+		"telcovoice",
+		"telemetry",
+		"wan",
+		"wanfailover",
+		"wanmanager",
+		"xdns",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	expectedEnabled["gwfailover"] = false
-	expectedEnabled["gwrestore"] = false
-	expectedEnabled["prioritizedmacs"] = false
-	expectedEnabled["connectedbuilding"] = false
-	expectedEnabled["lldqoscontrol"] = false
-	expectedEnabled["clienttosteeringprofile"] = false
-	expectedEnabled["defaultrfc"] = false
-	expectedEnabled["rfc"] = false
-	expectedEnabled["wifimotionsettings"] = false
-	expectedEnabled["xmspeedboost"] = false
-
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,218103809,251658241"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"gwfailover":              true,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoice":              false,
-		"telcovoip":               false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            true,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwrestore":               false,
-		"prioritizedmacs":         false,
-		"connectedbuilding":       false,
-		"lldqoscontrol":           false,
-		"clienttosteeringprofile": false,
-		"rfc":                     false,
-		"defaultrfc":              false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderWithPrioritizedMacs(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,251658241,268435457"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"gwfailover":              true,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoice":              false,
-		"telcovoip":               false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            false,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwrestore":               false,
-		"prioritizedmacs":         true,
-		"connectedbuilding":       false,
-		"lldqoscontrol":           false,
-		"clienttosteeringprofile": false,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderWithPrioritizedMacsAndConnectedbuilding(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663297,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"gwfailover":              true,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoice":              false,
-		"telcovoip":               false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            true,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwrestore":               false,
-		"prioritizedmacs":         true,
-		"connectedbuilding":       true,
-		"lldqoscontrol":           true,
-		"clienttosteeringprofile": false,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderClienttosteeringprofile(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663299,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"gwfailover":              true,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoice":              false,
-		"telcovoip":               false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            true,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwrestore":               false,
-		"prioritizedmacs":         true,
-		"connectedbuilding":       true,
-		"lldqoscontrol":           true,
-		"clienttosteeringprofile": true,
-		"defaultrfc":              false,
-		"rfc":                     false,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
+		"clienttosteeringprofile",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
-	}
-
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestParseSupportedDocsHeaderRfc(t *testing.T) {
 	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663299,117440513,134217735,201326594,218103809,251658241,268435457,285212673"
 
 	// build expected
-	expectedEnabled := map[string]bool{
-		"advsecurity":             true,
-		"aker":                    true,
-		"bridge":                  false,
-		"cellularconfig":          false,
-		"gwfailover":              true,
-		"homessid":                true,
-		"hotspot":                 true,
-		"interfacereport":         false,
-		"lan":                     true,
-		"macbinding":              true,
-		"mesh":                    true,
-		"moca":                    true,
-		"portforwarding":          true,
-		"privatessid":             true,
-		"radio":                   false,
-		"radioreport":             false,
-		"statusreport":            false,
-		"telcovoice":              false,
-		"telcovoip":               false,
-		"telemetry":               true,
-		"trafficreport":           false,
-		"voiceservice":            true,
-		"wan":                     true,
-		"wanfailover":             true,
-		"wanmanager":              false,
-		"xdns":                    true,
-		"gwrestore":               false,
-		"prioritizedmacs":         true,
-		"connectedbuilding":       true,
-		"lldqoscontrol":           true,
-		"clienttosteeringprofile": true,
-		"defaultrfc":              true,
-		"rfc":                     true,
-		"wifimotionsettings":      false,
-		"xmspeedboost":            false,
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
+		"clienttosteeringprofile",
+		"defaultrfc",
+		"rfc",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
-	for subdocId, enabled := range expectedEnabled {
-		parsedEnabled := IsSubdocSupported(cpeBitmap, subdocId)
-		assert.Equal(t, parsedEnabled, enabled)
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
+}
+
+func TestParseSupportedDocsHeaderHcm(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777311,33554435,50331649,67108865,83886081,100663359,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
+
+	// build expected
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
+		"clienttosteeringprofile",
+		"meshsteeringprofiles",
+		"wifistatsconfig",
+		"mwoconfigs",
+		"interference",
 	}
 
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	assert.DeepEqual(t, parsedSupportedMap, expectedEnabled)
+	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }

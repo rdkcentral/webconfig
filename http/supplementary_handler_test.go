@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -796,4 +796,97 @@ func TestSupplementaryApiBadRequest(t *testing.T) {
 	assert.NilError(t, err)
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+}
+
+func TestSupplementaryXconfTimeout(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	// ==== setup mock server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(time.Duration(1) * time.Second)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(mockProfileResponse))
+		}))
+	defer mockServer.Close()
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+	server.XconfConnector.HttpClient.Client.Timeout = time.Duration(500) * time.Millisecond
+
+	// ==== setup data ====
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 verify /config expect 200 with 1 mpart ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, "TG1682G")
+	req.Header.Set(common.HeaderPartnerID, "comcast")
+	req.Header.Set(common.HeaderAccountID, "1234567890")
+	req.Header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusGatewayTimeout)
+}
+
+type errorRoundTripper struct{}
+
+func (ert *errorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Return a response with an error-inducing reader
+	return &http.Response{
+		Body: io.NopCloser(&errorReader{}),
+	}, nil
+}
+
+// errorReader simulates an error when reading
+type errorReader struct{}
+
+func (er *errorReader) Read(p []byte) (int, error) {
+	return 0, fmt.Errorf("context deadline exceeded (Client.Timeout or context cancellation while reading body)")
+}
+
+func TestSupplementaryXconfReadAllErr(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	// ==== setup mock client ====
+	mockedClient := &http.Client{
+		Transport: &errorRoundTripper{},
+	}
+
+	server.XconfConnector.HttpClient.Client = mockedClient
+
+	// ==== setup data ====
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 verify /config expect 200 with 1 mpart ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, "TG1682G")
+	req.Header.Set(common.HeaderPartnerID, "comcast")
+	req.Header.Set(common.HeaderAccountID, "1234567890")
+	req.Header.Set(common.HeaderFirmwareVersion, "TG1682_3.14p9s6_PROD_sey")
+
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusGatewayTimeout)
 }
