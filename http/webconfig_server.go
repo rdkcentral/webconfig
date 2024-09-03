@@ -398,6 +398,8 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
+			fields := xw.Audit()
+			fields["full_header"] = util.HeaderToMap(getFilteredHeader(r, nil))
 			s.LogToken(xw, token, tokenErr)
 			Error(xw, http.StatusForbidden, nil)
 		}
