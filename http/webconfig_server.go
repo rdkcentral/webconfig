@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -81,6 +82,7 @@ var (
 		"privatessid",
 		"homessid",
 	}
+	codec *security.AesCodec
 )
 
 type WebconfigServer struct {
@@ -368,6 +370,7 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 
 		isValid := false
 		token := xw.Token()
+		var tokenErr error
 		if len(token) > 0 {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
@@ -382,18 +385,20 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 					fields := xw.Audit()
 					fields["src_partner"] = partnerId
 					partnerId = "unknown"
+					tokenErr = common.NewError(err)
 				}
 				xw.SetPartnerId(partnerId)
 			} else {
-				xw.LogDebug(r, "token", fmt.Sprintf("CpeMiddleware() VerifyCpeToken()=false, err=%v", err))
+				tokenErr = common.NewError(err)
 			}
 		} else {
-			xw.LogDebug(r, "token", "CpeMiddleware() error no token")
+			tokenErr = common.NewError(errors.New("CpeMiddleware() error no token"))
 		}
 
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
+			s.LogToken(xw, token, tokenErr)
 			Error(xw, http.StatusForbidden, nil)
 		}
 	}
@@ -1072,4 +1077,26 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		tfields["output_body"] = m
 		log.WithFields(tfields).Info("send")
 	}
+}
+
+func (s *WebconfigServer) LogToken(xw *XResponseWriter, token string, tokenErr error) {
+	fields := xw.Audit()
+	fields["logger"] = "token"
+	tfields := common.FilterLogFields(fields)
+
+	if codec == nil {
+		codec, _ = security.NewAesCodec(s.Config)
+	}
+
+	if codec == nil {
+		tfields["plaintoken"] = token
+	} else {
+		var encToken string
+		if encryptedB64, err := codec.Encrypt(token); err == nil {
+			encToken = encryptedB64
+		}
+		tfields["enctoken"] = encToken
+	}
+
+	log.WithFields(tfields).Debug(tokenErr)
 }
