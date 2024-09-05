@@ -66,6 +66,7 @@ const (
 	defaultTraceparentParentID           = "0000000000000001"
 	defaultTracestateVendorID            = "webconfig"
 	defaultSupplementaryAppendingEnabled = true
+	authPrefixLength                     = 60
 )
 
 var (
@@ -370,6 +371,7 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 
 		isValid := false
 		token := xw.Token()
+		authorization := r.Header.Get("Authorization")
 		var tokenErr error
 		if len(token) > 0 {
 			params := mux.Vars(r)
@@ -398,9 +400,7 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			fields := xw.Audit()
-			fields["full_header"] = util.HeaderToMap(getFilteredHeader(r, nil))
-			s.LogToken(xw, token, tokenErr)
+			s.LogToken(xw, authorization, token, tokenErr)
 			Error(xw, http.StatusForbidden, nil)
 		}
 	}
@@ -1081,23 +1081,38 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 	}
 }
 
-func (s *WebconfigServer) LogToken(xw *XResponseWriter, token string, tokenErr error) {
+func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token string, tokenErr error) {
 	fields := xw.Audit()
 	fields["logger"] = "token"
 	tfields := common.FilterLogFields(fields)
-
-	if codec == nil {
-		codec, _ = security.NewAesCodec(s.Config)
+	var headerMap map[string]string
+	var isObfuscated bool
+	if itf, ok := tfields["header"]; ok {
+		headerMap = itf.(map[string]string)
+		if len(headerMap) > 0 {
+			ss := authorization
+			if len(ss) > authPrefixLength {
+				ss = authorization[:authPrefixLength] + "****"
+				isObfuscated = true
+			}
+			headerMap["Authorization"] = ss
+		}
 	}
 
-	if codec == nil {
-		tfields["plaintoken"] = token
-	} else {
-		var encToken string
-		if encryptedB64, err := codec.Encrypt(token); err == nil {
-			encToken = encryptedB64
+	if isObfuscated {
+		if codec == nil {
+			codec, _ = security.NewAesCodec(s.Config)
 		}
-		tfields["enctoken"] = encToken
+
+		if codec == nil {
+			tfields["plaintoken"] = token
+		} else {
+			var encToken string
+			if encryptedB64, err := codec.Encrypt(token); err == nil {
+				encToken = encryptedB64
+			}
+			tfields["enctoken"] = encToken
+		}
 	}
 
 	log.WithFields(tfields).Debug(tokenErr)
