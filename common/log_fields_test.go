@@ -119,4 +119,73 @@ func TestCopyCoreLogFields(t *testing.T) {
 	}
 	copied := CopyCoreLogFields(src)
 	assert.DeepEqual(t, copied, expected)
+
+	body["violet"] = "purple"
+
+}
+
+func TestFilterLogFieldsWithItfMap(t *testing.T) {
+	weekday := map[string]interface{}{
+		"mon": 1,
+		"tue": 2,
+		"wed": 3,
+		"thu": 4,
+	}
+
+	src := log.Fields{
+		"red":     "maroon",
+		"orange":  "auburn",
+		"yellow":  "amber",
+		"green":   "viridian",
+		"blue":    "turquoise",
+		"indigo":  "sapphire",
+		"violet":  "purple",
+		"weekday": weekday,
+	}
+
+	filtered := FilterLogFields(src)
+	assert.DeepEqual(t, src, filtered)
+
+	itf, ok := filtered["weekday"]
+	assert.Assert(t, ok)
+	fw := itf.(map[string]interface{})
+	fw["fri"] = 5
+
+	itf, ok = src["weekday"]
+	assert.Assert(t, ok)
+	sw := itf.(map[string]interface{})
+	assert.Assert(t, len(sw) == 4)
+}
+
+func TestFilterLogFieldsWithStrMap(t *testing.T) {
+	weekday := map[string]string{
+		"mon": "1",
+		"tue": "2",
+		"wed": "3",
+		"thu": "4",
+	}
+
+	src := log.Fields{
+		"red":     "maroon",
+		"orange":  "auburn",
+		"yellow":  "amber",
+		"green":   "viridian",
+		"blue":    "turquoise",
+		"indigo":  "sapphire",
+		"violet":  "purple",
+		"weekday": weekday,
+	}
+
+	filtered := FilterLogFields(src)
+	assert.DeepEqual(t, src, filtered)
+
+	itf, ok := filtered["weekday"]
+	assert.Assert(t, ok)
+	fw := itf.(map[string]string)
+	fw["fri"] = "5"
+
+	itf, ok = src["weekday"]
+	assert.Assert(t, ok)
+	sw := itf.(map[string]string)
+	assert.Assert(t, len(sw) == 4)
 }
