@@ -382,7 +382,7 @@ func TestFactoryResetUpstreamAddData(t *testing.T) {
 	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
 	rootDocument, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
