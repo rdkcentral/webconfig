@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package db
 
 import (
@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -183,7 +183,9 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		if document == nil {
 			document, err = c.GetDocument(mac, fields)
 			if err != nil {
-				return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+				if !c.IsDbNotFound(err) {
+					return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+				}
 			}
 		}
 		for subdocId, subdocument := range document.Items() {
