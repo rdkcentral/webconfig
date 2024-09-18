@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package main
 
 import (
@@ -26,10 +26,10 @@ import (
 	"syscall"
 
 	"github.com/IBM/sarama"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rdkcentral/webconfig/common"
 	wchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/rdkcentral/webconfig/kafka"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
@@ -93,7 +93,9 @@ func main() {
 	log.SetLevel(logLevel)
 
 	// setup sarama logger
-	sarama.Logger = log.StandardLogger()
+	if server.GetBoolean("webconfig.log.sarama_logger_enabled") {
+		sarama.Logger = log.StandardLogger()
+	}
 
 	// setup router
 	router := server.GetRouter(false)
