@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -24,10 +24,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -204,6 +204,8 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 		respStatus = http.StatusOK
+	} else if len(document.RootVersion()) == 0 {
+		respStatus = http.StatusNotFound
 	}
 
 	// mget ==> no upstream
