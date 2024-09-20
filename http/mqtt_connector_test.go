@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -30,7 +30,7 @@ import (
 func TestPayloadBuilder(t *testing.T) {
 	srcHeader := make(http.Header)
 	srcHeader.Add("Destination", "event:subdoc-report/portmapping/mac:044e5a22c9bf/status")
-	srcHeader.Add("Content-type", "application/json")
+	srcHeader.Add(common.HeaderContentType, common.HeaderApplicationJson)
 
 	srcData := util.Dict{
 		"device_id":          "mac:044e5a22c9bf",

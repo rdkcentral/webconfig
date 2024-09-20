@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -48,7 +48,7 @@ func TestSubDocumentHandler(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -58,7 +58,7 @@ func TestSubDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -73,7 +73,7 @@ func TestSubDocumentHandler(t *testing.T) {
 
 	// delete
 	req, err = http.NewRequest("DELETE", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -82,7 +82,7 @@ func TestSubDocumentHandler(t *testing.T) {
 
 	// get but expect 404
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -107,7 +107,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -117,7 +117,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -137,7 +137,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -146,7 +146,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -173,7 +173,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -182,7 +182,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -214,7 +214,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -226,7 +226,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	for _, mac := range allMacs {
 		url := fmt.Sprintf("/api/v1/device/%v/document/%v", mac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -246,7 +246,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -257,7 +257,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	for _, mac := range allMacs {
 		url := fmt.Sprintf("/api/v1/device/%v/document/%v", mac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -283,7 +283,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	gwrestoreBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
 	// prepare the version header
 	now := time.Now()
@@ -298,7 +298,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", gwrestoreUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
@@ -320,7 +320,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	remotedebuggerBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
 	// prepare the version header
 	reqHeaderVersion = strconv.Itoa(int(now.Unix()))
@@ -339,7 +339,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", remotedebuggerUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
@@ -364,7 +364,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -373,7 +373,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
@@ -443,7 +443,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	gwrestoreBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
 	// prepare a version header
 	now := time.Now()
@@ -458,7 +458,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", gwrestoreUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	resHeaderVersion := res.Header.Get(common.HeaderSubdocumentVersion)
@@ -480,7 +480,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	remotedebuggerBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
 	// prepare the version header
 	reqHeaderVersion = strconv.Itoa(int(now.Unix()))
@@ -499,7 +499,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", remotedebuggerUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
@@ -524,7 +524,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -533,7 +533,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 
@@ -597,7 +597,7 @@ func TestBadHeaderExpiryHandler(t *testing.T) {
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	remotedebuggerBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
 	// manage version and expiry headers
 	now := time.Now()

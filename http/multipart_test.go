@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -50,7 +50,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -60,7 +60,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -79,7 +79,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -89,7 +89,7 @@ func TestMultipartConfigHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -194,7 +194,7 @@ func TestCpeMiddleware(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -204,7 +204,7 @@ func TestCpeMiddleware(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -251,7 +251,7 @@ func TestVersionFiltering(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -261,7 +261,7 @@ func TestVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -277,7 +277,7 @@ func TestVersionFiltering(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -287,7 +287,7 @@ func TestVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -361,7 +361,7 @@ func TestVersionFiltering(t *testing.T) {
 	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
-	contentType := respHeader.Get("Content-Type")
+	contentType := respHeader.Get(common.HeaderContentType)
 	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
 	mparts, err = util.ParseMultipart(respHeader, respBytes)
 	assert.NilError(t, err)
@@ -395,7 +395,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -405,7 +405,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -421,7 +421,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -431,7 +431,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -570,7 +570,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -580,7 +580,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -596,7 +596,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -606,7 +606,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -623,7 +623,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
-	contentType := respHeader.Get("Content-Type")
+	contentType := respHeader.Get(common.HeaderContentType)
 	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
 	mparts, err := util.ParseMultipart(respHeader, respBytes)
 	assert.NilError(t, err)
@@ -687,7 +687,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
-	contentType = respHeader.Get("Content-Type")
+	contentType = respHeader.Get(common.HeaderContentType)
 	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
 	mparts, err = util.ParseMultipart(respHeader, respBytes)
 	assert.NilError(t, err)
@@ -722,7 +722,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
-	contentType = respHeader.Get("Content-Type")
+	contentType = respHeader.Get(common.HeaderContentType)
 	assert.Assert(t, strings.Contains(contentType, "multipart/mixed"))
 	mparts, err = util.ParseMultipart(respHeader, respBytes)
 	assert.NilError(t, err)
@@ -747,7 +747,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -757,7 +757,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -774,7 +774,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -784,7 +784,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -868,7 +868,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -878,7 +878,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -895,7 +895,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -905,7 +905,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -922,7 +922,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(meshBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -932,7 +932,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -949,7 +949,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(mocaBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -959,7 +959,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1127,7 +1127,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -1137,7 +1137,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1151,7 +1151,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -1160,7 +1160,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1174,7 +1174,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	privatessidUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	privatessidBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", privatessidUrl, bytes.NewReader(privatessidBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -1183,7 +1183,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", privatessidUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)

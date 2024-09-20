@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 const (
@@ -64,6 +64,9 @@ var (
 )
 
 const (
+	HeaderContentType                = "Content-Type"
+	HeaderApplicationJson            = "application/json"
+	HeaderApplicationMsgpack         = "application/msgpack"
 	HeaderEtag                       = "Etag"
 	HeaderIfNoneMatch                = "If-None-Match"
 	HeaderFirmwareVersion            = "X-System-Firmware-Version"
@@ -73,6 +76,7 @@ const (
 	HeaderProfileVersion             = "X-System-Telemetry-Profile-Version"
 	HeaderPartnerID                  = "X-System-PartnerID"
 	HeaderAccountID                  = "X-System-AccountID"
+	HeaderProductClass               = "X-System-Product-Class"
 	HeaderUserAgent                  = "User-Agent"
 	HeaderSchemaVersion              = "X-System-Schema-Version"
 	HeaderMetricsAgent               = "X-Metrics-Agent"
@@ -113,7 +117,6 @@ const (
 const (
 	SkipDbUpdate = "skip-db-update"
 )
-
 
 var (
 	SupportedPokeDocs   = []string{"primary", "telemetry"}
