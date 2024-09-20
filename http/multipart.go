@@ -166,7 +166,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			}
 		}
 
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return http.StatusOK, respHeader, respBytes, nil
 	}
@@ -210,7 +210,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	// mget ==> no upstream
 	if userAgent == "mget" {
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return http.StatusOK, respHeader, respBytes, nil
 	}
@@ -221,7 +221,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return respStatus, respHeader, respBytes, nil
 	}
@@ -230,7 +230,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	// upstream handling
 	// =============================
 	upstreamHeader := rHeader.Clone()
-	upstreamHeader.Set("Content-type", common.MultipartContentType)
+	upstreamHeader.Set(common.HeaderContentType, common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
@@ -370,7 +370,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	// upstream handling
 	// =============================
 	upstreamHeader := rHeader.Clone()
-	upstreamHeader.Set("Content-type", common.MultipartContentType)
+	upstreamHeader.Set(common.HeaderContentType, common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 	upstreamHeader.Set(common.HeaderUpstreamNewPartnerId, partnerId)
 

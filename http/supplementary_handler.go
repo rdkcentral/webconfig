@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -101,7 +101,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	}
 
 	rootVersion := util.GetRandomRootVersion()
-	w.Header().Set("Content-type", common.MultipartContentType)
+	w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 	w.Header().Set(common.HeaderEtag, rootVersion)
 
 	// help with unit tests

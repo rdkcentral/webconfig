@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -194,7 +194,7 @@ func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 	}
 
 	header := make(http.Header)
-	header.Set("Content-type", MultipartContentType)
+	header.Set(HeaderContentType, MultipartContentType)
 	header.Set("Etag", rootVersion)
 
 	var traceId string
