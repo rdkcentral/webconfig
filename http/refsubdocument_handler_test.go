@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -24,8 +24,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
 
@@ -39,7 +40,7 @@ func TestRefSubDocumentHandler(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/reference/%v/document", refId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(bbytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -48,7 +49,7 @@ func TestRefSubDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -58,7 +59,7 @@ func TestRefSubDocumentHandler(t *testing.T) {
 
 	// delete
 	req, err = http.NewRequest("DELETE", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -67,7 +68,7 @@ func TestRefSubDocumentHandler(t *testing.T) {
 
 	// get but expect 404
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)

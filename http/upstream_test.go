@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -65,7 +65,7 @@ func TestUpstream(t *testing.T) {
 
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
-				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
@@ -104,7 +104,7 @@ func TestUpstream(t *testing.T) {
 			}
 
 			// generate response
-			w.Header().Set("Content-type", common.MultipartContentType)
+			w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 			w.Header().Set(common.HeaderEtag, newRootVersion)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.WriteHeader(http.StatusOK)
@@ -143,7 +143,7 @@ func TestUpstream(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidV13Bytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -152,7 +152,7 @@ func TestUpstream(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -166,7 +166,7 @@ func TestUpstream(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -175,7 +175,7 @@ func TestUpstream(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -189,7 +189,7 @@ func TestUpstream(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -198,7 +198,7 @@ func TestUpstream(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -245,7 +245,7 @@ func TestUpstream(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -273,7 +273,7 @@ func TestUpstream(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -319,7 +319,7 @@ func TestUpstream(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -361,7 +361,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
-				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
@@ -372,7 +372,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 			respBytes := reqBytes
 
 			// generate response
-			w.Header().Set("Content-type", common.MultipartContentType)
+			w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 			w.Header().Set(common.HeaderEtag, etag)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.WriteHeader(http.StatusOK)
@@ -412,7 +412,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -421,7 +421,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -435,7 +435,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -444,7 +444,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -458,7 +458,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -467,7 +467,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -508,7 +508,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -536,7 +536,7 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -579,7 +579,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
-				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
@@ -618,7 +618,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 			}
 
 			// generate response
-			w.Header().Set("Content-type", common.MultipartContentType)
+			w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 			w.Header().Set(common.HeaderEtag, newRootVersion)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.WriteHeader(http.StatusOK)
@@ -657,7 +657,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidV13Bytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -666,7 +666,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -680,7 +680,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -689,7 +689,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -703,7 +703,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -712,7 +712,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -759,7 +759,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -788,7 +788,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -841,7 +841,7 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -890,7 +890,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
-				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
@@ -917,7 +917,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 			}
 
 			// generate response
-			w.Header().Set("Content-type", common.MultipartContentType)
+			w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 			w.Header().Set(common.HeaderEtag, newRootVersion)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.Header().Set(common.HeaderUpstreamResponse, common.SkipDbUpdate)
@@ -957,7 +957,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidV13Bytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -966,7 +966,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -980,7 +980,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -989,7 +989,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1003,7 +1003,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1012,7 +1012,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1059,7 +1059,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -1088,7 +1088,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -1140,7 +1140,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -1183,7 +1183,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 
 			// not necessarily always the case but we return 404 if the input is empty
 			if len(reqBytes) == 0 {
-				w.Header().Set("Content-type", common.MultipartContentType)
+				w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 				w.Header().Set(common.HeaderEtag, "")
 				w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 				w.WriteHeader(http.StatusNotFound)
@@ -1210,7 +1210,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 			}
 
 			// generate response
-			w.Header().Set("Content-type", common.MultipartContentType)
+			w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 			w.Header().Set(common.HeaderEtag, newRootVersion)
 			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
 			w.Header().Set(common.HeaderUpstreamResponse, common.SkipDbUpdate)
@@ -1250,7 +1250,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidV13Bytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -1259,7 +1259,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -1273,7 +1273,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1282,7 +1282,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1296,7 +1296,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1305,7 +1305,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -1348,7 +1348,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -1377,7 +1377,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)
@@ -1428,7 +1428,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	for _, subdocId := range subdocIds {
 		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 		req, err = http.NewRequest("GET", url, nil)
-		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 		assert.NilError(t, err)
 		res = ExecuteRequest(req, router).Result()
 		rbytes, err = io.ReadAll(res.Body)

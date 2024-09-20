@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -48,7 +48,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	// ==== step 0 GET /rootdocument and expect 404 ====
 	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
 	req, err := http.NewRequest("GET", rootdocUrl, nil)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationJson)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -94,7 +94,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -103,7 +103,7 @@ func TestRootDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -121,7 +121,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -130,7 +130,7 @@ func TestRootDocumentHandler(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -242,7 +242,7 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 	// ==== step 1 GET /rootdocument and expect 404 ====
 	rootdocUrl := fmt.Sprintf("/api/v1/device/%v/rootdocument", cpeMac)
 	req, err := http.NewRequest("GET", rootdocUrl, nil)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationJson)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)

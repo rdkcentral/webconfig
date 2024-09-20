@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 )
 
 // TODO
@@ -84,7 +84,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/msgpack")
+	w.Header().Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	writeStateHeaders(w, subdoc)
 	w.WriteHeader(http.StatusOK)
 	w.Write(subdoc.Payload())
