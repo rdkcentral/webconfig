@@ -245,6 +245,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
+			WriteOkResponse(w, nil)
 		} else {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
