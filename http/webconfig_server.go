@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -36,15 +37,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/IBM/sarama"
+	"github.com/go-akka/configuration"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/go-akka/configuration"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -276,6 +277,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		kafkaProducerTopic = conf.GetString("webconfig.kafka_producer.topic")
 
 		saramaConfig := sarama.NewConfig()
+		saramaConfig.Producer.Return.Errors = true
 		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
 		if err != nil {
 			panic(err)
@@ -1070,7 +1072,7 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		}
 		outMessage := &sarama.ProducerMessage{
 			Topic: s.KafkaProducerTopic(),
-			Key:   sarama.ByteEncoder(mac),
+			Key:   sarama.ByteEncoder(strings.ToLower(mac)),
 			Value: sarama.ByteEncoder(bbytes),
 		}
 		s.Input() <- outMessage
@@ -1116,4 +1118,52 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	}
 
 	log.WithFields(tfields).Debug(tokenErr)
+}
+
+func (s *WebconfigServer) HandleKafkaProducerResults() {
+	if s.AsyncProducer == nil {
+		return
+	}
+
+	for {
+		select {
+		case success := <-s.Successes():
+			fields := make(log.Fields)
+			fields["logger"] = "kafkaproducer"
+			fields["output_topic"] = success.Topic
+			fields["output_partition"] = success.Partition
+			fields["output_offset"] = success.Offset
+			log.WithFields(fields).Debug("sent")
+		case pErr := <-s.Errors():
+			if m := s.Metrics(); m != nil {
+				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
+			}
+			fields := make(log.Fields)
+			fields["logger"] = "kafkaproducer"
+			fields["output_topic"] = pErr.Msg.Topic
+			fields["output_partition"] = pErr.Msg.Partition
+			kbytes, err := pErr.Msg.Key.Encode()
+			if err != nil {
+				log.WithFields(fields).Error(common.NewError(err))
+			} else {
+				fields["output_key"] = string(kbytes)
+			}
+
+			vbytes, err := pErr.Msg.Value.Encode()
+			if err != nil {
+				log.WithFields(fields).Error(common.NewError(err))
+			} else {
+				var itf interface{}
+				err1 := json.Unmarshal(vbytes, &itf)
+				if err1 != nil {
+					log.WithFields(fields).Error(common.NewError(err1))
+					fields["output_body_text"] = base64.StdEncoding.EncodeToString(vbytes)
+				} else {
+					fields["output_body"] = itf
+				}
+			}
+
+			log.WithFields(fields).Error(pErr.Err)
+		}
+	}
 }

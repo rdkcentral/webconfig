@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -105,6 +106,9 @@ func main() {
 		router.Handle("/metrics", promhttp.Handler())
 		metrics = common.NewMetrics(sc.Config)
 		server.SetMetrics(metrics)
+		if server.KafkaProducerEnabled() {
+			go server.HandleKafkaProducerResults()
+		}
 		handler := metrics.WebMetrics(router)
 		server.Handler = handler
 	} else {
@@ -125,6 +129,11 @@ func main() {
 		func() error {
 			<-gCtx.Done()
 			fmt.Printf("HTTP server shutdown NOW !!\n")
+			if server.KafkaProducerEnabled() {
+				if err := server.AsyncProducer.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
+				}
+			}
 			return server.Shutdown(context.Background())
 		},
 	)
