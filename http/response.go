@@ -140,6 +140,9 @@ func Error(w http.ResponseWriter, status int, err error) {
 	switch status {
 	case http.StatusNoContent, http.StatusNotModified, http.StatusForbidden:
 		w.WriteHeader(status)
+	case http.StatusAccepted:
+		SetAuditValue(w, "response", err)
+		WriteByMarshal(w, status, err)
 	default:
 		WriteErrorResponse(w, status, err)
 	}
