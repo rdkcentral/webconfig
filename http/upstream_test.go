@@ -263,9 +263,9 @@ func TestUpstream(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		updatedSubdocIds, err := db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
-		assert.Assert(t, !ok)
+		assert.Assert(t, len(updatedSubdocIds) == 0)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -526,9 +526,9 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		updatedSubdocIds, err := db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
-		assert.Assert(t, !ok)
+		assert.Assert(t, len(updatedSubdocIds) == 0)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -777,9 +777,9 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		updatedSubdocIds, err := db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
-		assert.Assert(t, !ok)
+		assert.Assert(t, len(updatedSubdocIds) == 0)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -1077,9 +1077,9 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		updatedSubdocIds, err := db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
-		assert.Assert(t, !ok)
+		assert.Assert(t, len(updatedSubdocIds) == 0)
 	}
 
 	// ==== step 9 verify all states deployed ====
@@ -1366,9 +1366,9 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 		err := json.Unmarshal([]byte(notifBody), &m)
 		assert.NilError(t, err)
 		fields := make(log.Fields)
-		ok, err = db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
+		updatedSubdocIds, err := db.UpdateDocumentState(server.DatabaseClient, cpeMac, &m, fields)
 		assert.NilError(t, err)
-		assert.Assert(t, !ok)
+		assert.Assert(t, len(updatedSubdocIds) == 0)
 	}
 
 	// ==== step 9 verify all states deployed ====

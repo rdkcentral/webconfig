@@ -347,14 +347,14 @@ func HashRootVersion(itf interface{}) string {
 	return util.GetMurmur3Hash(buffer.Bytes())
 }
 
-func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage, fields log.Fields) (bool, error) {
-	var updatedBy304 bool
+func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage, fields log.Fields) ([]string, error) {
+	updatedSubdocIds := []string{}
 	// TODO: original config-version-report for ble, NO-OP for now
 	if len(m.Reports) > 0 {
-		return updatedBy304, nil
+		return updatedSubdocIds, nil
 	}
 
-	updatedTime := int(time.Now().UnixNano() / 1000000)
+	updatedTime := int(time.Now().UnixMilli())
 
 	// set metrics labels
 	metricsAgent := "default"
@@ -363,7 +363,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	}
 	labels, err := c.GetRootDocumentLabels(cpeMac)
 	if err != nil {
-		return updatedBy304, common.NewError(err)
+		return updatedSubdocIds, common.NewError(err)
 	}
 	labels["client"] = metricsAgent
 
@@ -372,14 +372,14 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	if m.HttpStatusCode != nil {
 		// all non-304 got discarded
 		if *m.HttpStatusCode != http.StatusNotModified {
-			return updatedBy304, nil
+			return updatedSubdocIds, nil
 		}
 
 		// process 304
 		fields["src_caller"] = common.GetCaller()
 		doc, err := c.GetDocument(cpeMac, fields)
 		if err != nil {
-			return updatedBy304, common.NewError(err)
+			return updatedSubdocIds, common.NewError(err)
 		}
 
 		newState := common.Deployed
@@ -388,21 +388,21 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		for groupId, oldSubdoc := range doc.Items() {
 			// fix the bad condition when updated_time is negative
 			if oldSubdoc.NeedsUpdateForHttp304() {
-				updatedBy304 = true
+				updatedSubdocIds = append(updatedSubdocIds, groupId)
 				newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
 				oldState := *oldSubdoc.State()
 
 				if err := c.SetSubDocument(cpeMac, groupId, newSubdoc, oldState, labels, fields); err != nil {
-					return updatedBy304, common.NewError(err)
+					return updatedSubdocIds, common.NewError(err)
 				}
 			}
 		}
-		return updatedBy304, nil
+		return updatedSubdocIds, nil
 	}
 
 	// subdoc-report, should have some validation already
 	if m.ApplicationStatus == nil || m.Namespace == nil {
-		return updatedBy304, common.NewError(fmt.Errorf("ill-formatted event"))
+		return updatedSubdocIds, common.NewError(fmt.Errorf("ill-formatted event"))
 	}
 
 	state := common.Failure
@@ -415,23 +415,34 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		errorDetails := ""
 		errorDetailsPtr = &errorDetails
 	} else if *m.ApplicationStatus == "pending" {
-		return updatedBy304, nil
+		return updatedSubdocIds, nil
 	}
 
 	targetGroupId := *m.Namespace
 	subdoc, err := c.GetSubDocument(cpeMac, *m.Namespace)
 	if err != nil {
-		return updatedBy304, common.NewError(err)
+		return updatedSubdocIds, common.NewError(err)
 	}
 
 	var oldState int
 	if subdoc.State() != nil {
 		oldState = *subdoc.State()
+		if oldState == common.Deployed {
+			log.WithFields(fields).Warn("state=1 already")
+			return updatedSubdocIds, nil
+		}
 		if oldState < common.Deployed || oldState > common.Failure {
 			err := common.Http404Error{
 				Message: fmt.Sprintf("invalid state(%v) in db", oldState),
 			}
-			return updatedBy304, common.NewError(err)
+			return updatedSubdocIds, common.NewError(err)
+		}
+	}
+
+	if subdoc.Version() != nil && m.Version != nil {
+		if *subdoc.Version() != *m.Version {
+			log.WithFields(fields).Warnf("skip update dbversion=%v, m.version=%v", *subdoc.Version(), *m.Version)
+			return updatedSubdocIds, nil
 		}
 	}
 
@@ -441,7 +452,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 			err := common.Http404Error{
 				Message: fmt.Sprintf("invalid updated_time(%v) in db", docUpdatedTime),
 			}
-			return updatedBy304, common.NewError(err)
+			return updatedSubdocIds, common.NewError(err)
 		}
 	}
 
@@ -454,9 +465,9 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 
 	err = c.SetSubDocument(cpeMac, targetGroupId, newSubdoc, oldState, labels, fields)
 	if err != nil {
-		return updatedBy304, common.NewError(err)
+		return updatedSubdocIds, common.NewError(err)
 	}
-	return updatedBy304, nil
+	return updatedSubdocIds, nil
 }
 
 func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, versionMap map[string]string, fields log.Fields) error {
