@@ -120,7 +120,7 @@ func (d *Document) FilterForMqttSend() *Document {
 	for subdocId, subDocument := range d.docmap {
 		if subDocument.State() != nil {
 			state := *subDocument.State()
-			if state == PendingDownload || state == Failure {
+			if state > Deployed {
 				newdoc.SetSubDocument(subdocId, &subDocument)
 			}
 		}
