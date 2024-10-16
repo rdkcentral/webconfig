@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -1438,5 +1439,225 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Equal(t, state, expectedStateMap[subdocId])
 		assert.Assert(t, res.Header.Get(common.HeaderSubdocumentUpdatedTime) == subdocUpdatedTimeMap[subdocId])
+	}
+}
+
+func TestUpstreamBackfill(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetUpstreamEnabled(true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+	wanBytes := util.RandomBytes(m, n)
+	privatessidBytes := util.RandomBytes(m, n)
+	srcbytesMap := map[string][]byte{
+		"privatessid": privatessidBytes,
+		"lan":         lanBytes,
+		"wan":         wanBytes,
+	}
+
+	var mockedRespBytes []byte
+	// ==== step 1 set up upstream mock server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if mockedRespBytes == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			for k := range r.Header {
+				if k == "Content-Length" {
+					continue
+				}
+				w.Header().Set(k, r.Header.Get(k))
+			}
+
+			w.Header().Set(common.HeaderStoreUpstreamResponse, "true")
+			w.WriteHeader(http.StatusOK)
+			w.Write(mockedRespBytes)
+		}))
+	server.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, mockServer.URL, targetUpstreamHost)
+
+	// ==== step 2 GET /config to create root document meta ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+	req.Header.Set(common.HeaderIfNoneMatch, "NONE-POST")
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+
+	res := ExecuteRequest(req, router).Result()
+	assert.NilError(t, err)
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// ==== step 3 add group privatessid ====
+	subdocId := "privatessid"
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(privatessidBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, privatessidBytes)
+
+	// ==== step 4 add group lan ====
+	subdocId = "lan"
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== step 5 add group wan ====
+	subdocId = "wan"
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== step 6 GET /config ====
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.NilError(t, err)
+	res.Body.Close()
+	etag := res.Header.Get(common.HeaderEtag)
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 3)
+	mpart, ok := mparts["privatessid"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, privatessidBytes)
+	privatessidVersion := mpart.Version
+
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	lanVersion := mpart.Version
+
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	wanVersion := mpart.Version
+	mockedRespBytes = slices.Clone(rbytes)
+
+	// ==== step 7 verify the states are in_deployment ====
+	subdocIds := []string{"privatessid", "lan", "wan"}
+	for _, subdocId := range subdocIds {
+		url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+		req, err = http.NewRequest("GET", url, nil)
+		req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+		assert.NilError(t, err)
+		res = ExecuteRequest(req, router).Result()
+		rbytes, err = io.ReadAll(res.Body)
+		assert.NilError(t, err)
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+		assert.DeepEqual(t, rbytes, srcbytesMap[subdocId])
+		state, err := strconv.Atoi(res.Header.Get(common.HeaderSubdocumentState))
+		assert.NilError(t, err)
+		assert.Equal(t, state, common.InDeployment)
+	}
+
+	// ==== step 8 handle a condition when no subdocs in db ====
+	err = server.DeleteDocument(cpeMac)
+	assert.NilError(t, err)
+	err = server.DeleteRootDocument(cpeMac)
+	assert.NilError(t, err)
+
+	// ==== step 9 GET /config with schemaVersion change to trigger upstream ====
+	configUrl = configUrl + "?group_id=root,privatessid,lan,wan"
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	ifNoneMatch := fmt.Sprintf("%v,%v,%v,%v", etag, privatessidVersion, lanVersion, wanVersion)
+	req.Header.Set(common.HeaderIfNoneMatch, ifNoneMatch)
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotModified)
+	res.Body.Close()
+
+	// ==== step 10 verify all states, versions and payloads of all subdocs are backfilled ====
+	document, err := server.GetDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, document.Length(), 3)
+	for _, sd := range document.Items() {
+		assert.Assert(t, sd.GetState() > 0)
+		assert.Assert(t, len(sd.GetVersion()) > 0)
+		assert.Assert(t, len(sd.Payload()) > 0)
 	}
 }
