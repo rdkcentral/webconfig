@@ -484,13 +484,13 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 
 	if oldVersion, ok := versionMap[subdocId]; ok {
 		if newSubdoc.Version() != nil {
-			if oldVersion == *newSubdoc.Version() {
+			if oldVersion == *newSubdoc.Version() && oldSubdoc != nil {
 				return nil
 			}
 		}
 	}
 
-	updatedTime := int(time.Now().UnixNano() / 1000000)
+	updatedTime := int(time.Now().UnixMilli())
 	newSubdoc.SetUpdatedTime(&updatedTime)
 
 	newState := common.InDeployment
