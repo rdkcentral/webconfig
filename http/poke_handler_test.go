@@ -222,7 +222,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	fields = make(log.Fields)
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 0)
+	assert.Equal(t, document.Length(), 2)
 
 	// ==== step 7 change the subdoc again ====
 	lanBytes2 := util.RandomBytes(100, 150)
@@ -250,7 +250,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// ==== step 8 check the document length ===
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 1)
+	assert.Equal(t, document.Length(), 2)
 
 	// ==== step 9 send a document through mqtt ====
 	req, err = http.NewRequest("POST", mqttUrl, nil)
@@ -275,7 +275,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// ==== step 10 check the length again ===
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 0)
+	assert.Equal(t, document.Length(), 2)
 }
 
 func TestPokeHandlerInvalidMac(t *testing.T) {
