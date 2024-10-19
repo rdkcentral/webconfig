@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -119,7 +119,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -128,7 +128,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -151,7 +151,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -160,7 +160,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -196,7 +196,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -208,7 +208,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -227,7 +227,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// ==== step 7 change the subdoc again ====
 	lanBytes2 := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes2))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -236,7 +236,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -262,7 +262,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)

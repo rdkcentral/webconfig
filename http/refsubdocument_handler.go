@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -53,7 +53,7 @@ func (s *WebconfigServer) GetRefSubDocumentHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/msgpack")
+	w.Header().Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	if refsubdoc.Version() != nil {
 		w.Header().Set(common.HeaderRefSubdocumentVersion, *refsubdoc.Version())
 	}

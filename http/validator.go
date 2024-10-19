@@ -14,16 +14,16 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -56,8 +56,8 @@ func (s *WebconfigServer) Validate(w http.ResponseWriter, r *http.Request, valid
 
 	// ==== validate content ====
 	// check content-type
-	contentType := r.Header.Get("Content-type")
-	if contentType != "application/msgpack" {
+	contentType := r.Header.Get(common.HeaderContentType)
+	if contentType != common.HeaderApplicationMsgpack {
 		// TODO (1) if we should validate this header
 		//      (2) if unexpected, return 400 or 415
 		err := *common.NewHttp400Error("content-type not msgpack")
@@ -93,8 +93,8 @@ func (s *WebconfigServer) ValidateRefData(w http.ResponseWriter, r *http.Request
 
 	// ==== validate content ====
 	// check content-type
-	contentType := r.Header.Get("Content-type")
-	if contentType != "application/msgpack" {
+	contentType := r.Header.Get(common.HeaderContentType)
+	if contentType != common.HeaderApplicationMsgpack {
 		// TODO (1) if we should validate this header
 		//      (2) if unexpected, return 400 or 415
 		err := *common.NewHttp400Error("content-type not msgpack")

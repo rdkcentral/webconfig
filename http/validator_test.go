@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
 )
@@ -46,7 +47,7 @@ func TestValidatorDisabled(t *testing.T) {
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -55,7 +56,7 @@ func TestValidatorDisabled(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -86,7 +87,7 @@ func TestValidatorDisabled(t *testing.T) {
 
 	// delete
 	req, err = http.NewRequest("DELETE", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -95,7 +96,7 @@ func TestValidatorDisabled(t *testing.T) {
 
 	// get but expect 404
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -139,7 +140,7 @@ func TestValidatorEnabled(t *testing.T) {
 	server.SetValidateMacEnabled(true)
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -149,7 +150,7 @@ func TestValidatorEnabled(t *testing.T) {
 	// post without mac check
 	server.SetValidateMacEnabled(false)
 	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -159,7 +160,7 @@ func TestValidatorEnabled(t *testing.T) {
 	// get with mac check
 	server.SetValidateMacEnabled(true)
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -169,7 +170,7 @@ func TestValidatorEnabled(t *testing.T) {
 	// get without mac check
 	server.SetValidateMacEnabled(false)
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -211,7 +212,7 @@ func TestValidatorEnabled(t *testing.T) {
 	// delete with mac check
 	server.SetValidateMacEnabled(true)
 	req, err = http.NewRequest("DELETE", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -221,7 +222,7 @@ func TestValidatorEnabled(t *testing.T) {
 	// delete without mac check
 	server.SetValidateMacEnabled(false)
 	req, err = http.NewRequest("DELETE", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -230,7 +231,7 @@ func TestValidatorEnabled(t *testing.T) {
 
 	// get but expect 404
 	req, err = http.NewRequest("GET", url, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -272,7 +273,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", lowerCpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	rbytes, err := io.ReadAll(res.Body)
@@ -281,7 +282,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -301,7 +302,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", lowerCpeMac, subdocId)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
@@ -310,7 +311,7 @@ func TestValidatorWithLowerCase(t *testing.T) {
 
 	// get
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
 	rbytes, err = io.ReadAll(res.Body)
