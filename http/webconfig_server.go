@@ -1135,6 +1135,9 @@ func (s *WebconfigServer) HandleKafkaProducerResults() {
 			fields["output_offset"] = success.Offset
 			log.WithFields(fields).Debug("sent")
 		case pErr := <-s.Errors():
+			if pErr == nil || pErr.Msg == nil {
+				continue
+			}
 			if m := s.Metrics(); m != nil {
 				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
 			}
