@@ -1128,6 +1128,9 @@ func (s *WebconfigServer) HandleKafkaProducerResults() {
 	for {
 		select {
 		case success := <-s.Successes():
+			if success == nil {
+				continue
+			}
 			fields := make(log.Fields)
 			fields["logger"] = "kafkaproducer"
 			fields["output_topic"] = success.Topic
