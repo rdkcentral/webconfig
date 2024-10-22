@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 // header X-System-Supported-Docs
@@ -38,6 +38,7 @@ var (
 			{6, 6},
 			{7, 29}, // connectedbuilding
 			{8, 35}, // xmspeedboost
+			{9, 40}, // webui
 		},
 		2: {
 			{1, 7},
@@ -146,6 +147,7 @@ var (
 		"wifistatsconfig":         37,
 		"mwoconfigs":              38,
 		"interference":            39,
+		"webui":                   40,
 	}
 )
 
