@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -72,7 +72,7 @@ type WebpaConnector struct {
 	apiVersion       string
 }
 
-func syncHandle520(rbytes []byte) ([]byte, http.Header, error, bool) {
+func syncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
 	rerr := common.RemoteHttpError{
 		Message:    string(rbytes),
 		StatusCode: 520,
@@ -82,16 +82,16 @@ func syncHandle520(rbytes []byte) ([]byte, http.Header, error, bool) {
 	if err := json.Unmarshal(rbytes, &pres); err == nil {
 		if len(pres.Parameters) > 0 {
 			if pres.Parameters[0].Message == "Error unsupported namespace" || pres.Parameters[0].Message == "Request rejected" {
-				return rbytes, nil, common.NewError(rerr), false
+				return rbytes, nil, false, common.NewError(rerr)
 			}
 		}
 	}
 	rerr.StatusCode = webpa520NewStatusCode
 
-	return rbytes, nil, common.NewError(rerr), false
+	return rbytes, nil, false, common.NewError(rerr)
 }
 
-func asyncHandle520(rbytes []byte) ([]byte, http.Header, error, bool) {
+func asyncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
 	rerr := common.RemoteHttpError{
 		Message:    string(rbytes),
 		StatusCode: 520,
@@ -101,13 +101,13 @@ func asyncHandle520(rbytes []byte) ([]byte, http.Header, error, bool) {
 	if err := json.Unmarshal(rbytes, &pres); err == nil {
 		if len(pres.Parameters) > 0 {
 			if pres.Parameters[0].Message == "Error unsupported namespace" || pres.Parameters[0].Message == "Request rejected" {
-				return rbytes, nil, common.NewError(rerr), false
+				return rbytes, nil, false, common.NewError(rerr)
 			}
 		}
 	}
 	rerr.StatusCode = webpa520NewStatusCode
 
-	return rbytes, nil, common.NewError(rerr), true
+	return rbytes, nil, true, common.NewError(rerr)
 }
 
 func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *WebpaConnector {
@@ -168,6 +168,16 @@ func (c *WebpaConnector) SetApiVersion(apiVersion string) {
 	c.apiVersion = apiVersion
 }
 
+func (c *WebpaConnector) PokeSpanTemplate() string {
+	// By convention, span name won't have the host, but only the base template
+	return fmt.Sprintf(webpaUrlTemplate[2:], c.apiVersion, "{mac}")
+}
+
+// Base URL with the cpemac populated
+func (c *WebpaConnector) PokeSpanPath(mac string) string {
+	return fmt.Sprintf(webpaUrlTemplate[2:], c.apiVersion, mac)
+}
+
 func (c *WebpaConnector) NewQueue(capacity int) error {
 	if c.queue != nil {
 		err := fmt.Errorf("queue is already initialized")
@@ -221,7 +231,7 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 	header.Set(common.HeaderTracestate, outTracestate)
 
 	method := "PATCH"
-	_, _, err, cont := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
+	_, _, cont, err := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
@@ -251,17 +261,25 @@ func (c *WebpaConnector) Patch(cpeMac string, token string, bbytes []byte, field
 }
 
 func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
-	var cont bool
-
+	tfields := common.FilterLogFields(fields)
+	tfields["logger"] = "asyncwebpa"
 	for i := 1; i <= c.retries; i++ {
 		cbytes := make([]byte, len(bbytes))
 		copy(cbytes, bbytes)
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, _, cont = c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
+		_, _, cont, _ := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
+			msg := fmt.Sprintf("finished success after 1 retry")
+			if i > 1 {
+				fmt.Sprintf("finished success after %v retries", i)
+			}
+			log.WithFields(tfields).Info(msg)
 			break
+		}
+		if i == c.retries {
+			log.WithFields(tfields).Infof("finished failure after %v retries", i)
 		}
 	}
 	<-c.queue
@@ -279,7 +297,7 @@ func (c *WebpaConnector) SyncDoWithRetries(method string, url string, header htt
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, _, err, cont = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
+		rbytes, _, cont, err = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			// in the case of 524/in-progress, we continue
 			var rherr common.RemoteHttpError

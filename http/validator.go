@@ -14,16 +14,16 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -56,8 +56,8 @@ func (s *WebconfigServer) Validate(w http.ResponseWriter, r *http.Request, valid
 
 	// ==== validate content ====
 	// check content-type
-	contentType := r.Header.Get("Content-type")
-	if contentType != "application/msgpack" {
+	contentType := r.Header.Get(common.HeaderContentType)
+	if contentType != common.HeaderApplicationMsgpack {
 		// TODO (1) if we should validate this header
 		//      (2) if unexpected, return 400 or 415
 		err := *common.NewHttp400Error("content-type not msgpack")
@@ -70,4 +70,41 @@ func (s *WebconfigServer) Validate(w http.ResponseWriter, r *http.Request, valid
 		return mac, subdocId, nil, nil, common.NewError(err)
 	}
 	return mac, subdocId, bodyBytes, fields, nil
+}
+
+func (s *WebconfigServer) ValidateRefData(w http.ResponseWriter, r *http.Request, validateContent bool) (string, []byte, log.Fields, error) {
+	var fields log.Fields
+
+	// check mac
+	params := mux.Vars(r)
+	refId := params["ref"]
+
+	// check for safety, but it should not fail
+	xw, ok := w.(*XResponseWriter)
+	if !ok {
+		err := *common.NewHttp500Error("responsewriter cast error")
+		return refId, nil, nil, common.NewError(err)
+	}
+	fields = xw.Audit()
+
+	if !validateContent {
+		return refId, nil, fields, nil
+	}
+
+	// ==== validate content ====
+	// check content-type
+	contentType := r.Header.Get(common.HeaderContentType)
+	if contentType != common.HeaderApplicationMsgpack {
+		// TODO (1) if we should validate this header
+		//      (2) if unexpected, return 400 or 415
+		err := *common.NewHttp400Error("content-type not msgpack")
+		return refId, nil, nil, common.NewError(err)
+	}
+
+	bodyBytes := xw.BodyBytes()
+	if len(bodyBytes) == 0 {
+		err := *common.NewHttp400Error("empty body")
+		return refId, nil, nil, common.NewError(err)
+	}
+	return refId, bodyBytes, fields, nil
 }

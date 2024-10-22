@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -24,10 +24,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -88,9 +88,6 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	}
 
 	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, common.RouteHttp, fields)
-	if err != nil && respBytes == nil {
-		respBytes = []byte(err.Error())
-	}
 
 	// REMINDER 404 use standard response
 	if status == http.StatusNotFound {
@@ -100,6 +97,11 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 	for k := range respHeader {
 		w.Header().Set(k, respHeader.Get(k))
+	}
+
+	if err != nil && respBytes == nil {
+		Error(w, status, common.NewError(err))
+		return
 	}
 
 	w.WriteHeader(status)
@@ -116,7 +118,20 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	respHeader := make(http.Header)
 	userAgent := rHeader.Get("User-Agent")
 
-	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, err := db.BuildGetDocument(c, rHeader, route, fields)
+	// factory reset handling
+	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
+	if ifNoneMatch == "NONE" || ifNoneMatch == "NONE-REBOOT" {
+		status, respHeader, rbytes, err := BuildFactoryResetResponse(s, rHeader, fields)
+		if err != nil {
+			return status, respHeader, rbytes, common.NewError(err)
+		}
+		return status, respHeader, rbytes, nil
+	}
+
+	document, oldRootDocument, newRootDocument, deviceVersionMap, postUpstream, messages, err := db.BuildGetDocument(c, rHeader, route, fields)
+	if s.KafkaProducerEnabled() && s.StateCorrectionEnabled() && len(messages) > 0 {
+		s.ForwardSuccessKafkaMessages(messages, fields)
+	}
 	if uconn == nil {
 		if err != nil {
 			if !s.IsDbNotFound(err) {
@@ -135,6 +150,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			document.DeleteSubDocument(subdocId)
 		}
 
+		document, err = db.LoadRefSubDocuments(c, document, fields)
+		if err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
 		respBytes, err := document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -147,7 +166,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			}
 		}
 
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return http.StatusOK, respHeader, respBytes, nil
 	}
@@ -166,19 +185,32 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		document = common.NewDocument(rootDocument)
 	}
 
+	if userAgent == "mget" {
+		postUpstream = false
+	}
+
 	var respBytes []byte
 	respStatus := http.StatusNotModified
 	if document.Length() > 0 {
+
+		if !postUpstream {
+			document, err = db.LoadRefSubDocuments(c, document, fields)
+			if err != nil {
+				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			}
+		}
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 		respStatus = http.StatusOK
+	} else if len(document.RootVersion()) == 0 {
+		respStatus = http.StatusNotFound
 	}
 
 	// mget ==> no upstream
 	if userAgent == "mget" {
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return http.StatusOK, respHeader, respBytes, nil
 	}
@@ -189,7 +221,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
-		respHeader.Set("Content-type", common.MultipartContentType)
+		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return respStatus, respHeader, respBytes, nil
 	}
@@ -197,8 +229,8 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	// =============================
 	// upstream handling
 	// =============================
-	upstreamHeader := make(http.Header)
-	upstreamHeader.Set("Content-type", common.MultipartContentType)
+	upstreamHeader := rHeader.Clone()
+	upstreamHeader.Set(common.HeaderContentType, common.MultipartContentType)
 	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
@@ -257,15 +289,19 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
+
+	// there are special use cases when we do not want to update subdocuments
+	if upstreamRespHeader.Get(common.HeaderUpstreamResponse) != common.SkipDbUpdate {
+		// update states based on the final document
+		err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, false, deviceVersionMap, fields)
+		if err != nil {
+			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
+		}
+	}
+
 	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)
 	for _, subdocId := range c.BlockedSubdocIds() {
 		finalFilteredDocument.DeleteSubDocument(subdocId)
-	}
-
-	// update states based on the final document
-	err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalFilteredDocument, document, fields)
-	if err != nil {
-		return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 	}
 
 	// 304
@@ -273,10 +309,134 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		return http.StatusNotModified, upstreamRespHeader, nil, nil
 	}
 
+	finalFilteredDocument, err = db.LoadRefSubDocuments(c, finalFilteredDocument, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+	}
 	finalFilteredBytes, err := finalFilteredDocument.Bytes()
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, finalFilteredBytes, common.NewError(err)
 	}
 
 	return http.StatusOK, upstreamRespHeader, finalFilteredBytes, nil
+}
+
+func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields log.Fields) (int, http.Header, []byte, error) {
+	c := s.DatabaseClient
+	uconn := s.GetUpstreamConnector()
+	mac := rHeader.Get(common.HeaderDeviceId)
+	respHeader := make(http.Header)
+
+	fieldsDict := make(util.Dict)
+	fieldsDict.Update(fields)
+	partnerId := rHeader.Get(common.HeaderPartnerID)
+	if len(partnerId) == 0 {
+		partnerId = fieldsDict.GetString("partner")
+	}
+
+	rootDocument, err := db.PreprocessRootDocument(c, rHeader, mac, partnerId, fields)
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+
+	document, err := c.GetDocument(mac, fields)
+	if err != nil {
+		if s.IsDbNotFound(err) {
+			return http.StatusNotFound, respHeader, nil, nil
+		} else {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
+	}
+	if document == nil {
+		document = common.NewDocument(rootDocument)
+	} else {
+		document.SetRootDocument(rootDocument)
+	}
+
+	oldDocBytes, err := document.Bytes()
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+
+	if uconn == nil {
+		err := c.DeleteDocument(mac)
+		if err != nil {
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		}
+		return http.StatusNotFound, respHeader, nil, nil
+	}
+
+	// =============================
+	// upstream handling
+	// =============================
+	upstreamHeader := rHeader.Clone()
+	upstreamHeader.Set(common.HeaderContentType, common.MultipartContentType)
+	upstreamHeader.Set(common.HeaderEtag, document.RootVersion())
+	upstreamHeader.Set(common.HeaderUpstreamNewPartnerId, partnerId)
+
+	if itf, ok := fields["audit_id"]; ok {
+		auditId := itf.(string)
+		if len(auditId) > 0 {
+			upstreamHeader.Set(common.HeaderAuditid, auditId)
+		}
+	}
+
+	if s.TokenManager != nil {
+		token := rHeader.Get("Authorization")
+		if len(token) > 0 {
+			upstreamHeader.Set("Authorization", token)
+		} else {
+			token = s.Generate(mac, 86400)
+			upstreamHeader.Set("Authorization", "Bearer "+token)
+		}
+	}
+
+	// call /upstream to handle factory reset
+	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeader, oldDocBytes, fields)
+	if err != nil {
+		var rherr common.RemoteHttpError
+		if errors.As(err, &rherr) {
+			return rherr.StatusCode, respHeader, nil, common.NewError(err)
+		}
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+
+	// ==== parse the upstreamRespBytes and store them ====
+	finalMparts, err := util.ParseMultipartAsList(upstreamRespHeader, upstreamRespBytes)
+	if err != nil {
+		return http.StatusInternalServerError, respHeader, oldDocBytes, common.NewError(err)
+	}
+	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
+
+	// filter by versionMap and filter by blockedIds
+	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
+	finalDocument := common.NewDocument(finalRootDocument)
+	finalDocument.SetSubDocuments(finalMparts)
+	for _, subdocId := range c.BlockedSubdocIds() {
+		finalDocument.DeleteSubDocument(subdocId)
+	}
+
+	// there are special use cases when we do not want to update subdocuments
+	if upstreamRespHeader.Get(common.HeaderUpstreamResponse) != common.SkipDbUpdate {
+		// update states based on the final document
+		err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, true, nil, fields)
+		if err != nil {
+			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
+		}
+	}
+
+	if finalDocument.Length() == 0 {
+		return http.StatusNotFound, upstreamRespHeader, nil, nil
+	}
+
+	finalDocument, err = db.LoadRefSubDocuments(c, finalDocument, fields)
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+	}
+	finalBytes, err := finalDocument.Bytes()
+	if err != nil {
+		return http.StatusInternalServerError, upstreamRespHeader, finalBytes, common.NewError(err)
+	}
+
+	return http.StatusOK, upstreamRespHeader, finalBytes, nil
 }

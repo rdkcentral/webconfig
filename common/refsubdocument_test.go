@@ -19,25 +19,22 @@ package common
 
 import (
 	"testing"
-	"time"
 
 	"gotest.tools/assert"
 )
 
-func TestSubDocumentString(t *testing.T) {
-	bbytes := []byte("hello world")
-	version := "789345"
-	state := Failure
-	updatedTime := int(time.Now().UnixNano() / 1000000)
-	errorCode := 103
-	errorDetails := "cannot parse"
+func TestRefSubDocument(t *testing.T) {
+	bbytes1 := []byte("hello world")
+	version1 := "12345"
+	refsubdoc1 := NewRefSubDocument(bbytes1, &version1)
 
-	subdoc := NewSubDocument(bbytes, &version, &state, &updatedTime, &errorCode, &errorDetails)
-	assert.Assert(t, subdoc != nil)
+	bbytes2 := []byte("hello world")
+	version2 := "12345"
+	refsubdoc2 := NewRefSubDocument(bbytes2, &version2)
+	assert.Assert(t, refsubdoc1.Equals(refsubdoc2))
 
-	subdoc = &SubDocument{}
-	tgtVersion := subdoc.GetVersion()
-	assert.Equal(t, tgtVersion, "")
-	tgtState := subdoc.GetState()
-	assert.Equal(t, tgtState, 0)
+	bbytes3 := []byte("foo bar")
+	version3 := "12345"
+	refsubdoc3 := NewRefSubDocument(bbytes3, &version3)
+	assert.Assert(t, !refsubdoc1.Equals(refsubdoc3))
 }

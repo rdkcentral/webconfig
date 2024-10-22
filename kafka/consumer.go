@@ -14,17 +14,18 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package kafka
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
@@ -75,31 +76,31 @@ func (c *Consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common.EventMessage, error) {
+func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common.EventMessage, []string, error) {
 	var m common.EventMessage
 	err := json.Unmarshal(bbytes, &m)
 	if err != nil {
-		return nil, common.NewError(err)
+		return nil, nil, common.NewError(err)
 	}
 
 	fields["body"] = m
 	cpeMac, err := m.Validate(true)
 	if err != nil {
-		return nil, common.NewError(err)
+		return nil, nil, common.NewError(err)
 	}
 
 	if m.ErrorDetails != nil && *m.ErrorDetails == "max_retry_reached" {
-		return &m, nil
+		return &m, nil, nil
 	}
 
 	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
-	err = db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
+	updatedSubdocIds, err := db.UpdateDocumentState(c.DatabaseClient, cpeMac, &m, fields)
 	if err != nil {
 		// NOTE return the *eventMessage
-		return &m, common.NewError(err)
+		return &m, updatedSubdocIds, common.NewError(err)
 	}
-	return &m, nil
+	return &m, updatedSubdocIds, nil
 }
 
 // NOTE we choose to return an EventMessage object just to pass along the metricsAgent
@@ -170,7 +171,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
-	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
+	// https://github.com/IBM/sarama/blob/master/consumer_group.go#L27-L29
 	rl := ratelimit.New(c.ratelimitMessagesPerSecond, ratelimit.WithoutSlack) // per second, no slack.
 
 	for {
@@ -203,6 +204,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			var err error
 			logMessage := "discarded"
 			var m *common.EventMessage
+			var updatedSubdocIds []string
 
 			eventName, rptHeaderValue := getEventName(message)
 			switch eventName {
@@ -212,10 +214,10 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			case "mqtt-state":
 				header, bbytes := util.ParseHttp(message.Value)
 				fields["destination"] = header.Get("Destination")
-				m, err = c.handleNotification(bbytes, fields)
+				m, updatedSubdocIds, err = c.handleNotification(bbytes, fields)
 				logMessage = "ok"
 			case "webpa-state":
-				m, err = c.handleNotification(message.Value, fields)
+				m, updatedSubdocIds, err = c.handleNotification(message.Value, fields)
 				logMessage = "ok"
 			}
 
@@ -252,6 +254,26 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 					status = "fail"
 				}
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
+			}
+
+			if c.KafkaProducerEnabled() && m != nil {
+				c.ForwardKafkaMessage(message.Key, m, fields)
+				if len(m.Reports) == 0 {
+					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {
+						// build a root/success message
+						applicationStatus := "success"
+						for _, subdocId := range updatedSubdocIds {
+							em := &common.EventMessage{
+								Namespace:         &subdocId,
+								ApplicationStatus: &applicationStatus,
+								DeviceId:          m.DeviceId,
+								TransactionUuid:   m.TransactionUuid,
+								Version:           m.Version,
+							}
+							c.ForwardKafkaMessage(message.Key, em, fields)
+						}
+					}
+				}
 			}
 		case <-session.Context().Done():
 			return nil

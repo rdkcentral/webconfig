@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -51,15 +51,17 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 
 	// append the extra query_params if any
 	var queryParams string
-	rootdoc, err := s.GetRootDocument(mac)
-	if err != nil {
-		if !s.IsDbNotFound(err) {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
-			return
+	if s.SupplementaryAppendingEnabled() {
+		rootdoc, err := s.GetRootDocument(mac)
+		if err != nil {
+			if !s.IsDbNotFound(err) {
+				Error(w, http.StatusInternalServerError, common.NewError(err))
+				return
+			}
 		}
-	}
-	if rootdoc != nil {
-		queryParams = rootdoc.QueryParams
+		if rootdoc != nil {
+			queryParams = rootdoc.QueryParams
+		}
 	}
 
 	// partner handling
@@ -75,11 +77,8 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
-			if rherr.StatusCode == http.StatusNotFound {
-				Error(w, http.StatusNotFound, nil)
-				return
-			}
-
+			Error(w, rherr.StatusCode, rherr)
+			return
 		}
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
@@ -102,7 +101,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	}
 
 	rootVersion := util.GetRandomRootVersion()
-	w.Header().Set("Content-type", common.MultipartContentType)
+	w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 	w.Header().Set(common.HeaderEtag, rootVersion)
 
 	// help with unit tests

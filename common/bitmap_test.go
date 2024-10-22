@@ -18,26 +18,30 @@
 package common
 
 import (
+	"slices"
 	"testing"
-	"time"
 
 	"gotest.tools/assert"
 )
 
-func TestSubDocumentString(t *testing.T) {
-	bbytes := []byte("hello world")
-	version := "789345"
-	state := Failure
-	updatedTime := int(time.Now().UnixNano() / 1000000)
-	errorCode := 103
-	errorDetails := "cannot parse"
+func TestGetDefaultSupportedSubdocMap(t *testing.T) {
+	m := GetDefaultSupportedSubdocMap()
+	assert.Equal(t, len(m), len(SubdocBitIndexMap))
+}
 
-	subdoc := NewSubDocument(bbytes, &version, &state, &updatedTime, &errorCode, &errorDetails)
-	assert.Assert(t, subdoc != nil)
-
-	subdoc = &SubDocument{}
-	tgtVersion := subdoc.GetVersion()
-	assert.Equal(t, tgtVersion, "")
-	tgtState := subdoc.GetState()
-	assert.Equal(t, tgtState, 0)
+func TestBuildSupportedSubdocMapWithDefaults(t *testing.T) {
+	supportedSubdocIds := []string{
+		"lan",
+		"wan",
+		"macbinding",
+		"hotspot",
+		"privatessid",
+	}
+	m := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.Equal(t, len(m), len(SubdocBitIndexMap))
+	for k := range m {
+		if m[k] {
+			assert.Assert(t, slices.Contains(supportedSubdocIds, k))
+		}
+	}
 }

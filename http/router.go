@@ -100,6 +100,7 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 			sub2.Use(s.NoAuthMiddleware)
 		}
 	}
+	sub2.Use(s.spanMiddleware)
 	sub2.HandleFunc("", s.PokeHandler).Methods("POST")
 
 	sub3 := router.Path("/api/v1/device/{mac}/rootdocument").Subrouter()
@@ -126,6 +127,20 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 		}
 	}
 	sub4.HandleFunc("", s.DeleteDocumentHandler).Methods("DELETE")
+
+	sub5 := router.Path("/api/v1/reference/{ref}/document").Subrouter()
+	if testOnly {
+		sub5.Use(s.TestingMiddleware)
+	} else {
+		if s.ServerApiTokenAuthEnabled() {
+			sub5.Use(s.ApiMiddleware)
+		} else {
+			sub5.Use(s.NoAuthMiddleware)
+		}
+	}
+	sub5.HandleFunc("", s.GetRefSubDocumentHandler).Methods("GET")
+	sub5.HandleFunc("", s.PostRefSubDocumentHandler).Methods("POST")
+	sub5.HandleFunc("", s.DeleteRefSubDocumentHandler).Methods("DELETE")
 
 	return router
 }

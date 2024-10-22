@@ -18,6 +18,8 @@
 package common
 
 import (
+	"maps"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,12 +30,25 @@ var (
 		"out_traceparent",
 		"out_tracestate",
 	}
+	coreFields = []string{
+		"app_name",
+		"audit_id",
+		"body",
+		"cpe_mac",
+	}
 )
 
 func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
 	fields := log.Fields{}
 	for k, v := range src {
-		fields[k] = v
+		switch ty := v.(type) {
+		case map[string]string:
+			fields[k] = maps.Clone(ty)
+		case map[string]interface{}:
+			fields[k] = maps.Clone(ty)
+		default:
+			fields[k] = ty
+		}
 	}
 
 	for _, x := range unloggedFields {
@@ -52,4 +67,14 @@ func UpdateLogFields(fields, newfields log.Fields) {
 	for k, v := range newfields {
 		fields[k] = v
 	}
+}
+
+func CopyCoreLogFields(src log.Fields) log.Fields {
+	fields := log.Fields{}
+	for _, k := range coreFields {
+		if itf, ok := src[k]; ok {
+			fields[k] = itf
+		}
+	}
+	return fields
 }

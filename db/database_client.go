@@ -59,4 +59,13 @@ type DatabaseClient interface {
 	FactoryReset(string) error
 	FirmwareUpdate(string, int, *common.RootDocument) error
 	AppendProfiles(string, []byte) ([]byte, error)
+
+	// reference subdocument
+	GetRefSubDocument(string) (*common.RefSubDocument, error)
+	SetRefSubDocument(string, *common.RefSubDocument) error
+	DeleteRefSubDocument(string) error
+
+	// enable state correction
+	StateCorrectionEnabled() bool
+	SetStateCorrectionEnabled(bool)
 }

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	neturl "net/url"
@@ -33,10 +32,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,7 +52,7 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-type StatusHandlerFunc func([]byte) ([]byte, http.Header, error, bool)
+type StatusHandlerFunc func([]byte) ([]byte, http.Header, bool, error)
 
 type HttpClient struct {
 	*http.Client
@@ -83,21 +82,23 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 	userAgent := conf.GetString("webconfig.http_client.user_agent")
 
+	var transport http.RoundTripper = &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   time.Duration(connectTimeout) * time.Second,
+			KeepAlive: time.Duration(keepaliveTimeout) * time.Second,
+		}).DialContext,
+		MaxIdleConns:          0,
+		MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+		IdleConnTimeout:       time.Duration(keepaliveTimeout) * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       tlsConfig,
+	}
+
 	return &HttpClient{
 		Client: &http.Client{
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   time.Duration(connectTimeout) * time.Second,
-					KeepAlive: time.Duration(keepaliveTimeout) * time.Second,
-				}).DialContext,
-				MaxIdleConns:          0,
-				MaxIdleConnsPerHost:   maxIdleConnsPerHost,
-				IdleConnTimeout:       time.Duration(keepaliveTimeout) * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-				TLSClientConfig:       tlsConfig,
-			},
-			Timeout: time.Duration(readTimeout) * time.Second,
+			Transport: transport,
+			Timeout:   time.Duration(readTimeout) * time.Second,
 		},
 		retries:              retries,
 		retryInMsecs:         retryInMsecs,
@@ -106,7 +107,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	}
 }
 
-func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, error, bool) {
+func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, bool, error) {
 	fields := common.FilterLogFields(auditFields)
 
 	// verify a response is received
@@ -120,11 +121,11 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	case "DELETE":
 		req, err = http.NewRequest(method, url, nil)
 	default:
-		return nil, nil, common.NewError(fmt.Errorf("method=%v", method)), false
+		return nil, nil, false, common.NewError(fmt.Errorf("method=%v", method))
 	}
 
 	if err != nil {
-		return nil, nil, common.NewError(err), true
+		return nil, nil, true, common.NewError(err)
 	}
 
 	if header == nil {
@@ -208,8 +209,8 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	res, err := c.Client.Do(req)
 	// err should be *url.Error
 
-	tdiff := time.Now().Sub(startTime)
-	duration := tdiff.Nanoseconds() / 1000000
+	tdiff := time.Since(startTime)
+	duration := tdiff.Milliseconds()
 	fields[fmt.Sprintf("%v_duration", loggerName)] = duration
 
 	delete(fields, bodyKey)
@@ -235,38 +236,47 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 					Message:    ue.Error(),
 					StatusCode: http.StatusGatewayTimeout,
 				}
-				return nil, nil, common.NewError(rherr), true
+				return nil, nil, true, common.NewError(rherr)
 			}
 			if errors.Is(innerErr, io.EOF) {
 				rherr := common.RemoteHttpError{
 					Message:    ue.Error(),
 					StatusCode: http.StatusBadGateway,
 				}
-				return nil, nil, common.NewError(rherr), true
+				return nil, nil, true, common.NewError(rherr)
 			}
 			if _, ok := innerErr.(*net.OpError); ok {
 				rherr := common.RemoteHttpError{
 					Message:    ue.Error(),
 					StatusCode: http.StatusServiceUnavailable,
 				}
-				return nil, nil, common.NewError(rherr), true
+				return nil, nil, true, common.NewError(rherr)
 			}
 			// Unknown err still appear as 500
 		}
-		return nil, nil, common.NewError(err), true
+		return nil, nil, true, common.NewError(err)
 	}
 	if res.Body != nil {
 		defer res.Body.Close()
 	}
 
 	fields[fmt.Sprintf("%v_status", loggerName)] = res.StatusCode
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	if err != nil {
+		// XPC-23206 catch the timeout/context_cancellation error
+		// ex: context deadline exceeded (Client.Timeout or context cancellation while reading body)
+		lowerErrText := strings.ToLower(err.Error())
+		if strings.Contains(lowerErrText, "timeout") {
+			err = common.RemoteHttpError{
+				Message:    err.Error(),
+				StatusCode: http.StatusGatewayTimeout,
+			}
+		}
 		fields[errorKey] = err.Error()
 		if userAgent != "mget" {
 			log.WithFields(fields).Info(endMessage)
 		}
-		return nil, nil, common.NewError(err), false
+		return nil, nil, true, common.NewError(err)
 	}
 
 	rbody := string(rbytes)
@@ -321,11 +331,27 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 		switch res.StatusCode {
 		case http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound:
-			return rbytes, nil, common.NewError(err), false
+			return rbytes, nil, false, common.NewError(err)
 		}
-		return rbytes, nil, common.NewError(err), true
+		return rbytes, nil, true, common.NewError(err)
+	} else if res.StatusCode > 200 {
+		var pokeResponse PokeResponse
+		var message string
+		if err := json.Unmarshal(rbytes, &pokeResponse); err == nil {
+			if len(pokeResponse.Parameters) > 0 {
+				message = pokeResponse.Parameters[0].Message
+			}
+		}
+		if len(message) == 0 {
+			message = http.StatusText(res.StatusCode)
+		}
+		rherr := common.RemoteHttpError{
+			Message:    message,
+			StatusCode: res.StatusCode,
+		}
+		return rbytes, nil, false, common.NewError(rherr)
 	}
-	return rbytes, res.Header, nil, false
+	return rbytes, res.Header, false, nil
 }
 
 func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
@@ -342,7 +368,7 @@ func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Heade
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		respBytes, respHeader, err, cont = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
+		respBytes, respHeader, cont, err = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}

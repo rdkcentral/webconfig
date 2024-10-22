@@ -19,7 +19,6 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/go-akka/configuration"
@@ -31,6 +30,7 @@ var (
 		"/app/webconfig/test_webconfig.conf",
 		"../config/sample_webconfig.conf",
 		"/app/webconfig/webconfig.conf",
+		"/app/webconfig/conf/webconfig.conf",
 	}
 )
 
@@ -40,7 +40,7 @@ type ServerConfig struct {
 }
 
 func NewServerConfig(configFile string) (*ServerConfig, error) {
-	configBytes, err := ioutil.ReadFile(configFile)
+	configBytes, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, NewError(err)
 	}

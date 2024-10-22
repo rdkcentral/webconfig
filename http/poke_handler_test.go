@@ -14,13 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -35,7 +35,9 @@ import (
 )
 
 var (
-	mockedWebpaPokeResponse = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	mockWebpaPokeResponse    = []byte(`{"parameters":[{"name":"Device.X_RDK_WebConfig.ForceSync","message":"Success"}],"statusCode":200}`)
+	mockWebpaPoke403Response = []byte(`{"message": "Invalid partner_id", "statusCode": 403}`)
+	mockWebpaPoke202Response = []byte(`{"parameters":[{"message":"Previous request is in progress","name":"Device.X_RDK_WebConfig.ForceSync"}],"statusCode":202}`)
 )
 
 func TestPokeHandler(t *testing.T) {
@@ -47,7 +49,7 @@ func TestPokeHandler(t *testing.T) {
 	webpaMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(mockedWebpaPokeResponse)
+			_, _ = w.Write(mockWebpaPokeResponse)
 		}))
 	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
@@ -62,7 +64,7 @@ func TestPokeHandler(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusNoContent)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 
@@ -89,7 +91,7 @@ func TestPokeHandlerWithCpe(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 }
@@ -118,19 +120,19 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	lanBytes := util.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err := ioutil.ReadAll(res.Body)
+	rbytes, err := io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes)
@@ -150,19 +152,19 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
 	wanBytes := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, wanBytes)
@@ -189,16 +191,16 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	req, err = http.NewRequest("POST", mqttUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusAccepted)
 
 	// get to verify
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -207,10 +209,10 @@ func TestBuildMqttSendDocument(t *testing.T) {
 
 	// get to verify
 	req, err = http.NewRequest("GET", wanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -221,24 +223,24 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	fields = make(log.Fields)
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 0)
+	assert.Equal(t, document.Length(), 2)
 
 	// ==== step 7 change the subdoc again ====
 	lanBytes2 := util.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes2))
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	// get
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	rbytes, err = ioutil.ReadAll(res.Body)
+	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.DeepEqual(t, rbytes, lanBytes2)
@@ -249,22 +251,22 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// ==== step 8 check the document length ===
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 1)
+	assert.Equal(t, document.Length(), 2)
 
 	// ==== step 9 send a document through mqtt ====
 	req, err = http.NewRequest("POST", mqttUrl, nil)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusAccepted)
 
 	// get to verify
 	req, err = http.NewRequest("GET", lanUrl, nil)
-	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	state, err = strconv.Atoi(res.Header.Get("X-Subdocument-State"))
@@ -274,7 +276,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// ==== step 10 check the length again ===
 	document, err = db.BuildMqttSendDocument(server.DatabaseClient, cpeMac, fields)
 	assert.NilError(t, err)
-	assert.Equal(t, document.Length(), 0)
+	assert.Equal(t, document.Length(), 2)
 }
 
 func TestPokeHandlerInvalidMac(t *testing.T) {
@@ -286,7 +288,7 @@ func TestPokeHandlerInvalidMac(t *testing.T) {
 	webpaMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(mockedWebpaPokeResponse)
+			_, _ = w.Write(mockWebpaPokeResponse)
 		}))
 	defer webpaMockServer.Close()
 	server.SetWebpaHost(webpaMockServer.URL)
@@ -301,7 +303,65 @@ func TestPokeHandlerInvalidMac(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
-	_, err = ioutil.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+}
+
+func TestPokeHandlerWebpa403(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// webpa mock server
+	webpaMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write(mockWebpaPoke403Response)
+		}))
+	defer webpaMockServer.Close()
+	server.SetWebpaHost(webpaMockServer.URL)
+	targetWebpaHost := server.WebpaHost()
+	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
+
+	// ==== post new data ====
+	lowerCpeMac := strings.ToLower(cpeMac)
+	url := fmt.Sprintf("/api/v1/device/%v/poke?cpe_action=true", lowerCpeMac)
+	req, err := http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+}
+
+func TestPokeHandlerWebpa202(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// webpa mock server
+	webpaMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write(mockWebpaPoke202Response)
+		}))
+	defer webpaMockServer.Close()
+	server.SetWebpaHost(webpaMockServer.URL)
+	targetWebpaHost := server.WebpaHost()
+	assert.Equal(t, webpaMockServer.URL, targetWebpaHost)
+
+	// ==== post new data ====
+	lowerCpeMac := strings.ToLower(cpeMac)
+	url := fmt.Sprintf("/api/v1/device/%v/poke?cpe_action=true", lowerCpeMac)
+	req, err := http.NewRequest("POST", url, nil)
+	req.Header.Set("Authorization", "Bearer foobar")
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusAccepted)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
 }

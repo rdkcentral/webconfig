@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package main
 
 import (
@@ -24,12 +24,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rdkcentral/webconfig/common"
 	wchttp "github.com/rdkcentral/webconfig/http"
 	"github.com/rdkcentral/webconfig/kafka"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
@@ -60,6 +61,7 @@ func main() {
 		panic(err)
 	}
 	server := wchttp.NewWebconfigServer(sc, false)
+	defer server.OtelShutdown()
 
 	// setup logging
 	logFile := server.GetString("webconfig.log.file")
@@ -92,7 +94,9 @@ func main() {
 	log.SetLevel(logLevel)
 
 	// setup sarama logger
-	sarama.Logger = log.StandardLogger()
+	if server.GetBoolean("webconfig.log.sarama_logger_enabled") {
+		sarama.Logger = log.StandardLogger()
+	}
 
 	// setup router
 	router := server.GetRouter(false)
@@ -102,6 +106,9 @@ func main() {
 		router.Handle("/metrics", promhttp.Handler())
 		metrics = common.NewMetrics(sc.Config)
 		server.SetMetrics(metrics)
+		if server.KafkaProducerEnabled() {
+			go server.HandleKafkaProducerResults()
+		}
 		handler := metrics.WebMetrics(router)
 		server.Handler = handler
 	} else {
@@ -122,6 +129,11 @@ func main() {
 		func() error {
 			<-gCtx.Done()
 			fmt.Printf("HTTP server shutdown NOW !!\n")
+			if server.KafkaProducerEnabled() {
+				if err := server.AsyncProducer.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
+				}
+			}
 			return server.Shutdown(context.Background())
 		},
 	)

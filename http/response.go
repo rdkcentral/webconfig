@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -53,7 +53,7 @@ func WriteByMarshal(w http.ResponseWriter, status int, o interface{}) {
 		LogError(w, common.NewError(err))
 		return
 	}
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set(common.HeaderContentType, common.HeaderApplicationJson)
 	w.WriteHeader(status)
 	w.Write(rbytes)
 }
@@ -106,14 +106,14 @@ func WriteOkResponseByTemplate(w http.ResponseWriter, dataStr string, state int,
 		SetAuditValue(w, "response", resp)
 		rbytes = []byte(fmt.Sprintf(OkResponseTemplate, s, stateText, updatedTime))
 	}
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set(common.HeaderContentType, common.HeaderApplicationJson)
 	w.WriteHeader(http.StatusOK)
 	w.Write(rbytes)
 }
 
 // this is used to return default tr-181 payload while the cpe is not in the db
 func WriteContentTypeAndResponse(w http.ResponseWriter, rbytes []byte, version string, contentType string) {
-	w.Header().Set("Content-type", contentType)
+	w.Header().Set(common.HeaderContentType, contentType)
 	w.Header().Set(common.HeaderEtag, version)
 	w.WriteHeader(http.StatusOK)
 	w.Write(rbytes)
@@ -135,11 +135,14 @@ func WriteErrorResponse(w http.ResponseWriter, status int, err error) {
 }
 
 func Error(w http.ResponseWriter, status int, err error) {
-	// calling WriteHeader() multiple times will cause errors in "content-type"
+	// calling WriteHeader() multiple times will cause errors in common.HeaderContentType
 	// ==> errors like 'superfluous response.WriteHeader call' in stderr
 	switch status {
 	case http.StatusNoContent, http.StatusNotModified, http.StatusForbidden:
 		w.WriteHeader(status)
+	case http.StatusAccepted:
+		SetAuditValue(w, "response", err)
+		WriteByMarshal(w, status, err)
 	default:
 		WriteErrorResponse(w, status, err)
 	}
@@ -147,14 +150,14 @@ func Error(w http.ResponseWriter, status int, err error) {
 
 func WriteResponseBytes(w http.ResponseWriter, rbytes []byte, statusCode int, vargs ...string) {
 	if len(vargs) > 0 {
-		w.Header().Set("Content-type", vargs[0])
+		w.Header().Set(common.HeaderContentType, vargs[0])
 	}
 	w.WriteHeader(statusCode)
 	w.Write(rbytes)
 }
 
 func WriteFactoryResetResponse(w http.ResponseWriter) {
-	w.Header().Set("Content-type", common.MultipartContentType)
+	w.Header().Set(common.HeaderContentType, common.MultipartContentType)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte{})
 }

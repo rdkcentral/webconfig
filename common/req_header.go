@@ -18,26 +18,34 @@
 package common
 
 import (
-	"testing"
-	"time"
-
-	"gotest.tools/assert"
+	"fmt"
+	"net/http"
 )
 
-func TestSubDocumentString(t *testing.T) {
-	bbytes := []byte("hello world")
-	version := "789345"
-	state := Failure
-	updatedTime := int(time.Now().UnixNano() / 1000000)
-	errorCode := 103
-	errorDetails := "cannot parse"
+type ReqHeader struct {
+	http.Header
+}
 
-	subdoc := NewSubDocument(bbytes, &version, &state, &updatedTime, &errorCode, &errorDetails)
-	assert.Assert(t, subdoc != nil)
+func NewReqHeader(header http.Header) *ReqHeader {
+	return &ReqHeader{
+		Header: header,
+	}
+}
 
-	subdoc = &SubDocument{}
-	tgtVersion := subdoc.GetVersion()
-	assert.Equal(t, tgtVersion, "")
-	tgtState := subdoc.GetState()
-	assert.Equal(t, tgtState, 0)
+func (h *ReqHeader) Get(k string) (string, error) {
+	v := h.Header.Get(k)
+	if !IsPrintable([]byte(v)) {
+		return "", fmt.Errorf("header %v invalid value %v discarded", k, v)
+	}
+	return v, nil
+}
+
+func IsPrintable(bbytes []byte) bool {
+	for _, char := range bbytes {
+		// Check if the rune is outside the printable ASCII character range.
+		if char < 32 || char > 126 {
+			return false
+		}
+	}
+	return true
 }

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 )
 
 // TODO
@@ -84,7 +84,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/msgpack")
+	w.Header().Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	writeStateHeaders(w, subdoc)
 	w.WriteHeader(http.StatusOK)
 	w.Write(subdoc.Payload())
@@ -160,6 +160,8 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		metricsAgent = "default"
 	}
 
+	rootVersionMap := make(map[string]string)
+	var newRootVersion string
 	for _, deviceId := range deviceIds {
 		fields["src_caller"] = common.GetCaller()
 
@@ -189,15 +191,22 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		}
 
 		doc.SetSubDocument(subdocId, subdoc)
-		newRootVersion := db.HashRootVersion(doc.VersionMap())
+		newRootVersion = db.HashRootVersion(doc.VersionMap())
 		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 			return
 		}
+		rootVersionMap[deviceId] = newRootVersion
+	}
+	d := make(util.Dict)
+	if len(rootVersionMap) == 1 {
+		d["root_version"] = newRootVersion
+	} else {
+		d["root_version"] = rootVersionMap
 	}
 
-	WriteOkResponse(w, nil)
+	WriteByMarshal(w, http.StatusOK, d)
 }
 
 func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +245,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
+			WriteOkResponse(w, nil)
 		} else {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}
@@ -292,6 +302,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 			}
+			WriteOkResponse(w, nil)
 		} else {
 			Error(w, http.StatusInternalServerError, common.NewError(err))
 		}

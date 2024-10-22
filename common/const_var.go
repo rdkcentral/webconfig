@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 const (
@@ -64,6 +64,9 @@ var (
 )
 
 const (
+	HeaderContentType                = "Content-Type"
+	HeaderApplicationJson            = "application/json"
+	HeaderApplicationMsgpack         = "application/msgpack"
 	HeaderEtag                       = "Etag"
 	HeaderIfNoneMatch                = "If-None-Match"
 	HeaderFirmwareVersion            = "X-System-Firmware-Version"
@@ -73,6 +76,7 @@ const (
 	HeaderProfileVersion             = "X-System-Telemetry-Profile-Version"
 	HeaderPartnerID                  = "X-System-PartnerID"
 	HeaderAccountID                  = "X-System-AccountID"
+	HeaderProductClass               = "X-System-Product-Class"
 	HeaderUserAgent                  = "User-Agent"
 	HeaderSchemaVersion              = "X-System-Schema-Version"
 	HeaderMetricsAgent               = "X-Metrics-Agent"
@@ -105,120 +109,13 @@ const (
 	HeaderSourceAppName              = "X-Source-App-Name"
 	HeaderTraceparent                = "Traceparent"
 	HeaderTracestate                 = "Tracestate"
+	HeaderContentLength              = "Content-Length"
+	HeaderRefSubdocumentVersion      = "X-Refsubdocument-Version"
+	HeaderUpstreamResponse           = "X-Upstream-Response"
 )
 
-// header X-System-Supported-Docs
-type BitMaskTuple struct {
-	GroupBit int
-	CpeBit   int
-}
-
-// The group based bitmaps will be merged into 1 cpe bitmap
-// 1: []BitMaskTuple{ // meta_group_id: defined by RDK
-//
-//	BitMaskTuple{1, 1},  // {"index_of_bit_from_lsb" for a group bitmap, "index_of_bit_from_lsb" for the cpe bitmap
-var (
-	SupportedDocsBitMaskMap = map[int][]BitMaskTuple{
-		1: {
-			{1, 1},
-			{2, 2},
-			{3, 3},
-			{4, 4},
-			{5, 5},
-			{6, 6},
-			{7, 29},
-		},
-		2: {
-			{1, 7},
-			{2, 8},
-			{3, 9},
-		},
-		3: {
-			{1, 10},
-		},
-		4: {
-			{1, 11},
-		},
-		5: {
-			{1, 12},
-		},
-		6: {
-			{1, 13},
-		},
-		7: {
-			{1, 14},
-		},
-		8: {
-			{1, 15},
-		},
-		9: {
-			{1, 16},
-			{2, 17},
-		},
-		10: {
-			{1, 18},
-			{2, 19},
-		},
-		11: {
-			{1, 20},
-			{2, 25},
-		},
-		12: {
-			{1, 21},
-			{2, 23},
-		},
-		13: {
-			{1, 22},
-		},
-		14: {
-			{1, 24},
-		},
-		15: {
-			{1, 26},
-			{2, 27},
-		},
-		16: {
-			{1, 28},
-		},
-		17: {
-			{1, 30},
-		},
-	}
-)
-
-var (
-	SubdocBitIndexMap = map[string]int{
-		"portforwarding":    1,
-		"lan":               2,
-		"wan":               3,
-		"macbinding":        4,
-		"hotspot":           5,
-		"bridge":            6,
-		"privatessid":       7,
-		"homessid":          8,
-		"radio":             9,
-		"moca":              10,
-		"xdns":              11,
-		"advsecurity":       12,
-		"mesh":              13,
-		"aker":              14,
-		"telemetry":         15,
-		"statusreport":      16,
-		"trafficreport":     17,
-		"interfacereport":   18,
-		"radioreport":       19,
-		"telcovoip":         20,
-		"wanmanager":        21,
-		"voiceservice":      22,
-		"wanfailover":       23,
-		"cellularconfig":    24,
-		"telcovoice":        25,
-		"gwfailover":        26,
-		"gwrestore":         27,
-		"prioritizedmacs":   28,
-		"connectedbuilding": 29,
-		"lldqoscontrol":     30,
-	}
+const (
+	SkipDbUpdate = "skip-db-update"
 )
 
 var (
