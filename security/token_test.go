@@ -38,19 +38,19 @@ func TestLoadingKeyFiles(t *testing.T) {
 	}
 
 	publicKeyFile := "/etc/webconfig/webconfig_key_pub.pem"
-	_, err = loadDecodeKey(publicKeyFile)
+	_, err = LoadDecodeKey(publicKeyFile)
 	assert.NilError(t, err)
 
 	badPublicKeyFile := "/etc/webconfig/webconfig_key_pub.pemx"
-	_, err = loadDecodeKey(badPublicKeyFile)
+	_, err = LoadDecodeKey(badPublicKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
 
 	privateKeyFile := "/etc/webconfig/webconfig_key.pem"
-	_, err = loadEncodeKey(privateKeyFile)
+	_, err = LoadEncodeKey(privateKeyFile)
 	assert.NilError(t, err)
 
 	badPrivateKeyFile := "/etc/webconfig/webconfig_key.pemx"
-	_, err = loadEncodeKey(badPrivateKeyFile)
+	_, err = LoadEncodeKey(badPrivateKeyFile)
 	assert.Assert(t, errors.Is(err, os.ErrNotExist))
 }
 

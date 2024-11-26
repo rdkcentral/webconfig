@@ -204,7 +204,7 @@ func GetDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 }
 
 // testOnly=true ==> running unit test
-func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer {
+func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.DatabaseClient) *WebconfigServer {
 	conf := sc.Config
 	var dbclient db.DatabaseClient
 	var tokenManager *security.TokenManager
@@ -213,7 +213,11 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	if testOnly {
 		dbclient = GetTestDatabaseClient(sc)
 	} else {
-		dbclient = GetDatabaseClient(sc)
+		if len(args) > 0 {
+			dbclient = args[0]
+		} else {
+			dbclient = GetDatabaseClient(sc)
+		}
 		tokenManager = security.NewTokenManager(conf)
 	}
 
@@ -222,9 +226,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	var ctx context.Context
 	jwksManager, err := security.NewJwksManager(conf, ctx)
 	if jwksEnabled && err != nil {
-		if err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 
 	metricsEnabled := conf.GetBoolean("webconfig.server.metrics_enabled", MetricsEnabledDefault)

@@ -70,7 +70,7 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 	decodeKeys := map[string]*rsa.PublicKey{}
 	for _, kid := range kids {
 		keyfile := conf.GetString(fmt.Sprintf("webconfig.jwt.kid.%s.public_key_file", kid))
-		dk, err := loadDecodeKey(keyfile)
+		dk, err := LoadDecodeKey(keyfile)
 		if err != nil {
 			if panicExitEnabled {
 				panic(err)
@@ -84,7 +84,7 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 	fn := VerifyToken
 
 	// load the private encoding key
-	encodeKey, err := loadEncodeKey(privateKeyFile)
+	encodeKey, err := LoadEncodeKey(privateKeyFile)
 	if err != nil {
 		if panicExitEnabled {
 			panic(err)
@@ -104,7 +104,7 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 	}
 }
 
-func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
+func LoadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
 	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)
@@ -116,7 +116,7 @@ func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
 	return decodeKey, nil
 }
 
-func loadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
+func LoadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
 	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)

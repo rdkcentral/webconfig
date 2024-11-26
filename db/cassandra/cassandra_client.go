@@ -67,11 +67,39 @@ current column types:
      13 columnType=uuid
 */
 
-func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
+func NewCassandraClient(conf *configuration.Config, testOnly bool, args ...interface{}) (*CassandraClient, error) {
+	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
+	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
+	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
+	dbdriver := "cassandra"
+	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
+	localDc := dbconf.GetString("local_dc")
+
 	var codec *security.AesCodec
 	var err error
+	var session *gocql.Session
 
-	dbdriver := "cassandra"
+	if len(args) > 0 {
+		for _, itf := range args {
+			switch ty := itf.(type) {
+			case *security.AesCodec:
+				codec = ty
+			case *gocql.Session:
+				session = ty
+			}
+		}
+		return &CassandraClient{
+			Session:                session,
+			AesCodec:               codec,
+			concurrentQueries:      make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
+			localDc:                localDc,
+			blockedSubdocIds:       blockedSubdocIds,
+			encryptedSubdocIds:     encryptedSubdocIds,
+			stateCorrectionEnabled: stateCorrectionEnabled,
+		}, nil
+
+	}
+
 	if x := conf.GetString("webconfig.database.active_driver"); x == "yugabyte" {
 		dbdriver = "yugabyte"
 	}
@@ -88,8 +116,6 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 			return nil, common.NewError(err)
 		}
 	}
-
-	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
 
 	// init
 	hosts := dbconf.GetStringList("hosts")
@@ -110,7 +136,6 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		},
 	}
 
-	localDc := dbconf.GetString("local_dc")
 	if len(localDc) > 0 {
 		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
 	}
@@ -153,15 +178,12 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	// now point to the real keyspace
-	session, err := cluster.CreateSession()
+	session, err = cluster.CreateSession()
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 	session.SetPageSize(int(dbconf.GetInt32("page_size", DefaultPageSize)))
 
-	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
-	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
-	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
 	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
 
 	return &CassandraClient{

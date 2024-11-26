@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 /*
  * Some code in Encrypt/Decrypt is:
  * Copyright 2012 The Go Authors. All rights reserved.
@@ -33,8 +33,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -77,14 +77,16 @@ const (
 // var staticIv []byte{111, 114, 219, 23, 120, 151, 157, 32, 117, 31, 98, 99, 106, 3, 169, 224}
 
 func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) {
-	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
-
 	var defaultCodec AesCodec
+	envName := envNameDefault
 
 	var enckeyB64 string
 	if len(args) > 0 {
 		enckeyB64 = args[0]
 	} else {
+		if conf != nil {
+			envName = conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
+		}
 		enckeyB64 = os.Getenv(envName)
 	}
 
