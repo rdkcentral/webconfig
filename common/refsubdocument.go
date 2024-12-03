@@ -14,11 +14,12 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
 	"bytes"
+	"fmt"
 )
 
 type RefSubDocument struct {
@@ -78,4 +79,19 @@ func (d *RefSubDocument) Equals(tdoc *RefSubDocument) bool {
 		}
 	}
 	return true
+}
+
+func (d RefSubDocument) String() string {
+	var s1, s2 string
+	if d.payload == nil {
+		s1 = "payload=nil"
+	} else {
+		s1 = fmt.Sprintf("len(payload)=%v", len(d.payload))
+	}
+	if d.version == nil {
+		s2 = "version=nil"
+	} else {
+		s2 = fmt.Sprintf("version=%v", *d.version)
+	}
+	return fmt.Sprintf("RefSubDocument(%v, %v)", s1, s2)
 }
