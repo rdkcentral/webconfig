@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/rdkcentral/webconfig/common"
@@ -41,50 +42,29 @@ func ValidateMac(mac string) bool {
 
 func ValidatePokeQuery(values url.Values) (string, error) {
 	// handle ?doc=xxx
-	if docQueryParamStrs, ok := values["doc"]; ok {
-		if len(docQueryParamStrs) > 1 {
-			err := fmt.Errorf("multiple doc parameter is not allowed")
-			return "", common.NewError(err)
+	docStr := values.Get("doc")
+	if len(docStr) > 0 {
+		docNames := strings.Split(docStr, ",")
+		for _, n := range docNames {
+			if !slices.Contains(common.SupportedPokeDocs, n) {
+				err := fmt.Errorf("invalid query parameter: %v", n)
+				return "", common.NewError(err)
+			}
 		}
-
-		qparams := strings.Split(docQueryParamStrs[0], ",")
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple doc parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		queryStr := qparams[0]
-		if !Contains(common.SupportedPokeDocs, queryStr) {
-			err := fmt.Errorf("invalid query parameter: %v", queryStr)
-			return "", common.NewError(err)
-
-		}
-		return queryStr, nil
+		return docStr, nil
 	}
 
 	// handle ?route=xxx
-	if qparams, ok := values["route"]; ok {
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple route parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		qparams := strings.Split(qparams[0], ",")
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple route parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		queryStr := qparams[0]
-		if !Contains(common.SupportedPokeRoutes, queryStr) {
-			err := fmt.Errorf("invalid query parameter: %v", queryStr)
+	routeStr := values.Get("route")
+	if len(routeStr) > 0 {
+		if !slices.Contains(common.SupportedPokeRoutes, routeStr) {
+			err := fmt.Errorf("invalid query parameter: %v", routeStr)
 			return "", common.NewError(err)
 
 		}
-		return queryStr, nil
+		return routeStr, nil
 	}
 
-	// return default
 	return "primary", nil
 }
 

@@ -119,7 +119,7 @@ const (
 )
 
 var (
-	SupportedPokeDocs   = []string{"primary", "telemetry"}
+	SupportedPokeDocs   = []string{"primary", "telemetry", "root"}
 	SupportedPokeRoutes = []string{"mqtt"}
 )
 

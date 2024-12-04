@@ -56,8 +56,8 @@ func TestValidatePokeQuery(t *testing.T) {
 	values := url.Values{}
 
 	values["doc"] = []string{
-		"primary,telemetry",
 		"hello,world",
+		"primary,telemetry",
 	}
 	_, err := ValidatePokeQuery(values)
 	assert.Assert(t, err != nil)
@@ -72,7 +72,7 @@ func TestValidatePokeQuery(t *testing.T) {
 		"primary,telemetry",
 	}
 	_, err = ValidatePokeQuery(values)
-	assert.Assert(t, err != nil)
+	assert.NilError(t, err)
 
 	values["doc"] = []string{
 		"primary",
