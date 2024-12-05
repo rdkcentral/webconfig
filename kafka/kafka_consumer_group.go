@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package kafka
 
 import (
@@ -26,7 +26,6 @@ import (
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
-	"github.com/go-akka/configuration"
 )
 
 type KafkaConsumerGroup struct {
@@ -36,7 +35,7 @@ type KafkaConsumerGroup struct {
 	topics   []string
 }
 
-func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer, m *common.AppMetrics, clusterName string) (*KafkaConsumerGroup, error) {
+func NewKafkaConsumerGroup(s *wchttp.WebconfigServer, m *common.AppMetrics, clusterName string) (*KafkaConsumerGroup, error) {
 	var prefix string
 	if clusterName == "root" {
 		prefix = "webconfig.kafka"
@@ -44,6 +43,7 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 		prefix = "webconfig.kafka.clusters." + clusterName
 	}
 
+	conf := s.ServerConfig.Config
 	enabled := conf.GetBoolean(prefix + ".enabled")
 	if !enabled {
 		return nil, nil
@@ -126,10 +126,10 @@ func (g *KafkaConsumerGroup) Consumer() *Consumer {
 	return g.consumer
 }
 
-func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, m *common.AppMetrics) ([]*KafkaConsumerGroup, error) {
+func NewKafkaConsumerGroups(s *wchttp.WebconfigServer, m *common.AppMetrics) ([]*KafkaConsumerGroup, error) {
 	kcgroups := []*KafkaConsumerGroup{}
 
-	rootGroup, err := NewKafkaConsumerGroup(sc.Config, s, m, "root")
+	rootGroup, err := NewKafkaConsumerGroup(s, m, "root")
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -137,9 +137,10 @@ func NewKafkaConsumerGroups(sc *common.ServerConfig, s *wchttp.WebconfigServer, 
 		kcgroups = append(kcgroups, rootGroup)
 	}
 
+	sc := s.ServerConfig
 	clusterNames := sc.KafkaClusterNames()
 	for _, clusterName := range clusterNames {
-		kcgroup, err := NewKafkaConsumerGroup(sc.Config, s, m, clusterName)
+		kcgroup, err := NewKafkaConsumerGroup(s, m, clusterName)
 		if err != nil {
 			return nil, common.NewError(err)
 		}

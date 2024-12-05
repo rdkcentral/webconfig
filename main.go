@@ -139,7 +139,7 @@ func main() {
 	)
 
 	// setup kafka consumer, if config kafka.enabled=false, then kcgroup=nil, err=nil
-	kcgroups, err := kafka.NewKafkaConsumerGroups(sc, server, metrics)
+	kcgroups, err := kafka.NewKafkaConsumerGroups(server, metrics)
 	if err != nil {
 		panic(err)
 	}
