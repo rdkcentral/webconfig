@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -37,8 +37,11 @@ func TestUpstreamConnector(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(mockedUpstreamResponse)
 		}))
-	server.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
+
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 

@@ -55,8 +55,9 @@ func TestFactoryResetWithoutData(t *testing.T) {
 			w.Write(nil)
 		}))
 
-	server.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 
@@ -293,8 +294,9 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 			w.Write(mockBytes)
 		}))
 
-	server.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 
@@ -357,8 +359,9 @@ func TestFactoryResetUpstreamAddData(t *testing.T) {
 			w.Write(respBytes)
 		}))
 
-	server.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 

@@ -110,8 +110,10 @@ func TestUpstream(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====
@@ -378,8 +380,11 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
+
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====
@@ -624,8 +629,11 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
+
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====
@@ -924,8 +932,10 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====
@@ -1217,8 +1227,10 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(respBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====
@@ -1478,8 +1490,9 @@ func TestUpstreamBackfill(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(mockedRespBytes)
 		}))
-	server.SetUpstreamHost(mockServer.URL)
-	targetUpstreamHost := server.UpstreamHost()
+	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
+	uconn.SetUpstreamHost(mockServer.URL)
+	targetUpstreamHost := uconn.UpstreamHost()
 	assert.Equal(t, mockServer.URL, targetUpstreamHost)
 
 	// ==== step 2 GET /config to create root document meta ====

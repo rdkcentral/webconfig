@@ -123,7 +123,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	fields["is_primary"] = true
 
 	c := s.DatabaseClient
-	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 	userAgent := rHeader.Get("User-Agent")
@@ -148,7 +147,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		return http.StatusConflict, respHeader, nil, common.NewError(err)
 	}
 
-	if uconn == nil {
+	if !s.UpstreamEnabled() {
 		if err != nil {
 			if !s.IsDbNotFound(err) {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -339,7 +338,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields log.Fields) (int, http.Header, []byte, error) {
 	c := s.DatabaseClient
-	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
@@ -374,7 +372,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 
-	if uconn == nil {
+	if !s.UpstreamEnabled() {
 		err := c.DeleteDocument(mac)
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
