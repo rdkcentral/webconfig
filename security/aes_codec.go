@@ -106,6 +106,10 @@ func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) 
 }
 
 func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
+	if len(encryptedB64) == 0 {
+		return "", nil
+	}
+
 	// CBC decryption
 	ciphertext, err := base64.StdEncoding.DecodeString(encryptedB64)
 	if err != nil {
@@ -176,6 +180,10 @@ func Digest(iv []byte, plaintextstr string) []byte {
 }
 
 func (c *AesCodec) Encrypt(plaintextstr string) (string, error) {
+	if len(plaintextstr) == 0 {
+		return "", nil
+	}
+
 	if c.key == nil {
 		return base64.StdEncoding.EncodeToString([]byte(plaintextstr)), nil
 	}
