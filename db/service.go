@@ -188,6 +188,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 				}
 			}
 		}
+		updatedTime := int(time.Now().UnixMilli())
 		for subdocId, subdocument := range document.Items() {
 			cloudVersion := subdocument.GetVersion()
 			cloudState := subdocument.GetState()
@@ -205,6 +206,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 				// update state
 				newState := common.Deployed
 				subdocument.SetState(&newState)
+				subdocument.SetUpdatedTime(&updatedTime)
 				if cloudErrorCode > 0 {
 					var newErrorCode int
 					subdocument.SetErrorCode(&newErrorCode)

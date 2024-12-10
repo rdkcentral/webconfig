@@ -1125,26 +1125,32 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	lanSubdocument, err = server.GetSubDocument(cpeMac, "lan")
 	assert.NilError(t, err)
 	assert.Equal(t, lanSubdocument.GetState(), common.PendingDownload)
+	oldLanUpdatedTime := *lanSubdocument.UpdatedTime()
 
 	wanSubdocument, err = server.GetSubDocument(cpeMac, "wan")
 	assert.NilError(t, err)
 	assert.Equal(t, wanSubdocument.GetState(), common.InDeployment)
+	oldWanUpdatedTime := *wanSubdocument.UpdatedTime()
 
 	meshSubdocument, err = server.GetSubDocument(cpeMac, "mesh")
 	assert.NilError(t, err)
 	assert.Equal(t, meshSubdocument.GetState(), common.Failure)
 	assert.Equal(t, *meshSubdocument.ErrorCode(), meshErrorCode)
 	assert.Equal(t, *meshSubdocument.ErrorDetails(), meshErrorDetails)
+	oldMeshUpdatedTime := *meshSubdocument.UpdatedTime()
 
 	mocaSubdocument, err = server.GetSubDocument(cpeMac, "moca")
 	assert.NilError(t, err)
 	assert.Equal(t, mocaSubdocument.GetState(), common.PendingDownload)
+	oldMocaUpdatedTime := *mocaSubdocument.UpdatedTime()
 
 	// ==== enable the state correction flag and call GET /config again with if-none-match and expect 304 ====
 	server.SetStateCorrectionEnabled(true)
 	defer func() {
 		server.SetStateCorrectionEnabled(false)
 	}()
+
+	time.Sleep(time.Duration(100) * time.Millisecond)
 
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
@@ -1159,20 +1165,24 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	lanSubdocument, err = server.GetSubDocument(cpeMac, "lan")
 	assert.NilError(t, err)
 	assert.Equal(t, lanSubdocument.GetState(), common.Deployed)
+	assert.Assert(t, *lanSubdocument.UpdatedTime() > oldLanUpdatedTime)
 
 	wanSubdocument, err = server.GetSubDocument(cpeMac, "wan")
 	assert.NilError(t, err)
 	assert.Equal(t, wanSubdocument.GetState(), common.Deployed)
+	assert.Assert(t, *wanSubdocument.UpdatedTime() > oldWanUpdatedTime)
 
 	meshSubdocument, err = server.GetSubDocument(cpeMac, "mesh")
 	assert.NilError(t, err)
 	assert.Equal(t, meshSubdocument.GetState(), common.Deployed)
 	assert.Equal(t, *meshSubdocument.ErrorCode(), 0)
 	assert.Equal(t, *meshSubdocument.ErrorDetails(), "")
+	assert.Assert(t, *meshSubdocument.UpdatedTime() > oldMeshUpdatedTime)
 
 	mocaSubdocument, err = server.GetSubDocument(cpeMac, "moca")
 	assert.NilError(t, err)
 	assert.Equal(t, mocaSubdocument.GetState(), common.PendingDownload)
+	assert.Assert(t, *mocaSubdocument.UpdatedTime() == oldMocaUpdatedTime)
 }
 
 func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
