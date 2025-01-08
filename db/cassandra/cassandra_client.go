@@ -39,6 +39,7 @@ const (
 	DefaultSleepTimeInMillisecond = 10
 	DefaultConnections            = 2
 	DefaultPageSize               = 50
+	DefaultPort                   = 9042
 )
 
 // if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
@@ -68,6 +69,19 @@ current column types:
 */
 
 func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
+	if isAwsKeyspaceEnabled(conf) {
+		return awsKeyspaceClient(conf, testOnly)
+	} else {
+		return cassandraClient(conf, testOnly)
+	}
+}
+
+func isAwsKeyspaceEnabled(conf *configuration.Config) bool {
+	return (conf.GetString("webconfig.database.active_driver") == "cassandra") &&
+		conf.GetBoolean("webconfig.database.cassandra.aws_keyspace_enabled")
+}
+
+func cassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
 	var codec *security.AesCodec
 	var err error
 
@@ -101,6 +115,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
 	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
+	cluster.Port = int(dbconf.GetInt64("port", DefaultPort))
 
 	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
 		ConsistencyLevelsToTry: []gocql.Consistency{
