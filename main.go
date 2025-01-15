@@ -61,7 +61,7 @@ func main() {
 		panic(err)
 	}
 	server := wchttp.NewWebconfigServer(sc, false)
-	defer server.OtelShutdown()
+	defer server.Stop()
 
 	// setup logging
 	logFile := server.GetString("webconfig.log.file")
@@ -81,6 +81,7 @@ func main() {
 		TimestampFormat: common.LoggingTimeFormat,
 		FieldMap: log.FieldMap{
 			log.FieldKeyTime: "timestamp",
+			log.FieldKeyMsg:  "message",
 		},
 	})
 

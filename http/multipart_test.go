@@ -619,7 +619,6 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
-
 	cpeMac := util.GenerateRandomCpeMac()
 	// ==== group 1 lan ====
 	subdocId := "lan"

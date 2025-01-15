@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -38,6 +38,14 @@ func PrettyJson(input interface{}) string {
 		}
 	case Dict, []Dict, map[interface{}]Dict, map[string]string, []string, []interface{}:
 		if bbytes, err := json.MarshalIndent(input, "", "    "); err == nil {
+			pretty = string(bbytes)
+		}
+	case http.Header:
+		m := make(map[string]string)
+		for k := range ty {
+			m[k] = ty.Get(k)
+		}
+		if bbytes, err := json.MarshalIndent(m, "", "    "); err == nil {
 			pretty = string(bbytes)
 		}
 	}
