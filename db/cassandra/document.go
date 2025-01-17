@@ -120,7 +120,7 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 			values = append(values, encbytes)
 			columnMap["payload_len"] = len(encbytes)
 
-			if len(kmsRemoteDataKey) > 0 {
+			if kmsRemoteDataKey != nil {
 				columns = append(columns, "kms_remote_data_key")
 				values = append(values, kmsRemoteDataKey)
 			}
