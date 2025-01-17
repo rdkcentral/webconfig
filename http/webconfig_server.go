@@ -902,8 +902,10 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	fields["duration"] = duration
 	fields["logger"] = "request"
 
-	tracing.SetSpanStatusCode(s.XpcTracer, fields)
-	tracing.SetSpanMoracideTags(s.XpcTracer, fields)
+	if s.XpcTracer.OtelEnabled {
+		tracing.SetSpanStatusCode(fields)
+		tracing.SetSpanMoracideTags(fields, s.XpcTracer.MoracideTagPrefix())
+	}
 
 	var userAgent string
 	if itf, ok := fields["user_agent"]; ok {

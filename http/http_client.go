@@ -410,6 +410,14 @@ func (c *HttpClient) StatusHandler(status int) StatusHandlerFunc {
 	return nil
 }
 
+func (c *HttpClient) Retries() int {
+	return c.retries
+}
+
+func (c *HttpClient) RetryInMsecs() int {
+	return c.retryInMsecs
+}
+
 // addMoracideTags - if ctx has a moracide tag as a header, add it to the headers
 // Also add traceparent, tracestate headers
 func (c *HttpClient) addMoracideTags(header http.Header, fields log.Fields) {

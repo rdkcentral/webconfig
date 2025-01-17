@@ -230,10 +230,7 @@ func EndOtelSpan(xpcTracer *XpcTracer, span oteltrace.Span) {
 	span.End()
 }
 
-func otelExtractParamsFromSpan(ctx context.Context, xpcTracer *XpcTracer, xpcTrace *XpcTrace) {
-	if !xpcTracer.OtelEnabled {
-		return
-	}
+func otelExtractParamsFromSpan(ctx context.Context, xpcTrace *XpcTrace) {
 	if tmp := GetContext(ctx, "otel_span"); tmp != nil {
 		if otelSpan, ok := tmp.(oteltrace.Span); ok {
 			xpcTrace.otelSpan = otelSpan

@@ -34,6 +34,8 @@ const (
 	DefaultMoracideTagPrefix = "X-Cl-Experiment"
 )
 
+type SpanSetterFunc func(log.Fields, string)
+
 // XpcTracer is a wrapper around tracer setup
 type XpcTracer struct {
 	OtelEnabled       bool
@@ -54,6 +56,8 @@ type XpcTracer struct {
 	otelTracerProvider oteltrace.TracerProvider
 	otelPropagator     otelpropagation.TextMapPropagator
 	otelTracer         oteltrace.Tracer
+
+	SpanSetter SpanSetterFunc
 }
 
 func NewXpcTracer(conf *configuration.Config) *XpcTracer {
@@ -61,6 +65,13 @@ func NewXpcTracer(conf *configuration.Config) *XpcTracer {
 	initAppData(conf, xpcTracer)
 	otelInit(conf, xpcTracer)
 	xpcTracer.moracideTagPrefix = conf.GetString("webconfig.tracing.moracide_tag_prefix", DefaultMoracideTagPrefix)
+
+	if xpcTracer.OtelEnabled {
+		xpcTracer.SpanSetter = OtelSpanSetter
+	} else {
+		xpcTracer.SpanSetter = NoopSpanSetter
+	}
+
 	return xpcTracer
 }
 
@@ -82,6 +93,18 @@ func (t *XpcTracer) OtelTracerProvider() oteltrace.TracerProvider {
 
 func (t *XpcTracer) AppName() string {
 	return t.appName
+}
+
+func (t *XpcTracer) AppVersion() string {
+	return t.appVersion
+}
+
+func (t *XpcTracer) AppEnv() string {
+	return t.appEnv
+}
+
+func (t *XpcTracer) Region() string {
+	return t.region
 }
 
 func initAppData(conf *configuration.Config, xpcTracer *XpcTracer) {
@@ -107,4 +130,12 @@ func initAppData(conf *configuration.Config, xpcTracer *XpcTracer) {
 		xpcTracer.region = os.Getenv("site_region_name")
 	}
 	log.Debugf("site_color = %s, env = %s, region = %s", siteColor, xpcTracer.appEnv, xpcTracer.region)
+}
+
+func OtelSpanSetter(fields log.Fields, tag string) {
+	SetSpanStatusCode(fields)
+	SetSpanMoracideTags(fields, tag)
+}
+
+func NoopSpanSetter(fields log.Fields, tag string) {
 }

@@ -72,16 +72,16 @@ func NewXpcTrace(r *http.Request, xpcTracer *XpcTracer) *XpcTrace {
 	var xpcTrace XpcTrace
 	xpcTrace.ReqMoracideTags = make(map[string]string)
 
-	extractParamsFromReq(r, xpcTracer, &xpcTrace)
+	extractParamsFromReq(r, &xpcTrace, xpcTracer.MoracideTagPrefix())
 
 	if xpcTracer.OtelEnabled {
-		otelExtractParamsFromSpan(r.Context(), xpcTracer, &xpcTrace)
+		otelExtractParamsFromSpan(r.Context(), &xpcTrace)
 	}
 
 	return &xpcTrace
 }
 
-func SetSpanStatusCode(xpcTracer *XpcTracer, fields log.Fields) {
+func SetSpanStatusCode(fields log.Fields) {
 	var xpcTrace *XpcTrace
 	if tmp, ok := fields["xpc_trace"]; ok {
 		xpcTrace = tmp.(*XpcTrace)
@@ -91,7 +91,7 @@ func SetSpanStatusCode(xpcTracer *XpcTracer, fields log.Fields) {
 		log.Error("instrumentation error, no trace info")
 		return
 	}
-	if xpcTracer.OtelEnabled && xpcTrace.otelSpan != nil {
+	if xpcTrace.otelSpan != nil {
 		if tmp, ok := fields["status"]; ok {
 			statusCode := tmp.(int)
 			otelSetStatusCode(xpcTrace.otelSpan, statusCode)
@@ -99,7 +99,7 @@ func SetSpanStatusCode(xpcTracer *XpcTracer, fields log.Fields) {
 	}
 }
 
-func SetSpanMoracideTags(xpcTracer *XpcTracer, fields log.Fields) {
+func SetSpanMoracideTags(fields log.Fields, moracideTagPrefix string) {
 	var xpcTrace *XpcTrace
 	if tmp, ok := fields["xpc_trace"]; ok {
 		xpcTrace = tmp.(*XpcTrace)
@@ -111,8 +111,8 @@ func SetSpanMoracideTags(xpcTracer *XpcTracer, fields log.Fields) {
 	}
 
 	moracideTags := make(map[string]string)
-	reqMoracideTagPrefix := strings.ToLower("req_" + xpcTracer.MoracideTagPrefix())
-	respMoracideTagPrefix := strings.ToLower("resp_" + xpcTracer.MoracideTagPrefix())
+	reqMoracideTagPrefix := strings.ToLower("req_" + moracideTagPrefix)
+	respMoracideTagPrefix := strings.ToLower("resp_" + moracideTagPrefix)
 
 	for key, val := range fields {
 		if strings.HasPrefix(strings.ToLower(key), reqMoracideTagPrefix) {
@@ -130,17 +130,17 @@ func SetSpanMoracideTags(xpcTracer *XpcTracer, fields log.Fields) {
 	if len(moracideTags) == 0 {
 		// No moracide tags in request or any response
 		// So set at least one span tag, x-cl-expt: false
-		moracideTags[xpcTracer.MoracideTagPrefix()] = "false"
+		moracideTags[moracideTagPrefix] = "false"
 	}
-	for key, val := range moracideTags {
-		if xpcTracer.OtelEnabled && xpcTrace.otelSpan != nil {
+	if xpcTrace.otelSpan != nil {
+		for key, val := range moracideTags {
 			xpcTrace.otelSpan.SetAttributes(attribute.String(key, val))
 			log.Debugf("added otel span moracide tag key = %s, value = %s", key, val)
 		}
 	}
 }
 
-func extractParamsFromReq(r *http.Request, xpcTracer *XpcTracer, xpcTrace *XpcTrace) {
+func extractParamsFromReq(r *http.Request, xpcTrace *XpcTrace, moracideTagPrefix string) {
 	xpcTrace.ReqTraceparent = r.Header.Get(common.HeaderTraceparent)
 	xpcTrace.ReqTracestate = r.Header.Get(common.HeaderTracestate)
 	xpcTrace.OutTraceparent = xpcTrace.ReqTraceparent
@@ -151,7 +151,7 @@ func extractParamsFromReq(r *http.Request, xpcTracer *XpcTracer, xpcTrace *XpcTr
 
 	// In future, -H 'X-Cl-Experiment-1', -H 'X-Cl-Experiment-oswebconfig'... OR 'X-Cl-Experiment-xapproxy_25.1.1.1' are all possible
 	// So walk through all headers and collect any header that starts with this prefix
-	moracideTagPrefix := strings.ToLower(xpcTracer.MoracideTagPrefix())
+	moracideTagPrefix = strings.ToLower(moracideTagPrefix)
 	for headerKey, headerVals := range r.Header {
 		if strings.HasPrefix(strings.ToLower(headerKey), moracideTagPrefix) {
 			if len(headerVals) > 1 {
