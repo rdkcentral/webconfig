@@ -33,7 +33,8 @@ var (
     state int,
     updated_time timestamp,
     version text,
-    PRIMARY KEY (cpe_mac, group_id)
+    PRIMARY KEY (cpe_mac, group_id),
+	kms_remote_data_key blob
 )`,
 		`CREATE TABLE IF NOT EXISTS root_document (
     cpe_mac text PRIMARY KEY,
@@ -45,12 +46,14 @@ var (
     query_params text,
     route text,
     schema_version text,
-    version text
+    version text,
+	kms_remote_data_key blob
 )`,
 		`CREATE TABLE IF NOT EXISTS reference_document (
     ref_id text PRIMARY KEY,
     payload blob,
-    version text
+    version text,
+	kms_remote_data_key blob
 )`,
 	}
 

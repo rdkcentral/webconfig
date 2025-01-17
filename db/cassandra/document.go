@@ -14,24 +14,24 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gocql/gocql"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
 func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {
 	var err error
-	var payload []byte
+	var payload, kmsRemoteDataKey []byte
 	var version, errorDetails string
 	var state, errorCode int
 	var updatedTime, expiry time.Time
@@ -40,8 +40,8 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt := "SELECT payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
-	if err := c.Query(stmt, cpeMac, groupId).Scan(&payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry); err != nil {
+	stmt := "SELECT payload,version,state,updated_time,error_code,error_details,expiry,kms_remote_data_key FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
+	if err := c.Query(stmt, cpeMac, groupId).Scan(&payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry, &kmsRemoteDataKey); err != nil {
 		return nil, common.NewError(err)
 	}
 
@@ -50,7 +50,7 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 	}
 
 	if c.IsEncryptedGroup(groupId) {
-		payload, err = c.DecryptBytes(payload)
+		payload, err = c.DecryptBytes(payload, kmsRemoteDataKey)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
@@ -113,12 +113,17 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columns = append(columns, "payload")
 		// TODO evel if it is necessary use a list of groupIds that need encryption
 		if c.IsEncryptedGroup(groupId) {
-			encbytes, err := c.EncryptBytes(subdoc.Payload())
+			encbytes, kmsRemoteDataKey, err := c.EncryptBytes(subdoc.Payload())
 			if err != nil {
 				return common.NewError(err)
 			}
 			values = append(values, encbytes)
 			columnMap["payload_len"] = len(encbytes)
+
+			if len(kmsRemoteDataKey) > 0 {
+				columns = append(columns, "kms_remote_data_key")
+				values = append(values, kmsRemoteDataKey)
+			}
 		} else {
 			values = append(values, subdoc.Payload())
 			columnMap["payload_len"] = len(subdoc.Payload())
@@ -226,7 +231,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=?"
+	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry,kms_remote_data_key FROM xpc_group_config WHERE cpe_mac=?"
 	iter := c.Query(stmt, cpeMac).Iter()
 	rmap := make(util.Dict)
 	defer func() {
@@ -250,13 +255,13 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 	now := time.Now()
 	for {
 		var err error
-		var payload []byte
+		var payload, kmsRemoteDataKey []byte
 		var groupId, version, errorDetails string
 		var state, errorCode int
 		var updatedTime, expiry time.Time
 		var updatedTimeTsPtr *int
 
-		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry) {
+		if !iter.Scan(&groupId, &payload, &version, &state, &updatedTime, &errorCode, &errorDetails, &expiry, &kmsRemoteDataKey) {
 			break
 		}
 
@@ -280,7 +285,7 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 		}
 
 		if c.IsEncryptedGroup(groupId) {
-			payload, err = c.DecryptBytes(payload)
+			payload, err = c.DecryptBytes(payload, kmsRemoteDataKey)
 			if err != nil {
 				tfields := common.FilterLogFields(fields)
 				tfields["logger"] = "subdoc"

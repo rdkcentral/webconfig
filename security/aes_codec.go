@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 /*
  * Some code in Encrypt/Decrypt is:
  * Copyright 2012 The Go Authors. All rights reserved.
@@ -33,8 +33,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/rdkcentral/webconfig/common"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/go-akka/configuration"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -66,7 +68,14 @@ remove the first 20 bytes, the "digest" part ==> plaintext
 */
 
 type AesCodec struct {
-	key []byte
+	key    []byte
+	awsKms AwsKms
+}
+
+type AwsKms struct {
+	kmsClient           *kms.KMS
+	secretKey           string
+	encryptionAlgorithm string
 }
 
 const (
@@ -77,9 +86,36 @@ const (
 // var staticIv []byte{111, 114, 219, 23, 120, 151, 157, 32, 117, 31, 98, 99, 106, 3, 169, 224}
 
 func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) {
-	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
+	var (
+		aesCodec            AesCodec
+		encryptionMechanism = conf.GetString("webconfig.security.encryption_mechanism")
+	)
 
-	var defaultCodec AesCodec
+	if encryptionMechanism == "aws_kms" {
+		kmsClient, err := NewKmsClient(conf)
+		if err != nil {
+			return &aesCodec, common.NewError(err)
+		}
+
+		aesCodec.awsKms = AwsKms{
+			kmsClient:           kmsClient,
+			secretKey:           conf.GetString("webconfig.security.kms.secret_key"),
+			encryptionAlgorithm: conf.GetString("webconfig.security.kms.encryption_algorithm"),
+		}
+	} else {
+		key, err := getEncryptionKey(conf, args...)
+		if err != nil {
+			return &aesCodec, common.NewError(err)
+		}
+
+		aesCodec.key = key
+	}
+
+	return &aesCodec, nil
+}
+
+func getEncryptionKey(conf *configuration.Config, args ...string) ([]byte, error) {
+	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
 
 	var enckeyB64 string
 	if len(args) > 0 {
@@ -89,18 +125,10 @@ func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) 
 	}
 
 	if len(enckeyB64) == 0 {
-		err := fmt.Errorf("No env %v", envName)
-		return &defaultCodec, common.NewError(err)
+		return nil, common.NewError(fmt.Errorf("no env %v", envName))
 	}
 
-	key, err := base64.StdEncoding.DecodeString(enckeyB64)
-	if err != nil {
-		return &defaultCodec, common.NewError(err)
-	}
-
-	return &AesCodec{
-		key: key,
-	}, nil
+	return base64.StdEncoding.DecodeString(enckeyB64)
 }
 
 func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
@@ -235,7 +263,15 @@ func Padding(ciphertext []byte, blockSize int) []byte {
 	}
 }
 
-func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
+func (c *AesCodec) DecryptBytes(encbytes []byte, kmsRemoteDataKey []byte) ([]byte, error) {
+	if (c.awsKms != AwsKms{}) {
+		return c.decryptBytesUsingKMS(encbytes, kmsRemoteDataKey)
+	} else {
+		return c.decryptBytesUsingKey(encbytes)
+	}
+}
+
+func (c *AesCodec) decryptBytesUsingKey(encbytes []byte) ([]byte, error) {
 	var ciphertext []byte
 
 	block, err := aes.NewCipher(c.key)
@@ -260,7 +296,6 @@ func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
 
 	mode.CryptBlocks(ciphertext, ciphertext)
 
-	// unpadding
 	index := len(ciphertext) - 1
 
 	for {
@@ -279,6 +314,32 @@ func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
+func (c *AesCodec) decryptBytesUsingKMS(encbytes []byte, kmsRemoteDataKey []byte) ([]byte, error) {
+	resp, err := c.awsKms.kmsClient.Decrypt(&kms.DecryptInput{
+		CiphertextBlob: kmsRemoteDataKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt key: %w", err)
+	}
+
+	block, err := aes.NewCipher(resp.Plaintext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher block: %w", err)
+	}
+
+	nonce := make([]byte, 12)
+	stream, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	decodedBytes, err := stream.Open(nil, nonce, encbytes, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt data: %w", err)
+	}
+	return decodedBytes, nil
+}
+
 func DigestBytes(iv []byte, plainbytes []byte) []byte {
 	buffer := bytes.NewBuffer(iv)
 	buffer.Write(plainbytes)
@@ -288,17 +349,25 @@ func DigestBytes(iv []byte, plainbytes []byte) []byte {
 	return bs
 }
 
-func (c *AesCodec) EncryptBytes(plainbytes []byte) ([]byte, error) {
+func (c *AesCodec) EncryptBytes(plainbytes []byte) ([]byte, []byte, error) {
+	if (c.awsKms != AwsKms{}) {
+		return c.encryptBytesUsingKMS(plainbytes)
+	} else {
+		return c.encryptBytesUsingKey(plainbytes)
+	}
+}
+
+func (c *AesCodec) encryptBytesUsingKey(plainbytes []byte) ([]byte, []byte, error) {
 	var ciphertext []byte
 
 	block, err := aes.NewCipher(c.key)
 	if err != nil {
-		return ciphertext, err
+		return ciphertext, nil, err
 	}
 
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return ciphertext, err
+		return ciphertext, nil, err
 	}
 
 	hashed := DigestBytes(iv, plainbytes)
@@ -317,11 +386,34 @@ func (c *AesCodec) EncryptBytes(plainbytes []byte) ([]byte, error) {
 	mode := cipher.NewCBCEncrypter(block, iv)
 	mode.CryptBlocks(ciphertext[aes.BlockSize:], hashedIvPlain)
 
-	return ciphertext, nil
+	return ciphertext, nil, nil
+}
+
+func (c *AesCodec) encryptBytesUsingKMS(plainbytes []byte) ([]byte, []byte, error) {
+	resp, err := c.awsKms.kmsClient.GenerateDataKey(&kms.GenerateDataKeyInput{
+		KeyId:   aws.String(c.awsKms.secretKey),
+		KeySpec: aws.String(c.awsKms.encryptionAlgorithm),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate data key: %w", err)
+	}
+
+	block, err := aes.NewCipher(resp.Plaintext)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create cipher block: %w", err)
+	}
+
+	nonce := make([]byte, 12)
+	stream, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	return stream.Seal(nil, nonce, plainbytes, nil), resp.CiphertextBlob, nil
 }
 
 func (c *AesCodec) LogResponseDebug(fields log.Fields, bbytes []byte) {
-	encbytes, err := c.EncryptBytes(bbytes)
+	encbytes, _, err := c.EncryptBytes(bbytes)
 	if err != nil {
 		log.WithFields(fields).Error(err.Error())
 		return
