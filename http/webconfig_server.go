@@ -751,7 +751,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 
 	// traceparent handling for E2E tracing
-	xpcTrace := tracing.NewXpcTrace(r, s.XpcTracer)
+	xpcTrace := tracing.NewXpcTrace(s.XpcTracer, r)
 	traceId := xpcTrace.TraceID
 	if len(traceId) == 0 {
 		traceId = xmTraceId
@@ -902,10 +902,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	fields["duration"] = duration
 	fields["logger"] = "request"
 
-	if s.XpcTracer.OtelEnabled {
-		tracing.SetSpanStatusCode(fields)
-		tracing.SetSpanMoracideTags(fields, s.XpcTracer.MoracideTagPrefix())
-	}
+	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
 
 	var userAgent string
 	if itf, ok := fields["user_agent"]; ok {
@@ -1131,7 +1128,7 @@ func (s *WebconfigServer) StopXpcTracer() {
 func (s *WebconfigServer) SpanMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.XpcTracer.OtelEnabled {
-			ctx, otelSpan := tracing.NewOtelSpan(r, s.XpcTracer)
+			ctx, otelSpan := tracing.NewOtelSpan(s.XpcTracer, r)
 			r = r.WithContext(ctx)
 			defer tracing.EndOtelSpan(s.XpcTracer, otelSpan)
 		}

@@ -57,19 +57,19 @@ type XpcTracer struct {
 	otelPropagator     otelpropagation.TextMapPropagator
 	otelTracer         oteltrace.Tracer
 
-	SpanSetter SpanSetterFunc
+	SetSpan SpanSetterFunc
 }
 
 func NewXpcTracer(conf *configuration.Config) *XpcTracer {
 	xpcTracer := new(XpcTracer)
-	initAppData(conf, xpcTracer)
-	otelInit(conf, xpcTracer)
+	initAppData(xpcTracer, conf)
+	otelInit(xpcTracer, conf)
 	xpcTracer.moracideTagPrefix = conf.GetString("webconfig.tracing.moracide_tag_prefix", DefaultMoracideTagPrefix)
 
 	if xpcTracer.OtelEnabled {
-		xpcTracer.SpanSetter = OtelSpanSetter
+		xpcTracer.SetSpan = OtelSetSpan
 	} else {
-		xpcTracer.SpanSetter = NoopSpanSetter
+		xpcTracer.SetSpan = NoopSetSpan
 	}
 
 	return xpcTracer
@@ -107,7 +107,7 @@ func (t *XpcTracer) Region() string {
 	return t.region
 }
 
-func initAppData(conf *configuration.Config, xpcTracer *XpcTracer) {
+func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
 	codeGitCommit := strings.Split(conf.GetString("webconfig.code_git_commit"), "-")
 	xpcTracer.appName = codeGitCommit[0]
 	if len(codeGitCommit) > 1 {
@@ -132,10 +132,10 @@ func initAppData(conf *configuration.Config, xpcTracer *XpcTracer) {
 	log.Debugf("site_color = %s, env = %s, region = %s", siteColor, xpcTracer.appEnv, xpcTracer.region)
 }
 
-func OtelSpanSetter(fields log.Fields, tag string) {
+func OtelSetSpan(fields log.Fields, tag string) {
 	SetSpanStatusCode(fields)
 	SetSpanMoracideTags(fields, tag)
 }
 
-func NoopSpanSetter(fields log.Fields, tag string) {
+func NoopSetSpan(fields log.Fields, tag string) {
 }

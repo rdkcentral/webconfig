@@ -68,7 +68,7 @@ type XpcTrace struct {
 }
 
 // NewXpcTrace extracts traceparent, tracestate, moracideTags from otel spans or reqs
-func NewXpcTrace(r *http.Request, xpcTracer *XpcTracer) *XpcTrace {
+func NewXpcTrace(xpcTracer *XpcTracer, r *http.Request) *XpcTrace {
 	var xpcTrace XpcTrace
 	xpcTrace.ReqMoracideTags = make(map[string]string)
 

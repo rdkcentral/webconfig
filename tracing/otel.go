@@ -59,7 +59,7 @@ const defaultOtelTracerProvider = "noop"
 
 // initOtel - initialize OpenTelemetry constructs
 // tracing instrumentation code.
-func otelInit(conf *configuration.Config, xpcTracer *XpcTracer) {
+func otelInit(xpcTracer *XpcTracer, conf *configuration.Config) {
 	xpcTracer.OtelEnabled = conf.GetBoolean("webconfig.tracing.otel.enabled")
 	if !xpcTracer.OtelEnabled {
 		return
@@ -149,7 +149,7 @@ func otelHttpTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, erro
 	), nil
 }
 
-func NewOtelSpan(r *http.Request, xpcTracer *XpcTracer) (context.Context, oteltrace.Span) {
+func NewOtelSpan(xpcTracer *XpcTracer, r *http.Request) (context.Context, oteltrace.Span) {
 	ctx := r.Context()
 	var otelSpan oteltrace.Span
 	if !xpcTracer.OtelEnabled {
@@ -233,11 +233,10 @@ func EndOtelSpan(xpcTracer *XpcTracer, span oteltrace.Span) {
 func otelExtractParamsFromSpan(ctx context.Context, xpcTrace *XpcTrace) {
 	if tmp := GetContext(ctx, "otel_span"); tmp != nil {
 		if otelSpan, ok := tmp.(oteltrace.Span); ok {
-			xpcTrace.otelSpan = otelSpan
-			if xpcTrace.otelSpan == nil {
+			if otelSpan == nil {
 				return
 			}
-
+			xpcTrace.otelSpan = otelSpan
 			spanCtx := otelSpan.SpanContext()
 			xpcTrace.TraceID = spanCtx.TraceID().String()
 		}
