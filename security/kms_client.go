@@ -17,14 +17,9 @@ func NewKmsClient(conf *configuration.Config) (*kms.KMS, error) {
 		return nil, err
 	}
 
-	awsEndpoint := conf.GetString("webconfig.security.kms.endpoint")
-	if len(awsEndpoint) == 0 {
-		return nil, fmt.Errorf("%s", "AWS KMS endpoint is not provided")
-	}
-
 	awsConfig := &aws.Config{
 		Region:   aws.String(awsRegion),
-		Endpoint: aws.String(awsEndpoint),
+		Endpoint: aws.String(conf.GetString("webconfig.security.kms.endpoint")),
 	}
 
 	roleBasedAccessEnabled := conf.GetBoolean("webconfig.security.kms.role_based_access_enabled")
