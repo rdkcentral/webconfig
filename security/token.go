@@ -90,8 +90,9 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 			} else {
 				fmt.Printf("WARNING %v\n", err)
 			}
+		} else {
+			decodeKeys[kid] = dk
 		}
-		decodeKeys[kid] = dk
 	}
 
 	fn := VerifyToken
@@ -120,22 +121,22 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 func fetchPublicKeyFromURL(publicKeyUrl string) (*rsa.PublicKey, error) {
 	resp, err := http.Get(publicKeyUrl)
 	if err != nil {
-		return nil, common.NewError(fmt.Errorf("failed to call Themis endpoint: %v", err))
+		return nil, common.NewError(fmt.Errorf("unable to fetch the public key from URL: %v", err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, common.NewError(fmt.Errorf("themis service returned status code %d", resp.StatusCode))
+		return nil, common.NewError(fmt.Errorf("unexpected status code %d received while fetching the public key from URL", resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, common.NewError(fmt.Errorf("failed to read themis response body: %v", err))
+		return nil, common.NewError(fmt.Errorf("failed to read the response body from public key URL: %v", err))
 	}
 
 	publicKey, err := parsePublicKey(body)
 	if err != nil {
-		return nil, common.NewError(fmt.Errorf("failed to parse themis public key: %v", err))
+		return nil, common.NewError(fmt.Errorf("error parsing the public key fetched from URL: %v", err))
 	}
 
 	return publicKey, nil
