@@ -146,8 +146,11 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
+
 		// the returned err is dbNotFound
-		return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+		// WARNING, this should be removed
+		// return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+		cloudRootDocument = clonedRootDoc.Clone()
 	}
 
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
