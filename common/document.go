@@ -28,7 +28,7 @@ import (
 )
 
 // deviceRootDocument is use to stored the data from device headers in the GET call
-// we stored it to build "new" headers during the upstream call
+// We stored it to build "new" headers during the upstream call
 // *RootDocument is used to stored data read from db and used to build the "old" headers
 type Document struct {
 	docmap       map[string]SubDocument

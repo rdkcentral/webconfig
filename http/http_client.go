@@ -35,6 +35,7 @@ import (
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/tracing"
 	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -60,6 +61,7 @@ type HttpClient struct {
 	retryInMsecs         int
 	statusHandlerFuncMap map[int]StatusHandlerFunc
 	userAgent            string
+	moracideTagPrefix    string
 }
 
 func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
@@ -81,6 +83,8 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", serviceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 	userAgent := conf.GetString("webconfig.http_client.user_agent")
+
+	moracideTagPrefix := strings.ToLower(conf.GetString("webconfig.tracing.moracide_tag_prefix", tracing.DefaultMoracideTagPrefix))
 
 	var transport http.RoundTripper = &http.Transport{
 		DialContext: (&net.Dialer{
@@ -104,11 +108,19 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 		retryInMsecs:         retryInMsecs,
 		statusHandlerFuncMap: map[int]StatusHandlerFunc{},
 		userAgent:            userAgent,
+		moracideTagPrefix:    moracideTagPrefix,
 	}
 }
 
 func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, bool, error) {
-	fields := common.FilterLogFields(auditFields)
+	fields := common.FilterLogFields(auditFields, "status")
+
+	var respMoracideTagsFound bool
+	defer func(found *bool) {
+		if !*found {
+			log.Debugf("http_client: no moracide tags in response")
+		}
+	}(&respMoracideTagsFound)
 
 	// verify a response is received
 	var req *http.Request
@@ -145,6 +157,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		header.Set("X-Webpa-Transaction-Id", transactionId)
 	}
 
+	c.addMoracideTags(header, auditFields)
 	req.Header = header.Clone()
 	if len(c.userAgent) > 0 {
 		req.Header.Set(common.HeaderUserAgent, c.userAgent)
@@ -205,7 +218,6 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 	startTime := time.Now()
 
-	// the core http call
 	res, err := c.Client.Do(req)
 	// err should be *url.Error
 
@@ -215,6 +227,13 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 	delete(fields, bodyKey)
 
+	// We want to capture any errs returned by server
+	// i.e. timeout, 503 etc. wouldn't have a valid resp, but possible that
+	// the err returned by http.Do actually includes an err returned by the backend
+	// In which case, resp would be non-nil
+	if res != nil {
+		respMoracideTagsFound = c.addMoracideTagsFromResponse(res.Header, auditFields)
+	}
 	var endMessage string
 	if retry > 0 {
 		endMessage = fmt.Sprintf("%v retry=%v ends", loggerName, retry)
@@ -389,4 +408,50 @@ func (c *HttpClient) StatusHandler(status int) StatusHandlerFunc {
 		return fn
 	}
 	return nil
+}
+
+// addMoracideTags - if ctx has a moracide tag as a header, add it to the headers
+// Also add traceparent, tracestate headers
+func (c *HttpClient) addMoracideTags(header http.Header, fields log.Fields) {
+	if itf, ok := fields["out_traceparent"]; ok {
+		if ss, ok := itf.(string); ok {
+			if len(ss) > 0 {
+				header.Set(common.HeaderTraceparent, ss)
+			}
+		}
+	}
+	if itf, ok := fields["out_tracestate"]; ok {
+		if ss, ok := itf.(string); ok {
+			if len(ss) > 0 {
+				header.Set(common.HeaderTracestate, ss)
+			}
+		}
+	}
+
+	itf, ok := fields["req_moracide_tags"]
+	if !ok {
+		return
+	}
+	moracideTagMap := itf.(map[string]string)
+
+	for key, val := range moracideTagMap {
+		log.WithFields(fields).Debugf("Adding moracide tag %s = %s to outgoing req", key, val)
+		header.Set(key, val)
+	}
+}
+
+func (c *HttpClient) addMoracideTagsFromResponse(header http.Header, fields log.Fields) bool {
+	var respMoracideTagsFound bool
+	m := make(map[string]string)
+	for k := range header {
+		if strings.HasPrefix(strings.ToLower(k), c.moracideTagPrefix) {
+			respMoracideTagsFound = true
+			val := header.Get(k)
+			m[k] = val
+		}
+	}
+	if len(m) > 0 {
+		fields["resp_moracide_tags"] = m
+	}
+	return respMoracideTagsFound
 }

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -49,16 +49,14 @@ func TestFilterLogFields(t *testing.T) {
 	assert.DeepEqual(t, expected, c2)
 
 	src3 := log.Fields{
-		"red":             "maroon",
-		"orange":          "auburn",
-		"yellow":          "amber",
-		"green":           "viridian",
-		"blue":            "turquoise",
-		"indigo":          "sapphire",
-		"violet":          "purple",
-		"out_traceparent": "foo",
-		"out_tracestate":  "cyan",
-		"token":           "bar",
+		"red":    "maroon",
+		"orange": "auburn",
+		"yellow": "amber",
+		"green":  "viridian",
+		"blue":   "turquoise",
+		"indigo": "sapphire",
+		"violet": "purple",
+		"token":  "bar",
 	}
 	c3 := FilterLogFields(src3)
 	assert.DeepEqual(t, src, c3)

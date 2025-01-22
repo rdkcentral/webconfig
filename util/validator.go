@@ -65,7 +65,7 @@ func ValidatePokeQuery(values url.Values) (string, error) {
 		return routeStr, nil
 	}
 
-	return "primary", nil
+	return "root", nil
 }
 
 func ValidateQueryParams(r *http.Request, validSubdocIdMap map[string]int, fields log.Fields) error {

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -95,12 +95,11 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 		sub2.Use(s.TestingMiddleware)
 	} else {
 		if s.ServerApiTokenAuthEnabled() {
-			sub2.Use(s.ApiMiddleware)
+			sub2.Use(s.SpanMiddleware, s.ApiMiddleware)
 		} else {
-			sub2.Use(s.NoAuthMiddleware)
+			sub2.Use(s.SpanMiddleware, s.NoAuthMiddleware)
 		}
 	}
-	sub2.Use(s.spanMiddleware)
 	sub2.HandleFunc("", s.PokeHandler).Methods("POST")
 
 	sub3 := router.Path("/api/v1/device/{mac}/rootdocument").Subrouter()
