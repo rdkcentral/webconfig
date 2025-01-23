@@ -83,11 +83,13 @@ func NewAesCodec(conf *configuration.Config, args ...string) (*AesCodec, error) 
 	var enckeyB64 string
 	if len(args) > 0 {
 		enckeyB64 = args[0]
+		fmt.Printf("A01 enckeyB64 = %v\n", enckeyB64)
 	} else {
 		if conf != nil {
 			envName = conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
 		}
 		enckeyB64 = os.Getenv(envName)
+		fmt.Printf("A02 envName = %v, enckeyB64 = %v\n", envName, enckeyB64)
 	}
 
 	if len(enckeyB64) == 0 {

@@ -14,22 +14,20 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
-package util
+ */
+package common
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/rdkcentral/webconfig/common"
 )
 
 // bitmap is used to name int variables
 // bitarray is used to name string variables
 
 func SetBitmapByGroup(cpeBitmap *int, groupId int, groupBitmap int) error {
-	tuples, ok := common.SupportedDocsBitMaskMap[groupId]
+	tuples, ok := SupportedDocsBitMaskMap[groupId]
 	if !ok {
 		return nil
 	}
@@ -47,7 +45,7 @@ func SetBitmapByGroup(cpeBitmap *int, groupId int, groupBitmap int) error {
 func ParseFirmwareGroupBitarray(s string) (int, int, error) {
 	i, err := strconv.Atoi(s)
 	if err != nil {
-		return 0, 0, common.NewError(err)
+		return 0, 0, NewError(err)
 	}
 	groupId := i >> 24
 	groupBitMask := 1<<24 - 1
@@ -62,12 +60,12 @@ func GetCpeBitmap(rdkSupportedDocsHeaderStr string) (int, error) {
 	for _, sid := range sids {
 		groupId, groupBitmap, err := ParseFirmwareGroupBitarray(sid)
 		if err != nil {
-			return 0, common.NewError(err)
+			return 0, NewError(err)
 		}
 
 		err = SetBitmapByGroup(&cpeBitmap, groupId, groupBitmap)
 		if err != nil {
-			return 0, common.NewError(err)
+			return 0, NewError(err)
 		}
 	}
 
@@ -100,7 +98,7 @@ func PrettyGroupBitarray(i int) string {
 }
 
 func IsSubdocSupported(cpeBitmap int, subdocId string) bool {
-	index, ok := common.SubdocBitIndexMap[subdocId]
+	index, ok := SubdocBitIndexMap[subdocId]
 	if !ok {
 		return false
 	}
@@ -114,7 +112,7 @@ func IsSubdocSupported(cpeBitmap int, subdocId string) bool {
 func GetSupportedMap(cpeBitmap int) map[string]bool {
 	supportedMap := map[string]bool{}
 
-	for k, index := range common.SubdocBitIndexMap {
+	for k, index := range SubdocBitIndexMap {
 		shift := index - 1
 		bitmask := 1 << shift
 		supportedMap[k] = false
@@ -129,7 +127,7 @@ func BitarrayToBitmap(src string) (int, error) {
 	s := strings.ReplaceAll(src, " ", "")
 	v, err := strconv.ParseInt(s, 2, 64)
 	if err != nil {
-		return 0, common.NewError(err)
+		return 0, NewError(err)
 	}
 	i := int(v)
 	return i, nil
@@ -138,7 +136,7 @@ func BitarrayToBitmap(src string) (int, error) {
 func GetBitmapFromSupportedMap(srcMap map[string]bool) int {
 	var bitmap int
 
-	for k, index := range common.SubdocBitIndexMap {
+	for k, index := range SubdocBitIndexMap {
 		shift := index - 1
 		bitmask := 1 << shift
 		if srcMap[k] {

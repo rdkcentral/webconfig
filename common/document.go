@@ -219,3 +219,16 @@ func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 
 	return BuildPayloadAsHttp(http.StatusOK, header, bbytes), nil
 }
+
+func (d *Document) FilterByBitmap() *Document {
+	rootdoc := d.GetRootDocument()
+	if rootdoc == nil {
+		return d
+	}
+
+	newdoc := NewDocument(rootdoc)
+	// 1111111111111111
+	// 2222222222222222
+
+	return newdoc
+}

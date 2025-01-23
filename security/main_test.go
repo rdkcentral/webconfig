@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	NewTestCodec(sc.Config)
+	testCodec = NewTestCodec(sc.Config)
 
 	if sc.Config.GetBoolean("webconfig.jwt.enabled", false) || os.Getenv("TOKEN_TEST") == "1" {
 		tokenManager = NewTokenManager(sc.Config)
