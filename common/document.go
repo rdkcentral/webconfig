@@ -227,8 +227,13 @@ func (d *Document) FilterByBitmap() *Document {
 	}
 
 	newdoc := NewDocument(rootdoc)
-	// 1111111111111111
-	// 2222222222222222
+	supportedMap := GetSupportedMap(rootdoc.Bitmap)
+
+	for subdocId, subDocument := range d.docmap {
+		if supportedMap[subdocId] {
+			newdoc.SetSubDocument(subdocId, &subDocument)
+		}
+	}
 
 	return newdoc
 }
