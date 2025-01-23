@@ -27,8 +27,7 @@ import (
 )
 
 var (
-	testConfigFile string
-	tokenManager   *TokenManager
+	tokenManager *TokenManager
 )
 
 func TestMain(m *testing.M) {
