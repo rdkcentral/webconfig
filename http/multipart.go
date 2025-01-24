@@ -148,6 +148,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 
 	if !s.UpstreamEnabled() {
+		if postUpstream {
+			rdoc := oldRootDocument.Clone()
+			rdoc.Update(newRootDocument)
+			document.SetRootDocument(rdoc)
+		}
 		if err != nil {
 			if !s.IsDbNotFound(err) {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -169,6 +174,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
+
+		if s.FilterOutputByBitmapEnabled() {
+			document = document.FilterByBitmap()
+		}
+
 		respBytes, err := document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
