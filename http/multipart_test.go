@@ -566,6 +566,8 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 
 	// test again
 	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	rdkSupportedDocsHeaderStr := "16777231,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	req.Header.Set(common.HeaderSupportedDocs, rdkSupportedDocsHeaderStr)
 	req.Header.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
 	assert.NilError(t, err)
 	res = ExecuteRequest(req, router).Result()

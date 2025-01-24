@@ -319,6 +319,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		finalFilteredDocument.DeleteSubDocument(subdocId)
 	}
 
+	if s.FilterOutputByBitmapEnabled() {
+		finalFilteredDocument = finalFilteredDocument.FilterByBitmap()
+	}
+
 	// 304
 	if finalFilteredDocument.Length() == 0 {
 		return http.StatusNotModified, upstreamRespHeader, nil, nil
