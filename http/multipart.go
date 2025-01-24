@@ -150,7 +150,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	if !s.UpstreamEnabled() {
 		if postUpstream {
 			rdoc := oldRootDocument.Clone()
-			rdoc.Update(newRootDocument)
+			rdoc.UpdateMetadata(newRootDocument)
 			document.SetRootDocument(rdoc)
 		}
 		if err != nil {
