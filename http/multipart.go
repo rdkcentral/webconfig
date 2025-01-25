@@ -311,7 +311,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
 	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
+	finalRootDocument := common.NewRootDocument(newRootDocument.Bitmap, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 
