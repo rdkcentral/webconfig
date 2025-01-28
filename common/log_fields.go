@@ -27,6 +27,9 @@ var (
 	unloggedFields = []string{
 		"moneytrace",
 		"token",
+		"xpc_trace",
+		"req_moracide_tags",
+		"resp_moracide_tags",
 	}
 	coreFields = []string{
 		"app_name",

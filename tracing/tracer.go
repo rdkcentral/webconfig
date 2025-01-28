@@ -29,24 +29,25 @@ import (
 )
 
 const (
-	AuditIDHeader   = "X-Auditid"
-	UserAgentHeader = "User-Agent"
-
-	defaultMoracideTagPrefix = "X-Cl-Experiment"
+	AuditIDHeader            = "X-Auditid"
+	UserAgentHeader          = "User-Agent"
+	DefaultMoracideTagPrefix = "X-Cl-Experiment"
 )
+
+type SpanSetterFunc func(log.Fields, string)
 
 // XpcTracer is a wrapper around tracer setup
 type XpcTracer struct {
 	OtelEnabled       bool
-	MoracideTagPrefix string // Special request header for moracide expts e.g. canary deployments
+	moracideTagPrefix string // Special request header for moracide expts e.g. canary deployments
 
 	// internal vars used by Otel
 	appEnv     string // set this to dev for red, staging for yellow and prod for green
 	appName    string
 	appVersion string
 	appSHA     string // unused
-	rgn        string // AWS Region e.g. us-west-2, unused, use it as a otel span attribute
-	siteColor  string // red/yellow/green, unused, use it as a otel span attribute
+	region     string // AWS Region e.g. us-west-2, unused, use it as a span tagattribute
+	siteColor  string // red/yellow/green, unused, use it as a span attribute
 
 	// internal otel vars
 	otelEndpoint       string
@@ -55,28 +56,58 @@ type XpcTracer struct {
 	otelTracerProvider oteltrace.TracerProvider
 	otelPropagator     otelpropagation.TextMapPropagator
 	otelTracer         oteltrace.Tracer
-}
 
-var xpcTracer XpcTracer // global tracer
+	SetSpan SpanSetterFunc
+}
 
 func NewXpcTracer(conf *configuration.Config) *XpcTracer {
-	initAppData(conf)
-	otelInit(conf)
-	xpcTracer.MoracideTagPrefix = conf.GetString("webconfig.tracing.moracide_tag_prefix", defaultMoracideTagPrefix)
-	return &xpcTracer
+	xpcTracer := new(XpcTracer)
+	initAppData(xpcTracer, conf)
+	otelInit(xpcTracer, conf)
+	xpcTracer.moracideTagPrefix = conf.GetString("webconfig.tracing.moracide_tag_prefix", DefaultMoracideTagPrefix)
+
+	if xpcTracer.OtelEnabled {
+		xpcTracer.SetSpan = OtelSetSpan
+	} else {
+		xpcTracer.SetSpan = NoopSetSpan
+	}
+
+	return xpcTracer
 }
 
-// defer this func in the main of the app
-func StopXpcTracer() {
-	otelShutdown()
+func (t *XpcTracer) MoracideTagPrefix() string {
+	return t.moracideTagPrefix
 }
 
-// Global func to access the moracide tag
-func GetMoracideTagPrefix() string {
-	return xpcTracer.MoracideTagPrefix
+// otelOpName should return "http.request" by default
+func (t *XpcTracer) OtelOpName() string {
+	if len(t.otelOpName) == 0 {
+		return "http.request"
+	}
+	return t.otelOpName
 }
 
-func initAppData(conf *configuration.Config) {
+func (t *XpcTracer) OtelTracerProvider() oteltrace.TracerProvider {
+	return t.otelTracerProvider
+}
+
+func (t *XpcTracer) AppName() string {
+	return t.appName
+}
+
+func (t *XpcTracer) AppVersion() string {
+	return t.appVersion
+}
+
+func (t *XpcTracer) AppEnv() string {
+	return t.appEnv
+}
+
+func (t *XpcTracer) Region() string {
+	return t.region
+}
+
+func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
 	codeGitCommit := strings.Split(conf.GetString("webconfig.code_git_commit"), "-")
 	xpcTracer.appName = codeGitCommit[0]
 	if len(codeGitCommit) > 1 {
@@ -94,13 +125,17 @@ func initAppData(conf *configuration.Config) {
 	} else if strings.EqualFold(siteColor, "green") {
 		xpcTracer.appEnv = "prod"
 	}
-	xpcTracer.rgn = os.Getenv("site_region")
-	if xpcTracer.rgn == "" {
-		xpcTracer.rgn = os.Getenv("site_region_name")
+	xpcTracer.region = os.Getenv("site_region")
+	if xpcTracer.region == "" {
+		xpcTracer.region = os.Getenv("site_region_name")
 	}
-	log.Debugf("site_color = %s, env = %s, region = %s", siteColor, xpcTracer.appEnv, xpcTracer.rgn)
+	log.Debugf("site_color = %s, env = %s, region = %s", siteColor, xpcTracer.appEnv, xpcTracer.region)
 }
 
-func GetServiceName() string {
-	return xpcTracer.appName
+func OtelSetSpan(fields log.Fields, tag string) {
+	SetSpanStatusCode(fields)
+	SetSpanMoracideTags(fields, tag)
+}
+
+func NoopSetSpan(fields log.Fields, tag string) {
 }

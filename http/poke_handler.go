@@ -32,9 +32,6 @@ import (
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
-	// tracing propagation
-	ctx := r.Context()
-
 	// handler
 	params := mux.Vars(r)
 	mac := params["mac"]
@@ -107,7 +104,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			_, err = s.PostMqtt(ctx, deviceId, mbytes, fields)
+			_, err = s.PostMqtt(deviceId, mbytes, fields)
 			if err != nil {
 				var rherr common.RemoteHttpError
 				if errors.As(err, &rherr) {
@@ -160,7 +157,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transactionId, err := s.Poke(ctx, r.Header, mac, token, pokeStr, fields)
+	transactionId, err := s.Poke(r.Header, mac, token, pokeStr, fields)
 
 	if err != nil {
 		var rherr common.RemoteHttpError

@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -73,9 +72,9 @@ func (c *XconfConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *XconfConnector) GetProfiles(ctx context.Context, urlSuffix string, fields log.Fields) ([]byte, http.Header, error) {
+func (c *XconfConnector) GetProfiles(urlSuffix string, fields log.Fields) ([]byte, http.Header, error) {
 	url := fmt.Sprintf(c.XconfUrlTemplate(), c.XconfHost(), urlSuffix)
-	rbytes, resHeader, err := c.DoWithRetries(ctx, "GET", url, nil, nil, fields, c.ServiceName())
+	rbytes, resHeader, err := c.DoWithRetries("GET", url, nil, nil, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, resHeader, owcommon.NewError(err)
 	}

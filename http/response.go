@@ -21,11 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/tracing"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -176,23 +173,21 @@ func addMoracideTagsAsResponseHeaders(w http.ResponseWriter) {
 		return
 	}
 
-	reqMoracideTagPrefix := strings.ToLower("req_" + tracing.GetMoracideTagPrefix())
-	respMoracideTagPrefix := strings.ToLower("resp_" + tracing.GetMoracideTagPrefix())
-	fields := xw.Audit()
+	reqMoracideTags := xw.ReqMoracideTags()
+	respMoracideTags := xw.RespMoracideTags()
+
 	moracideTags := make(map[string]string)
-	for key, val := range fields {
-		if strings.HasPrefix(strings.ToLower(key), reqMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from req %s = %s to response", key, val)
-			moracideTags[key[4:]] = val.(string)
-		}
-		if strings.HasPrefix(strings.ToLower(key), respMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from resp %s = %s to response", key, val)
-			realKey := key[5:]
-			if existingVal, ok := moracideTags[realKey]; !ok || (ok && existingVal != "true") {
-				moracideTags[realKey] = val.(string)
-			}
+	for key, val := range reqMoracideTags {
+		xw.LogDebug(nil, "request", fmt.Sprintf("Adding moracide tag from req %s = %s to response", key, val))
+		moracideTags[key] = val
+	}
+	for key, val := range respMoracideTags {
+		if val == "true" {
+			xw.LogDebug(nil, "request", fmt.Sprintf("Adding moracide tag from resp %s = %s to response", key, val))
+			moracideTags[key] = val
 		}
 	}
+	xw.LogDebug(nil, "request", fmt.Sprintf("moracideTags = %+v", moracideTags))
 	for key, val := range moracideTags {
 		w.Header().Set(key, val)
 	}

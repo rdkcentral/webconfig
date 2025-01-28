@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -187,7 +186,7 @@ func (c *WebpaConnector) SetAsyncPokeEnabled(enabled bool) {
 	c.asyncPokeEnabled = enabled
 }
 
-func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
+func (c *WebpaConnector) Patch(rHeader http.Header, cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
 	url := fmt.Sprintf(c.WebpaUrlTemplate(), c.WebpaHost(), c.ApiVersion(), cpeMac)
 
 	var traceId, xmTraceId string
@@ -212,16 +211,16 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 	header.Set("X-Webpa-Transaction-Id", transactionId)
 
 	method := "PATCH"
-	_, _, cont, err := c.syncClient.Do(ctx, method, url, header, bbytes, fields, webpaServiceName, 0)
+	_, _, cont, err := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			if rherr.StatusCode == 524 {
 				if c.asyncPokeEnabled {
 					c.queue <- struct{}{}
-					go c.AsyncDoWithRetries(ctx, method, url, header, bbytes, fields, asyncWebpaServiceName)
+					go c.AsyncDoWithRetries(method, url, header, bbytes, fields, asyncWebpaServiceName)
 				} else {
-					_, err := c.SyncDoWithRetries(ctx, method, url, header, bbytes, fields, webpaServiceName)
+					_, err := c.SyncDoWithRetries(method, url, header, bbytes, fields, webpaServiceName)
 					if err != nil {
 						return transactionId, common.NewError(err)
 					}
@@ -230,7 +229,7 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 			}
 		}
 		if cont {
-			_, _, err := c.syncClient.DoWithRetries(ctx, "PATCH", url, header, bbytes, fields, webpaServiceName)
+			_, _, err := c.syncClient.DoWithRetries("PATCH", url, header, bbytes, fields, webpaServiceName)
 			if err != nil {
 				return transactionId, common.NewError(err)
 			}
@@ -241,7 +240,7 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 	return transactionId, nil
 }
 
-func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
+func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
 	tfields := common.FilterLogFields(fields, "status")
 	tfields["logger"] = "asyncwebpa"
 	for i := 1; i <= c.retries; i++ {
@@ -250,7 +249,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, 
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, cont, _ := c.asyncClient.Do(ctx, method, url, header, cbytes, fields, loggerName, i)
+		_, _, cont, _ := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			msg := fmt.Sprintf("finished success after 1 retry")
 			if i > 1 {
@@ -267,7 +266,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, 
 }
 
 // this has 1 less retries compared to the standard DoWithRetries()
-func (c *WebpaConnector) SyncDoWithRetries(ctx context.Context, method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
+func (c *WebpaConnector) SyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
 	var rbytes []byte
 	var err error
 	var cont bool
@@ -278,7 +277,7 @@ func (c *WebpaConnector) SyncDoWithRetries(ctx context.Context, method string, u
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, _, cont, err = c.syncClient.Do(ctx, method, url, header, cbytes, fields, loggerName, i)
+		rbytes, _, cont, err = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			// in the case of 524/in-progress, we continue
 			var rherr common.RemoteHttpError

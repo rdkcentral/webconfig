@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -75,7 +74,7 @@ func (c *MqttConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *MqttConnector) PostMqtt(ctx context.Context, cpeMac string, bbytes []byte, fields log.Fields) ([]byte, error) {
+func (c *MqttConnector) PostMqtt(cpeMac string, bbytes []byte, fields log.Fields) ([]byte, error) {
 	url := fmt.Sprintf(c.MqttUrlTemplate(), c.MqttHost(), cpeMac)
 
 	var traceId, xmTraceId, outTraceparent, outTracestate string
@@ -105,7 +104,7 @@ func (c *MqttConnector) PostMqtt(ctx context.Context, cpeMac string, bbytes []by
 	header.Set(common.HeaderTraceparent, outTraceparent)
 	header.Set(common.HeaderTracestate, outTracestate)
 
-	rbytes, _, err := c.DoWithRetries(ctx, "POST", url, header, bbytes, fields, c.ServiceName())
+	rbytes, _, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, common.NewError(err)
 	}

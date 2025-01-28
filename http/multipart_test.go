@@ -19,7 +19,6 @@ package http
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -299,7 +298,6 @@ func TestCpeMiddleware(t *testing.T) {
 func TestVersionFiltering(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
-	ctx := context.Background()
 
 	cpeMac := util.GenerateRandomCpeMac()
 	// ==== group 1 lan ====
@@ -417,7 +415,7 @@ func TestVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "none")
 	fields := make(log.Fields)
-	status, respHeader, respBytes, err := BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
 	contentType := respHeader.Get(common.HeaderContentType)
@@ -435,7 +433,7 @@ func TestVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDocName, "root,lan,wan")
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "none")
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusNotModified)
 	assert.Equal(t, len(respBytes), 0)
@@ -619,8 +617,6 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
-	ctx := context.Background()
-
 	cpeMac := util.GenerateRandomCpeMac()
 	// ==== group 1 lan ====
 	subdocId := "lan"
@@ -680,7 +676,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader := make(http.Header)
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	fields := make(log.Fields)
-	status, respHeader, respBytes, err := BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
 	contentType := respHeader.Get(common.HeaderContentType)
@@ -710,7 +706,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
 	fields = make(log.Fields)
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.Assert(t, err != nil)
 	assert.Equal(t, status, http.StatusServiceUnavailable)
 
@@ -718,7 +714,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader = make(http.Header)
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	fields = make(log.Fields)
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.Assert(t, err != nil)
 	assert.Equal(t, status, http.StatusServiceUnavailable)
 
@@ -744,7 +740,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
 	fields = make(log.Fields)
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
 	contentType = respHeader.Get(common.HeaderContentType)
@@ -768,7 +764,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "none")
 	fields = make(log.Fields)
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusNotModified)
 
@@ -779,7 +775,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	kHeader.Set(common.HeaderDeviceId, cpeMac)
 	kHeader.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
 	fields = make(log.Fields)
-	status, respHeader, respBytes, err = BuildWebconfigResponse(server, ctx, kHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err = BuildWebconfigResponse(server, kHeader, common.RouteMqtt, fields)
 	assert.NilError(t, err)
 	assert.Equal(t, status, http.StatusOK)
 	contentType = respHeader.Get(common.HeaderContentType)

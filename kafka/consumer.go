@@ -18,7 +18,6 @@
 package kafka
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -106,8 +105,6 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 
 // NOTE we choose to return an EventMessage object just to pass along the metricsAgent
 func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.EventMessage, error) {
-	ctx := context.TODO()
-
 	rHeader, _ := util.ParseHttp(inbytes)
 	params := rHeader.Get(common.HeaderDocName)
 	cpeMac := rHeader.Get(common.HeaderDeviceId)
@@ -151,7 +148,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 		rHeader.Set(common.HeaderSchemaVersion, "none")
 	}
 
-	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, ctx, rHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, rHeader, common.RouteMqtt, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}
@@ -162,7 +159,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	}
 
 	mqttBytes := common.BuildPayloadAsHttp(status, respHeader, respBytes)
-	_, err = c.PostMqtt(ctx, cpeMac, mqttBytes, fields)
+	_, err = c.PostMqtt(cpeMac, mqttBytes, fields)
 	if err != nil {
 		return &m, common.NewError(err)
 	}

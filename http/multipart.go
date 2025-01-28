@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,7 +43,6 @@ var (
 )
 
 func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	// check if this is a Supplementary service, if so, call a different handler
 	if hd := r.Header.Get(common.HeaderSupplementaryService); len(hd) > 0 {
 		s.MultipartSupplementaryHandler(w, r)
@@ -96,7 +94,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 		r.Header.Set(common.HeaderSchemaVersion, "none")
 	}
 
-	status, respHeader, respBytes, err := BuildWebconfigResponse(s, ctx, r.Header, common.RouteHttp, fields)
+	status, respHeader, respBytes, err := BuildWebconfigResponse(s, r.Header, common.RouteHttp, fields)
 
 	switch status {
 	case http.StatusNotFound:
@@ -120,7 +118,7 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 	_, _ = w.Write(respBytes)
 }
 
-func BuildWebconfigResponse(s *WebconfigServer, ctx context.Context, rHeader http.Header, route string, fields log.Fields) (int, http.Header, []byte, error) {
+func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route string, fields log.Fields) (int, http.Header, []byte, error) {
 	fields["for_device"] = true
 	fields["is_primary"] = true
 
@@ -133,7 +131,7 @@ func BuildWebconfigResponse(s *WebconfigServer, ctx context.Context, rHeader htt
 	// factory reset handling
 	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
 	if ifNoneMatch == "NONE" || ifNoneMatch == "NONE-REBOOT" {
-		status, respHeader, rbytes, err := BuildFactoryResetResponse(s, ctx, rHeader, fields)
+		status, respHeader, rbytes, err := BuildFactoryResetResponse(s, rHeader, fields)
 		if err != nil {
 			return status, respHeader, rbytes, common.NewError(err)
 		}
@@ -287,7 +285,7 @@ func BuildWebconfigResponse(s *WebconfigServer, ctx context.Context, rHeader htt
 		upstreamHeader.Set(common.HeaderUpstreamOldSchemaVersion, oldRootDocument.SchemaVersion)
 	}
 
-	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(ctx, mac, upstreamHeader, respBytes, fields)
+	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeader, respBytes, fields)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
@@ -339,7 +337,7 @@ func BuildWebconfigResponse(s *WebconfigServer, ctx context.Context, rHeader htt
 	return http.StatusOK, upstreamRespHeader, finalFilteredBytes, nil
 }
 
-func BuildFactoryResetResponse(s *WebconfigServer, ctx context.Context, rHeader http.Header, fields log.Fields) (int, http.Header, []byte, error) {
+func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields log.Fields) (int, http.Header, []byte, error) {
 	c := s.DatabaseClient
 	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
@@ -410,7 +408,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, ctx context.Context, rHeader 
 	}
 
 	// call /upstream to handle factory reset
-	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(ctx, mac, upstreamHeader, oldDocBytes, fields)
+	upstreamRespBytes, upstreamRespHeader, err := s.PostUpstream(mac, upstreamHeader, oldDocBytes, fields)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {

@@ -21,10 +21,6 @@ import "context"
 
 type contextKey string
 
-func (c contextKey) String() string {
-	return string(c)
-}
-
 // SetContext - setting context for logging
 func SetContext(ctx context.Context, ctxName string, ctxValue interface{}) context.Context {
 	return context.WithValue(ctx, contextKey(ctxName), ctxValue)
