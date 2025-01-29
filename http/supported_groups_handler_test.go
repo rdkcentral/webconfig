@@ -62,7 +62,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 
 	rdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-	bitmap, err := util.GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	bitmap, err := common.GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
@@ -156,7 +156,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	sids := strings.Split(rdkSupportedDocsHeaderStr, ",")
 
 	newGroup1Bitarray := "00000001 0000 0000 0000 0000 0011 0011"
-	group1Bitmap, err := util.BitarrayToBitmap(newGroup1Bitarray)
+	group1Bitmap, err := common.BitarrayToBitmap(newGroup1Bitarray)
 	assert.NilError(t, err)
 	sids[0] = fmt.Sprintf("%v", group1Bitmap)
 	supportedSubdocMap["wan"] = false
@@ -165,7 +165,7 @@ func TestSupportedGroupsHandler(t *testing.T) {
 	supportedSubdocMap["bridge"] = true
 
 	newGroup2Bitarray := "00000010 0000 0000 0000 0000 0000 0110"
-	group2Bitmap, err := util.BitarrayToBitmap(newGroup2Bitarray)
+	group2Bitmap, err := common.BitarrayToBitmap(newGroup2Bitarray)
 	assert.NilError(t, err)
 	sids[1] = fmt.Sprintf("%v", group2Bitmap)
 	supportedSubdocMap["privatessid"] = false
@@ -231,7 +231,7 @@ func TestSupportedGroupsHandlerTelcovoice(t *testing.T) {
 
 	rdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-	bitmap, err := util.GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	bitmap, err := common.GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
@@ -297,7 +297,7 @@ func TestSupportedGroupsHandlerWithPrioritizedmacsAndConnectedbuilding(t *testin
 
 	rdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
-	bitmap, err := util.GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	bitmap, err := common.GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	assert.Equal(t, bitmap, rdoc.Bitmap)
 
