@@ -79,7 +79,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	rootdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 
-	expectedBitmap1, err := util.GetCpeBitmap(supportedDocs1)
+	expectedBitmap1, err := common.GetCpeBitmap(supportedDocs1)
 	assert.NilError(t, err)
 	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)
@@ -278,7 +278,7 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 	rootdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 
-	expectedBitmap1, err := util.GetCpeBitmap(supportedDocs1)
+	expectedBitmap1, err := common.GetCpeBitmap(supportedDocs1)
 	assert.NilError(t, err)
 	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)

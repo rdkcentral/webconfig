@@ -14,32 +14,15 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
- */
-/**
-* Copyright 2021 Comcast Cable Communications Management, LLC
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*
-* SPDX-License-Identifier: Apache-2.0
- */
-package util
+*/
+package common
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
-	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
@@ -179,7 +162,7 @@ func TestParseCustomizedGroupBitarray(t *testing.T) {
 			supportedSubdocIds = append(supportedSubdocIds, k)
 		}
 	}
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
@@ -211,7 +194,7 @@ func TestParseTelcovoipAndWanmanager(t *testing.T) {
 		assert.Assert(t, IsSubdocSupported(cpeBitmap, subdocId))
 	}
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -238,7 +221,7 @@ func TestBitmapParsing(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -265,13 +248,13 @@ func TestParseVoiceService(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
 func TestManualBitmap(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		bitmap := RandomInt(40000)
+		bitmap := rand.Intn(40000)
 		parsedSupportedMap := GetSupportedMap(bitmap)
 		revBitmap := GetBitmapFromSupportedMap(parsedSupportedMap)
 		assert.Equal(t, bitmap, revBitmap)
@@ -306,7 +289,7 @@ func TestParseSupportedDocsWithNewGroups(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -333,7 +316,7 @@ func TestParseSupportedDocsHeaderWithSomeLTEGroups(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -360,7 +343,7 @@ func TestParseSupportedDocsHeaderWithTelcovoice(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -390,7 +373,7 @@ func TestParseSupportedDocsHeaderWithGwfailover(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -420,7 +403,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacs(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -453,7 +436,7 @@ func TestParseSupportedDocsHeaderWithPrioritizedMacsAndConnectedbuilding(t *test
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -487,7 +470,7 @@ func TestParseSupportedDocsHeaderClienttosteeringprofile(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -523,7 +506,7 @@ func TestParseSupportedDocsHeaderRfc(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -561,7 +544,7 @@ func TestParseSupportedDocsHeaderHcm(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
 
@@ -601,6 +584,6 @@ func TestParseSupportedDocsHeaderWebui(t *testing.T) {
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
 	assert.NilError(t, err)
 	parsedSupportedMap := GetSupportedMap(cpeBitmap)
-	supportedSubdocMap := common.BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }

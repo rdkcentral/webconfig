@@ -123,7 +123,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	fields["is_primary"] = true
 
 	c := s.DatabaseClient
-	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 	userAgent := rHeader.Get("User-Agent")
@@ -148,7 +147,12 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		return http.StatusConflict, respHeader, nil, common.NewError(err)
 	}
 
-	if uconn == nil {
+	if !s.UpstreamEnabled() {
+		if postUpstream {
+			rdoc := oldRootDocument.Clone()
+			rdoc.UpdateMetadata(newRootDocument)
+			document.SetRootDocument(rdoc)
+		}
 		if err != nil {
 			if !s.IsDbNotFound(err) {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -170,6 +174,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
+
+		if s.FilterOutputByBitmapEnabled() {
+			document = document.FilterByBitmap()
+		}
+
 		respBytes, err := document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -208,13 +217,17 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	var respBytes []byte
 	respStatus := http.StatusNotModified
 	if document.Length() > 0 {
-
 		if !postUpstream {
 			document, err = db.LoadRefSubDocuments(c, document, fields)
 			if err != nil {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 			}
 		}
+		// 3333
+		if s.FilterOutputByBitmapEnabled() {
+			document = document.FilterByBitmap()
+		}
+		// 44444
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
@@ -302,7 +315,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
 	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
+	finalRootDocument := common.NewRootDocument(newRootDocument.Bitmap, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 
@@ -318,6 +331,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	finalFilteredDocument := finalDocument.FilterForGet(deviceVersionMap)
 	for _, subdocId := range c.BlockedSubdocIds() {
 		finalFilteredDocument.DeleteSubDocument(subdocId)
+	}
+
+	if s.FilterOutputByBitmapEnabled() {
+		finalFilteredDocument = finalFilteredDocument.FilterByBitmap()
 	}
 
 	// 304
@@ -339,7 +356,6 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields log.Fields) (int, http.Header, []byte, error) {
 	c := s.DatabaseClient
-	uconn := s.GetUpstreamConnector()
 	mac := rHeader.Get(common.HeaderDeviceId)
 	respHeader := make(http.Header)
 
@@ -374,7 +390,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 
-	if uconn == nil {
+	if !s.UpstreamEnabled() {
 		err := c.DeleteDocument(mac)
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)

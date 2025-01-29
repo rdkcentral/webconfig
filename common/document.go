@@ -219,3 +219,21 @@ func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 
 	return BuildPayloadAsHttp(http.StatusOK, header, bbytes), nil
 }
+
+func (d *Document) FilterByBitmap() *Document {
+	rootdoc := d.GetRootDocument()
+	if rootdoc == nil {
+		return d
+	}
+
+	newdoc := NewDocument(rootdoc)
+	supportedMap := GetSupportedMap(rootdoc.Bitmap)
+
+	for subdocId, subDocument := range d.docmap {
+		if supportedMap[subdocId] {
+			newdoc.SetSubDocument(subdocId, &subDocument)
+		}
+	}
+
+	return newdoc
+}
