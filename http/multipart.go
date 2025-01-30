@@ -217,13 +217,17 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	var respBytes []byte
 	respStatus := http.StatusNotModified
 	if document.Length() > 0 {
-
 		if !postUpstream {
 			document, err = db.LoadRefSubDocuments(c, document, fields)
 			if err != nil {
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 			}
 		}
+		// 3333
+		if s.FilterOutputByBitmapEnabled() {
+			document = document.FilterByBitmap()
+		}
+		// 44444
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)

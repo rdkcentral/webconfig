@@ -182,7 +182,7 @@ func addMoracideTagsAsResponseHeaders(w http.ResponseWriter) {
 		moracideTags[key] = val
 	}
 	for key, val := range respMoracideTags {
-		if existingVal, ok := moracideTags[key]; !ok || (ok && existingVal != "true") {
+		if val == "true" {
 			xw.LogDebug(nil, "request", fmt.Sprintf("Adding moracide tag from resp %s = %s to response", key, val))
 			moracideTags[key] = val
 		}

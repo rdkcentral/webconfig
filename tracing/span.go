@@ -111,27 +111,23 @@ func SetSpanMoracideTags(fields log.Fields, moracideTagPrefix string) {
 	}
 
 	moracideTags := make(map[string]string)
-	reqMoracideTagPrefix := strings.ToLower("req_" + moracideTagPrefix)
-	respMoracideTagPrefix := strings.ToLower("resp_" + moracideTagPrefix)
 
-	for key, val := range fields {
-		if strings.HasPrefix(strings.ToLower(key), reqMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from req %s = %s to response", key, val)
-			moracideTags[key[4:]] = val.(string)
+	if itf, ok := fields["req_moracide_tags"]; ok {
+		reqMoracideTags := itf.(map[string]string)
+		for key, val := range reqMoracideTags {
+			moracideTags[key] = val
 		}
-		if strings.HasPrefix(strings.ToLower(key), respMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from resp %s = %s to response", key, val)
-			realKey := key[5:]
-			if existingVal, ok := moracideTags[realKey]; !ok || (ok && existingVal != "true") {
-				moracideTags[realKey] = val.(string)
+	}
+
+	if itf, ok := fields["resp_moracide_tags"]; ok {
+		respMoracideTags := itf.(map[string]string)
+		for key, val := range respMoracideTags {
+			if val == "true" {
+				moracideTags[key] = val
 			}
 		}
 	}
-	if len(moracideTags) == 0 {
-		// No moracide tags in request or any response
-		// So set at least one span tag, x-cl-expt: false
-		moracideTags[moracideTagPrefix] = "false"
-	}
+
 	if xpcTrace.otelSpan != nil {
 		for key, val := range moracideTags {
 			xpcTrace.otelSpan.SetAttributes(attribute.String(key, val))

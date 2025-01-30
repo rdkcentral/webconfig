@@ -162,3 +162,17 @@ func CompactJson(sbytes []byte) ([]byte, error) {
 	}
 	return jsbytes, nil
 }
+
+func GetAPIName(queryStr string) string {
+	n := "poke"
+	if strings.Contains(queryStr, "slow") {
+		n = "slowpoke"
+	} else if strings.Contains(queryStr, "root") && strings.Contains(queryStr, "telemetry") {
+		n = "poke_both"
+	} else if strings.Contains(queryStr, "telemetry") {
+		n = "poke_telemetry"
+	} else if strings.Contains(queryStr, "mqtt") {
+		n = "poke_mqtt"
+	}
+	return n
+}
