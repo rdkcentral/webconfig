@@ -175,6 +175,10 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
+		for _, subdocId := range c.BlockedSubdocIds() {
+			document.DeleteSubDocument(subdocId)
+		}
+
 		if s.FilterOutputByBitmapEnabled() {
 			document = document.FilterByBitmap()
 		}
@@ -224,6 +228,9 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			}
 		}
 		// 3333
+		for _, subdocId := range c.BlockedSubdocIds() {
+			document.DeleteSubDocument(subdocId)
+		}
 		if s.FilterOutputByBitmapEnabled() {
 			document = document.FilterByBitmap()
 		}
