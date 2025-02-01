@@ -14,18 +14,18 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gocql/gocql"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -177,7 +177,17 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if newStatePtr != nil {
+			// TODO
+			if len(labels) == 0 {
+				labels = make(prometheus.Labels)
+			}
 			labels["feature"] = groupId
+			if itf, ok := fields["metrics_agent"]; ok {
+				metricsAgent := itf.(string)
+				if len(metricsAgent) > 0 {
+					labels["client"] = metricsAgent
+				}
+			}
 			c.UpdateStateMetrics(oldState, *newStatePtr, labels, cpeMac, fields)
 		}
 	}

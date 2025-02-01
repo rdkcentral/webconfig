@@ -771,7 +771,8 @@ func GetInt(fields log.Fields, key string) int {
 
 func RectifyLabels(labels prometheus.Labels) {
 	for _, x := range stateMetricsLabels {
-		if _, ok := labels[x]; !ok {
+		ss, ok := labels[x]
+		if !ok || len(ss) == 0 {
 			labels[x] = "unknown"
 		}
 	}
