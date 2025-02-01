@@ -702,7 +702,7 @@ func ParseGauge(metrics []*promemodel.Metric) map[string]int {
 				client = labelPair.GetValue()
 			}
 		}
-		if client == "default" {
+		if client == "default" || client == "unknown" {
 			gaugeKey = feature
 		} else {
 			gaugeKey = fmt.Sprintf("%v_%v", feature, client)
