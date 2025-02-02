@@ -467,7 +467,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 		}
 	}
 
-	RectifyLabels(labels)
+	RectifyLabels(labels, fields)
 
 	mlabels := prometheus.Labels{}
 	for k, v := range labels {
@@ -769,7 +769,15 @@ func GetInt(fields log.Fields, key string) int {
 	return i
 }
 
-func RectifyLabels(labels prometheus.Labels) {
+func RectifyLabels(labels prometheus.Labels, fields log.Fields) {
+	// backfill metrics_agent
+	if itf, ok := fields["metrics_agent"]; ok {
+		ss := itf.(string)
+		if len(ss) > 0 {
+			labels["client"] = ss
+		}
+	}
+
 	for _, x := range stateMetricsLabels {
 		ss, ok := labels[x]
 		if !ok || len(ss) == 0 {
