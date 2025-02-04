@@ -475,6 +475,8 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 	}
 	mlabels["mac"] = cpeMac
 
+	fmt.Printf("oldState=%v, newState=%v, mlabels=%v, isWatchedCpe=%v\n", oldState, newState, mlabels, isWatchedCpe)
+
 	// decrease the old state gauge
 	if oldState != newState {
 		switch oldState {

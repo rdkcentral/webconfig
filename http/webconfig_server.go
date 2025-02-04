@@ -475,6 +475,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("TestingCpeMiddleware()\n")
 		xw := NewXResponseWriter(w)
 
 		// read the token
