@@ -30,7 +30,7 @@ var (
 		"xpc_trace",
 		"req_moracide_tags",
 		"resp_moracide_tags",
-		"document",
+		"rdoc",
 	}
 	coreFields = []string{
 		"app_name",

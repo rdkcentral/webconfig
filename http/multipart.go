@@ -188,6 +188,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
+		if newRootDocument != nil {
+			fields["rdoc"] = newRootDocument
+			defer delete(fields, "rdoc")
+		}
+
 		// skip updating states
 		if userAgent != "mget" {
 			if err := db.UpdateDocumentStateIndeployment(c, mac, document, fields); err != nil {

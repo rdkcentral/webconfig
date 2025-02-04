@@ -368,6 +368,7 @@ func (m *AppMetrics) UrlPatternFn() func(string) string {
 // deployed(1)
 func (m *AppMetrics) DeployedInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateDeployed.With(labels).Inc()
+	fmt.Println("stateDeployed+1")
 	if isWatchedCpe {
 		m.watchedStateDeployed.With(mlabels).Inc()
 	}
@@ -475,7 +476,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 	}
 	mlabels["mac"] = cpeMac
 
-	fmt.Printf("oldState=%v, newState=%v, mlabels=%v, isWatchedCpe=%v\n", oldState, newState, mlabels, isWatchedCpe)
+	fmt.Printf("oldState=%v, newState=%v, labels=%v, isWatchedCpe=%v\n", oldState, newState, labels, isWatchedCpe)
 
 	// decrease the old state gauge
 	if oldState != newState {
@@ -786,4 +787,26 @@ func RectifyLabels(labels prometheus.Labels, fields log.Fields) {
 			labels[x] = "unknown"
 		}
 	}
+}
+
+func CreatePrometheusLabels(fields log.Fields, feature string) prometheus.Labels {
+	clientName := "default"
+	if itf, ok := fields["metrics_agent"]; ok {
+		ss := itf.(string)
+		if len(ss) > 0 {
+			clientName = ss
+		}
+	}
+
+	labels := prometheus.Labels{
+		"client":  clientName,
+		"feature": feature,
+	}
+
+	if itf, ok := fields["rdoc"]; ok {
+		rdoc := itf.(*RootDocument)
+		labels["model"] = rdoc.ModelName
+		labels["fwversion"] = rdoc.FirmwareVersion
+	}
+	return labels
 }

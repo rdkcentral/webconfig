@@ -81,9 +81,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 			oldState = ty
 		case log.Fields:
 			fields = ty
-		case prometheus.Labels:
-			labels = ty
-			// should include only "model", "fwversion" and "client"
 		}
 	}
 	var newStatePtr *int
@@ -178,18 +175,8 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	// update state metrics
 	if c.IsMetricsEnabled() {
 		if newStatePtr != nil {
-			// TODO
 			if len(labels) == 0 {
-				labels = prometheus.Labels{
-					"client": "default",
-				}
-			}
-			labels["feature"] = groupId
-			if itf, ok := fields["metrics_agent"]; ok {
-				metricsAgent := itf.(string)
-				if len(metricsAgent) > 0 {
-					labels["client"] = metricsAgent
-				}
+				labels = common.CreatePrometheusLabels(fields, groupId)
 			}
 			c.UpdateStateMetrics(oldState, *newStatePtr, labels, cpeMac, fields)
 		}
