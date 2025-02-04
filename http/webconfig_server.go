@@ -118,6 +118,7 @@ type WebconfigServer struct {
 	queryParamsValidationEnabled  bool
 	minTrust                      int
 	validSubdocIdMap              map[string]int
+	filterOutputByBitmapEnabled   bool
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -289,6 +290,8 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validSubdocIdMap[x] = 1
 	}
 
+	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
+
 	ws := &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
@@ -325,6 +328,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		minTrust:                      minTrust,
 		validSubdocIdMap:              validSubdocIdMap,
 		XpcTracer:                     xpcTracer,
+		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
 	}
 
 	return ws
@@ -684,6 +688,14 @@ func (s *WebconfigServer) ValidSubdocIdMap() map[string]int {
 
 func (s *WebconfigServer) SetValidSubdocIdMap(x map[string]int) {
 	s.validSubdocIdMap = x
+}
+
+func (s *WebconfigServer) FilterOutputByBitmapEnabled() bool {
+	return s.filterOutputByBitmapEnabled
+}
+
+func (s *WebconfigServer) SetFilterOutputByBitmapEnabled(enabled bool) {
+	s.filterOutputByBitmapEnabled = enabled
 }
 
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {

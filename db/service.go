@@ -64,7 +64,7 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 	}
 
 	if len(supportedDocs) > 0 {
-		bitmap, err = util.GetCpeBitmap(supportedDocs)
+		bitmap, err = common.GetCpeBitmap(supportedDocs)
 		if err != nil {
 			log.WithFields(fields).Warn(common.NewError(err))
 		}
@@ -146,8 +146,11 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		if err := c.SetRootDocument(mac, clonedRootDoc); err != nil {
 			return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
 		}
+
 		// the returned err is dbNotFound
-		return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+		// WARNING, this should be removed
+		// return nil, cloudRootDocument, deviceRootDocument, deviceVersionMap, false, nil, common.NewError(err)
+		cloudRootDocument = clonedRootDoc.Clone()
 	}
 
 	// ==== compare if the deviceRootDocument and cloudRootDocument are different ====
@@ -620,7 +623,7 @@ func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerI
 	var err error
 	supportedDocs := rHeader.Get(common.HeaderSupportedDocs)
 	if len(supportedDocs) > 0 {
-		bitmap, err = util.GetCpeBitmap(supportedDocs)
+		bitmap, err = common.GetCpeBitmap(supportedDocs)
 		if err != nil {
 			log.WithFields(fields).Warn(common.NewError(err))
 		}

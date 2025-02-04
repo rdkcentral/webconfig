@@ -63,6 +63,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fields := xw.Audit()
+	fields["API"] = util.GetAPIName(r.URL.RawQuery)
 
 	// extract "metrics_agent"
 	metricsAgent := "default"
