@@ -14,10 +14,11 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"
@@ -36,6 +37,7 @@ func BuildMqttSendDocument(c DatabaseClient, cpeMac string, fields log.Fields) (
 	}
 
 	filteredDocument := document.FilterForMqttSend()
+	// fmt.Printf("BuildMqttSendDocument() doc.len=%v, fildoc.len=%v\n", document.Length(), filteredDocument.Length())
 	if filteredDocument.Length() == 0 {
 		return filteredDocument, nil
 	}

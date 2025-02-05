@@ -368,7 +368,7 @@ func (m *AppMetrics) UrlPatternFn() func(string) string {
 // deployed(1)
 func (m *AppMetrics) DeployedInc(labels, mlabels prometheus.Labels, isWatchedCpe bool) {
 	m.stateDeployed.With(labels).Inc()
-	fmt.Println("stateDeployed+1")
+	// fmt.Println("stateDeployed+1")
 	if isWatchedCpe {
 		m.watchedStateDeployed.With(mlabels).Inc()
 	}
@@ -476,7 +476,7 @@ func (m *AppMetrics) UpdateStateMetrics(oldState, newState int, labels prometheu
 	}
 	mlabels["mac"] = cpeMac
 
-	fmt.Printf("oldState=%v, newState=%v, labels=%v, isWatchedCpe=%v\n", oldState, newState, labels, isWatchedCpe)
+	// fmt.Printf("oldState=%v, newState=%v, labels=%v, isWatchedCpe=%v\n", oldState, newState, labels, isWatchedCpe)
 
 	// decrease the old state gauge
 	if oldState != newState {
