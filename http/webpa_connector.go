@@ -73,7 +73,7 @@ type WebpaConnector struct {
 	apiVersion       string
 }
 
-func syncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
+func syncHandle520(rbytes []byte) (int, []byte, http.Header, bool, error) {
 	rerr := common.RemoteHttpError{
 		Message:    string(rbytes),
 		StatusCode: 520,
@@ -83,16 +83,16 @@ func syncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
 	if err := json.Unmarshal(rbytes, &pres); err == nil {
 		if len(pres.Parameters) > 0 {
 			if pres.Parameters[0].Message == "Error unsupported namespace" || pres.Parameters[0].Message == "Request rejected" {
-				return rbytes, nil, false, common.NewError(rerr)
+				return 520, rbytes, nil, false, common.NewError(rerr)
 			}
 		}
 	}
 	rerr.StatusCode = webpa520NewStatusCode
 
-	return rbytes, nil, false, common.NewError(rerr)
+	return webpa520NewStatusCode, rbytes, nil, false, common.NewError(rerr)
 }
 
-func asyncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
+func asyncHandle520(rbytes []byte) (int, []byte, http.Header, bool, error) {
 	rerr := common.RemoteHttpError{
 		Message:    string(rbytes),
 		StatusCode: 520,
@@ -102,13 +102,13 @@ func asyncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
 	if err := json.Unmarshal(rbytes, &pres); err == nil {
 		if len(pres.Parameters) > 0 {
 			if pres.Parameters[0].Message == "Error unsupported namespace" || pres.Parameters[0].Message == "Request rejected" {
-				return rbytes, nil, false, common.NewError(rerr)
+				return 520, rbytes, nil, false, common.NewError(rerr)
 			}
 		}
 	}
 	rerr.StatusCode = webpa520NewStatusCode
 
-	return rbytes, nil, true, common.NewError(rerr)
+	return 520, rbytes, nil, true, common.NewError(rerr)
 }
 
 func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *WebpaConnector {
@@ -211,7 +211,7 @@ func (c *WebpaConnector) Patch(rHeader http.Header, cpeMac string, token string,
 	header.Set("X-Webpa-Transaction-Id", transactionId)
 
 	method := "PATCH"
-	_, _, cont, err := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
+	_, _, _, cont, err := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
@@ -229,7 +229,7 @@ func (c *WebpaConnector) Patch(rHeader http.Header, cpeMac string, token string,
 			}
 		}
 		if cont {
-			_, _, err := c.syncClient.DoWithRetries("PATCH", url, header, bbytes, fields, webpaServiceName)
+			_, _, _, err := c.syncClient.DoWithRetries("PATCH", url, header, bbytes, fields, webpaServiceName)
 			if err != nil {
 				return transactionId, common.NewError(err)
 			}
@@ -249,7 +249,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header ht
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, cont, _ := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
+		_, _, _, cont, _ := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			msg := fmt.Sprintf("finished success after 1 retry")
 			if i > 1 {
@@ -277,7 +277,7 @@ func (c *WebpaConnector) SyncDoWithRetries(method string, url string, header htt
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, _, cont, err = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
+		_, rbytes, _, cont, err = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			// in the case of 524/in-progress, we continue
 			var rherr common.RemoteHttpError

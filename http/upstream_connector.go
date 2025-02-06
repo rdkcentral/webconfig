@@ -35,7 +35,7 @@ const (
 )
 
 type UpstreamConnector struct {
-	*HttpClient
+	APIClient
 	host                string
 	serviceName         string
 	upstreamUrlTemplate string
@@ -49,7 +49,7 @@ func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config) *Up
 	profileUrlTemplate := conf.GetString("webconfig.upstream.profile_url_template", defaultProfileUrlTemplate)
 
 	return &UpstreamConnector{
-		HttpClient:          NewHttpClient(conf, serviceName, tlsConfig),
+		APIClient:           NewHttpClient(conf, serviceName, tlsConfig),
 		host:                host,
 		serviceName:         serviceName,
 		upstreamUrlTemplate: upstreamUrlTemplate,
@@ -86,7 +86,7 @@ func (c *UpstreamConnector) PostUpstream(mac string, header http.Header, bbytes 
 		}
 	}
 
-	rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
+	_, rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)
 	}
@@ -110,7 +110,7 @@ func (c *UpstreamConnector) GetUpstreamProfiles(mac, queryParams string, header 
 		}
 	}
 
-	rbytes, header, err := c.DoWithRetries("GET", url, header, nil, fields, c.ServiceName())
+	_, rbytes, header, err := c.DoWithRetries("GET", url, header, nil, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)
 	}

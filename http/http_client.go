@@ -53,7 +53,7 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-type StatusHandlerFunc func([]byte) ([]byte, http.Header, bool, error)
+type StatusHandlerFunc func([]byte) (int, []byte, http.Header, bool, error)
 
 type HttpClient struct {
 	*http.Client
@@ -112,7 +112,7 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	}
 }
 
-func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, bool, error) {
+func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) (int, []byte, http.Header, bool, error) {
 	fields := common.FilterLogFields(auditFields, "status")
 
 	var respMoracideTagsFound bool
@@ -133,11 +133,11 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 	case "DELETE":
 		req, err = http.NewRequest(method, url, nil)
 	default:
-		return nil, nil, false, common.NewError(fmt.Errorf("method=%v", method))
+		return 0, nil, nil, false, common.NewError(fmt.Errorf("method=%v", method))
 	}
 
 	if err != nil {
-		return nil, nil, true, common.NewError(err)
+		return 0, nil, nil, true, common.NewError(err)
 	}
 
 	if header == nil {
@@ -255,25 +255,25 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 					Message:    ue.Error(),
 					StatusCode: http.StatusGatewayTimeout,
 				}
-				return nil, nil, true, common.NewError(rherr)
+				return 0, nil, nil, true, common.NewError(rherr)
 			}
 			if errors.Is(innerErr, io.EOF) {
 				rherr := common.RemoteHttpError{
 					Message:    ue.Error(),
 					StatusCode: http.StatusBadGateway,
 				}
-				return nil, nil, true, common.NewError(rherr)
+				return 0, nil, nil, true, common.NewError(rherr)
 			}
 			if _, ok := innerErr.(*net.OpError); ok {
 				rherr := common.RemoteHttpError{
 					Message:    ue.Error(),
 					StatusCode: http.StatusServiceUnavailable,
 				}
-				return nil, nil, true, common.NewError(rherr)
+				return 0, nil, nil, true, common.NewError(rherr)
 			}
 			// Unknown err still appear as 500
 		}
-		return nil, nil, true, common.NewError(err)
+		return 0, nil, nil, true, common.NewError(err)
 	}
 	if res.Body != nil {
 		defer res.Body.Close()
@@ -295,7 +295,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		if userAgent != "mget" {
 			log.WithFields(fields).Info(endMessage)
 		}
-		return nil, nil, true, common.NewError(err)
+		return res.StatusCode, nil, nil, true, common.NewError(err)
 	}
 
 	rbody := string(rbytes)
@@ -350,9 +350,9 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 
 		switch res.StatusCode {
 		case http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound:
-			return rbytes, nil, false, common.NewError(err)
+			return res.StatusCode, rbytes, nil, false, common.NewError(err)
 		}
-		return rbytes, nil, true, common.NewError(err)
+		return res.StatusCode, rbytes, nil, true, common.NewError(err)
 	} else if res.StatusCode > 200 {
 		var pokeResponse PokeResponse
 		var message string
@@ -368,16 +368,17 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 			Message:    message,
 			StatusCode: res.StatusCode,
 		}
-		return rbytes, nil, false, common.NewError(rherr)
+		return res.StatusCode, rbytes, nil, false, common.NewError(rherr)
 	}
-	return rbytes, res.Header, false, nil
+	return res.StatusCode, rbytes, res.Header, false, nil
 }
 
-func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, http.Header, error) {
+func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Header, bbytes []byte, fields log.Fields, loggerName string) (int, []byte, http.Header, error) {
 	var respBytes []byte
 	var respHeader http.Header
 	var err error
 	var cont bool
+	var statusCode int
 
 	i := 0
 	// i=0 is NOT considered a retry, so it ends at i=c.webpaRetries
@@ -387,16 +388,16 @@ func (c *HttpClient) DoWithRetries(method string, url string, rHeader http.Heade
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		respBytes, respHeader, cont, err = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
+		statusCode, respBytes, respHeader, cont, err = c.Do(method, url, rHeader, cbytes, fields, loggerName, i)
 		if !cont {
 			break
 		}
 	}
 
 	if err != nil {
-		return respBytes, respHeader, common.NewError(err)
+		return statusCode, respBytes, respHeader, common.NewError(err)
 	}
-	return respBytes, respHeader, nil
+	return statusCode, respBytes, respHeader, nil
 }
 
 func (c *HttpClient) SetStatusHandler(status int, fn StatusHandlerFunc) {

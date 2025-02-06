@@ -18,7 +18,6 @@
 package db
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/rdkcentral/webconfig/common"

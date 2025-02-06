@@ -19,6 +19,7 @@ package cassandra
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,6 +62,9 @@ func (c *CassandraClient) SetRootDocument(cpeMac string, rdoc *common.RootDocume
 	}
 
 	stmt := fmt.Sprintf("INSERT INTO root_document(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
+	if ss := os.Getenv("ROBIN"); ss == "true" {
+		fmt.Printf("%v, %v\n", stmt, values)
+	}
 	if err := c.Query(stmt, values...).Exec(); err != nil {
 		return common.NewError(err)
 	}
