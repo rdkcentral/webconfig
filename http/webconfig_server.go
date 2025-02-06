@@ -93,7 +93,7 @@ type WebconfigServer struct {
 	*WebpaConnector
 	*XconfConnector
 	*MqttConnector
-	UpstreamInterface
+	*UpstreamConnector
 	sarama.AsyncProducer
 	*tracing.XpcTracer
 	tlsConfig                     *tls.Config
@@ -307,7 +307,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 		WebpaConnector:                NewWebpaConnector(conf, tlsConfig),
 		XconfConnector:                NewXconfConnector(conf, tlsConfig),
 		MqttConnector:                 NewMqttConnector(conf, tlsConfig),
-		UpstreamInterface:             NewUpstreamConnector(conf, tlsConfig),
+		UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
 		AsyncProducer:                 kafkaProducer,
 		tlsConfig:                     tlsConfig,
 		notLoggedHeaders:              notLoggedHeaders,
@@ -590,12 +590,11 @@ func (s *WebconfigServer) SetValidateMacEnabled(validateMacEnabled bool) {
 	s.validateMacEnabled = validateMacEnabled
 }
 
-func (s *WebconfigServer) GetUpstreamInterface() UpstreamInterface {
-	return s.UpstreamInterface
-}
-
-func (s *WebconfigServer) SetUpstreamInterface(uitf UpstreamInterface) {
-	s.UpstreamInterface = uitf
+func (s *WebconfigServer) GetUpstreamConnector() *UpstreamConnector {
+	if !s.upstreamEnabled {
+		return nil
+	}
+	return s.UpstreamConnector
 }
 
 func (s *WebconfigServer) TlsConfig() *tls.Config {

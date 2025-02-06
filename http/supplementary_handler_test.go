@@ -948,11 +948,8 @@ func TestSupplementaryUpstreamProfiles(t *testing.T) {
 			w.Write(cubytes)
 		}))
 	defer mockUpstreamServer.Close()
-
-	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
-	uconn.SetUpstreamHost(mockUpstreamServer.URL)
-	targetUpstreamHost := uconn.UpstreamHost()
-
+	server.SetUpstreamHost(mockUpstreamServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
 	assert.Equal(t, mockUpstreamServer.URL, targetUpstreamHost)
 
 	// ==== step 3 verify /config expect 200 with 1 mpart ====

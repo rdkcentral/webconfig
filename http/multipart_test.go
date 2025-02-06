@@ -524,7 +524,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 
 	// ==== GET /config but with header changes without mock ====
 	server.SetUpstreamEnabled(true)
-	server.GetUpstreamInterface().(*UpstreamConnector).SetUpstreamHost("http://localhost:12345")
+	server.SetUpstreamHost("http://localhost:12345")
 
 	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
 	req.Header.Set(common.HeaderSchemaVersion, "33554433-1.3,33554434-1.3")
@@ -557,10 +557,8 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 				assert.NilError(t, err)
 			}
 		}))
-
-	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
-	uconn.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := uconn.UpstreamHost()
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 
@@ -703,7 +701,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 
 	// ==== GET /config but with header changes without mock ====
 	server.SetUpstreamEnabled(true)
-	server.GetUpstreamInterface().(*UpstreamConnector).SetUpstreamHost("http://localhost:12345")
+	server.SetUpstreamHost("http://localhost:12345")
 
 	// ==== get mqtt/kafka response ====
 	kHeader = make(http.Header)
@@ -735,10 +733,8 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 				assert.NilError(t, err)
 			}
 		}))
-
-	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
-	uconn.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := uconn.UpstreamHost()
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 

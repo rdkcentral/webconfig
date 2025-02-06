@@ -37,11 +37,8 @@ func TestUpstreamConnector(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(mockedUpstreamResponse)
 		}))
-
-	uconn := server.GetUpstreamInterface().(*UpstreamConnector)
-	uconn.SetUpstreamHost(upstreamMockServer.URL)
-	targetUpstreamHost := uconn.UpstreamHost()
-
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
 	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
 	defer upstreamMockServer.Close()
 
