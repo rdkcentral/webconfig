@@ -205,6 +205,9 @@ func (c *CassandraClient) DeleteDocument(cpeMac string) error {
 	defer func() { <-c.concurrentQueries }()
 
 	stmt := "DELETE FROM xpc_group_config WHERE cpe_mac=?"
+	if c.awsKeyspaceEnabled {
+		stmt += " ALLOW FILTERING"
+	}
 	if err := c.Query(stmt, cpeMac).Exec(); err != nil {
 		return common.NewError(err)
 	}
