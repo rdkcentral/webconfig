@@ -21,6 +21,8 @@ GOOS := $(shell go env GOOS)
 PROJ := webconfig
 ORG := rdkcentral
 REPO := github.com/${ORG}/${PROJ}
+# GOBIN := /opt/homebrew/Cellar/go/1.23.2/libexec/bin/go
+GOBIN := /Users/cchao200/sdk/go1.23.3/bin/go
 
 BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
 # must be "Version", NOT "VERSION" to be consistent with xpc jenkins env
@@ -31,10 +33,10 @@ all: build
 testall: test testsqlite testyuga
 
 build:  ## Build a version
-	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
+	${GOBIN} build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
 
 test:
-	go test ./... -cover -count=1
+	${GOBIN} test ./... -cover -count=1
 
 testsqlite:
 	export TESTDB_DRIVER='sqlite' ; go test ./... -cover -count=1
@@ -55,4 +57,6 @@ release:
 	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
 
 linux:
-	export GOOS=linux ; export GOARCH=amd64 ; export CGO_ENABLED=0 ; go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-linux-amd64 main.go
+	export GOOS=linux ; export GOARCH=amd64 ; export CGO_ENABLED=0 ; ${GOBIN} build -a -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-linux-amd64 main.go
+
+# export GOOS=linux ; export GOARCH=amd64 ; export CGO_ENABLED=0 ; export GOROOT=/Users/cchao200/sdk/go1.23.3/src ; ${GOBIN} build -a -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-linux-amd64 main.go

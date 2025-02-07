@@ -18,6 +18,7 @@
 package cassandra
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"os"
@@ -138,8 +139,16 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		Password: password,
 	}
 
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
+	}
+	fmt.Printf("R05 tlsConfig.MinVersion = %v, tlsConfig.MaxVersion = %v\n", tlsConfig.MinVersion, tlsConfig.MaxVersion)
+
 	if isSslEnabled {
 		sslOpts := &gocql.SslOptions{
+			Config:                 tlsConfig,
 			EnableHostVerification: false,
 		}
 		cluster.SslOpts = sslOpts
@@ -153,6 +162,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	// now point to the real keyspace
+	// fmt.Printf("cluster = %v\n", cluster)
 	session, err := cluster.CreateSession()
 	if err != nil {
 		return nil, common.NewError(err)
