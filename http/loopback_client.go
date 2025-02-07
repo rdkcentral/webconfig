@@ -2,7 +2,6 @@ package http
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -65,9 +64,9 @@ func (c *LoopbackClient) Do(req *http.Request) (*http.Response, error) {
 		rw := NewLoopbackResponseWriter()
 		hdl := route.GetHandler()
 		hdl.ServeHTTP(rw, req)
-		fmt.Printf("req = %v\n", req)
-		fmt.Printf("status = %v\n", rw.Status())
-		fmt.Printf("body = %s\n", rw.Body())
+		// fmt.Printf("req = %v\n", req)
+		// fmt.Printf("status = %v\n", rw.Status())
+		// fmt.Printf("body = %s\n", rw.Body())
 
 		body := rw.Body()
 		// reader := bytes.NewReader(body)
