@@ -126,6 +126,7 @@ func awsKeyspaceClient(conf *configuration.Config, testOnly bool) (*CassandraCli
 		encryptedSubdocIds:      encryptedSubdocIds,
 		stateCorrectionEnabled:  stateCorrectionEnabled,
 		lockRootDocumentEnabled: lockRootDocumentEnabled,
+		awsKeyspaceEnabled:      true,
 	}, nil
 }
 

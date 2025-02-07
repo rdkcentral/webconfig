@@ -232,6 +232,9 @@ func (c *CassandraClient) GetDocument(cpeMac string, xargs ...interface{}) (fndo
 	defer func() { <-c.concurrentQueries }()
 
 	stmt := "SELECT group_id,payload,version,state,updated_time,error_code,error_details,expiry,kms_remote_data_key FROM xpc_group_config WHERE cpe_mac=?"
+	if c.awsKeyspaceEnabled {
+		stmt += " ALLOW FILTERING"
+	}
 	iter := c.Query(stmt, cpeMac).Iter()
 	rmap := make(util.Dict)
 	defer func() {

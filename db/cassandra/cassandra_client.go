@@ -55,6 +55,7 @@ type CassandraClient struct {
 	encryptedSubdocIds      []string
 	stateCorrectionEnabled  bool
 	lockRootDocumentEnabled bool
+	awsKeyspaceEnabled      bool
 }
 
 /*
