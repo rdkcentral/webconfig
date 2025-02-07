@@ -140,11 +140,12 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	tlsConfig := &tls.Config{
+		CipherSuites:       []uint16{tls.TLS_RSA_WITH_AES_128_CBC_SHA},
 		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionTLS12,
-		MaxVersion:         tls.VersionTLS12,
+		// MinVersion:         tls.VersionTLS12,
+		// MaxVersion:         tls.VersionTLS12,
 	}
-	fmt.Printf("R05 tlsConfig.MinVersion = %v, tlsConfig.MaxVersion = %v\n", tlsConfig.MinVersion, tlsConfig.MaxVersion)
+	// fmt.Printf("R07 tlsConfig.MinVersion = %v, tlsConfig.MaxVersion = %v\n", tlsConfig.MinVersion, tlsConfig.MaxVersion)
 
 	if isSslEnabled {
 		sslOpts := &gocql.SslOptions{

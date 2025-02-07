@@ -76,4 +76,4 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
 
-replace github.com/gocql/gocql => /Users/cchao200/go/src/github.com/gocql/gocql
+// replace github.com/gocql/gocql => /Users/cchao200/go/src/github.com/gocql/gocql
