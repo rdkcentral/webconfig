@@ -70,10 +70,8 @@ func (c *LoopbackClient) Do(req *http.Request) (*http.Response, error) {
 
 	// Create a new http.Response
 	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header: http.Header{
-			"Content-Type": []string{"application/json"},
-		},
+		StatusCode:    http.StatusOK,
+		Header:        rw.Header(),
 		Body:          reader,           // Set the response body
 		ContentLength: int64(len(body)), // Set the content length
 	}
