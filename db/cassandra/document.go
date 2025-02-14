@@ -163,7 +163,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columnMap["expiry"] = utime
 	}
 	stmt = fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
-	// fmt.Printf("rdkw.SetSubDocument(): updatedTime = %v\n", columnMap["updated_time"])
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
