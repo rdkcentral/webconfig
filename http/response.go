@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 const (
@@ -172,23 +173,16 @@ func addMoracideTagsAsResponseHeaders(w http.ResponseWriter) {
 	if !ok {
 		return
 	}
-
-	reqMoracideTags := xw.ReqMoracideTags()
-	respMoracideTags := xw.RespMoracideTags()
-
-	moracideTags := make(map[string]string)
-	for key, val := range reqMoracideTags {
-		xw.LogDebug(nil, "request", fmt.Sprintf("Adding moracide tag from req %s = %s to response", key, val))
-		moracideTags[key] = val
+	fields := xw.Audit()
+	if fields == nil {
+		return
 	}
-	for key, val := range respMoracideTags {
-		if val == "true" {
-			xw.LogDebug(nil, "request", fmt.Sprintf("Adding moracide tag from resp %s = %s to response", key, val))
-			moracideTags[key] = val
-		}
+
+	moracide := util.FieldsGetString(fields, "resp_moracide_tag")
+	if len(moracide) == 0 {
+		moracide = util.FieldsGetString(fields, "req_moracide_tag")
 	}
-	xw.LogDebug(nil, "request", fmt.Sprintf("moracideTags = %+v", moracideTags))
-	for key, val := range moracideTags {
-		w.Header().Set(key, val)
+	if len(moracide) > 0 {
+		w.Header().Set(common.HeaderMoracide, moracide)
 	}
 }

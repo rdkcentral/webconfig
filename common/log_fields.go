@@ -28,8 +28,6 @@ var (
 		"moneytrace",
 		"token",
 		"xpc_trace",
-		"req_moracide_tags",
-		"resp_moracide_tags",
 		"rdoc",
 	}
 	coreFields = []string{

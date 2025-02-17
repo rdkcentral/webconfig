@@ -114,6 +114,7 @@ const (
 	HeaderUpstreamResponse           = "X-Upstream-Response"
 	HeaderMoneytrace                 = "X-Moneytrace"
 	HeaderWebconfigTransactionId     = "X-Webconfig-Transaction-Id"
+	HeaderMoracide                   = "X-Cl-Experiment"
 )
 
 const (

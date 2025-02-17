@@ -771,21 +771,21 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	headerMap := util.HeaderToMap(header)
 	fields := log.Fields{
-		"path":              r.URL.String(),
-		"method":            r.Method,
-		"audit_id":          auditId,
-		"remote_ip":         remoteIp,
-		"host_name":         host,
-		"header":            headerMap,
-		"logger":            "request",
-		"trace_id":          traceId,
-		"app_name":          s.AppName(),
-		"traceparent":       xpcTrace.ReqTraceparent,
-		"tracestate":        xpcTrace.ReqTracestate,
-		"out_traceparent":   xpcTrace.OutTraceparent,
-		"out_tracestate":    xpcTrace.OutTracestate,
-		"req_moracide_tags": xpcTrace.ReqMoracideTags,
-		"xpc_trace":         xpcTrace,
+		"path":             r.URL.String(),
+		"method":           r.Method,
+		"audit_id":         auditId,
+		"remote_ip":        remoteIp,
+		"host_name":        host,
+		"header":           headerMap,
+		"logger":           "request",
+		"trace_id":         traceId,
+		"app_name":         s.AppName(),
+		"traceparent":      xpcTrace.ReqTraceparent,
+		"tracestate":       xpcTrace.ReqTracestate,
+		"out_traceparent":  xpcTrace.OutTraceparent,
+		"out_tracestate":   xpcTrace.OutTracestate,
+		"req_moracide_tag": xpcTrace.ReqMoracideTag,
+		"xpc_trace":        xpcTrace,
 	}
 
 	userAgent := r.UserAgent()
