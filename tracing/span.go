@@ -66,7 +66,7 @@ type XpcTrace struct {
 // NewXpcTrace extracts traceparent, tracestate, moracideTags from otel spans or reqs
 func NewXpcTrace(xpcTracer *XpcTracer, r *http.Request) *XpcTrace {
 	var xpcTrace XpcTrace
-	extractParamsFromReq(r, &xpcTrace, xpcTracer.MoracideTagPrefix())
+	extractParamsFromReq(r, &xpcTrace, xpcTracer.AppName())
 
 	if xpcTracer.OtelEnabled {
 		otelExtractParamsFromSpan(r.Context(), &xpcTrace)
@@ -114,11 +114,18 @@ func SetSpanMoracideTags(fields log.Fields, moracideTagPrefix string) {
 	}
 }
 
-func extractParamsFromReq(r *http.Request, xpcTrace *XpcTrace, moracideTagPrefix string) {
+func extractParamsFromReq(r *http.Request, xpcTrace *XpcTrace, serviceName string) {
 	xpcTrace.ReqTraceparent = r.Header.Get(common.HeaderTraceparent)
 	xpcTrace.ReqTracestate = r.Header.Get(common.HeaderTracestate)
 	xpcTrace.OutTraceparent = xpcTrace.ReqTraceparent
 	xpcTrace.OutTracestate = xpcTrace.ReqTracestate
 	xpcTrace.ReqUserAgent = r.Header.Get(UserAgentHeader)
 	xpcTrace.ReqMoracideTag = r.Header.Get(common.HeaderMoracide)
+	if ss := r.Header.Get(common.HeaderCanary); ss == "true" {
+		if len(xpcTrace.ReqMoracideTag) > 0 {
+			xpcTrace.ReqMoracideTag += "," + serviceName
+		} else {
+			xpcTrace.ReqMoracideTag = serviceName
+		}
+	}
 }
