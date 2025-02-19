@@ -109,10 +109,8 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				var rherr common.RemoteHttpError
 				if errors.As(err, &rherr) {
-					if rherr.StatusCode == http.StatusNotFound {
-						Error(w, http.StatusNotFound, nil)
-						return
-					}
+					Error(w, rherr.StatusCode, common.NewError(err))
+					return
 				}
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 				return
