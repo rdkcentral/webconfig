@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -216,5 +216,16 @@ func HeaderToMap(header http.Header) map[string]string {
 		m[k] = v[0]
 	}
 	return m
+}
 
+func FieldsGetString(fields log.Fields, keyName string, args ...string) string {
+	var ret string
+	if len(args) == 1 {
+		ret = args[0]
+	}
+
+	if itf, ok := fields[keyName]; ok {
+		ret = itf.(string)
+	}
+	return ret
 }

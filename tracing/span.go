@@ -19,9 +19,9 @@ package tracing
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -33,11 +33,7 @@ import (
 // Ideal place to store it is ofc, xw
 // But because of legacy reasons, xw is not always available in the API flow
 type XpcTrace struct {
-	// This is a bit of overengineering, but multiple tags are possible
-	// e.g. X-Cl-Experiment-1, X-Cl-Experiment-xapproxy, X-Cl-Experiement-webconfig-25.1.1.1...
-	// For every key found in either req or resp, an explicit value of true/false will be set as an otel attribute
-	// or an otel span attribute
-	ReqMoracideTags map[string]string // These are request headers prefixed with MoracideTagPrefix
+	ReqMoracideTag string
 	// The response moracide tags are stored in xw.audit
 
 	// traceparent, tracestate can be set as req headers, may be extracted from otel spans
@@ -70,9 +66,7 @@ type XpcTrace struct {
 // NewXpcTrace extracts traceparent, tracestate, moracideTags from otel spans or reqs
 func NewXpcTrace(xpcTracer *XpcTracer, r *http.Request) *XpcTrace {
 	var xpcTrace XpcTrace
-	xpcTrace.ReqMoracideTags = make(map[string]string)
-
-	extractParamsFromReq(r, &xpcTrace, xpcTracer.MoracideTagPrefix())
+	extractParamsFromReq(r, &xpcTrace, xpcTracer.AppName())
 
 	if xpcTracer.OtelEnabled {
 		otelExtractParamsFromSpan(r.Context(), &xpcTrace)
@@ -110,58 +104,28 @@ func SetSpanMoracideTags(fields log.Fields, moracideTagPrefix string) {
 		return
 	}
 
-	moracideTags := make(map[string]string)
-
-	if itf, ok := fields["req_moracide_tags"]; ok {
-		reqMoracideTags := itf.(map[string]string)
-		for key, val := range reqMoracideTags {
-			moracideTags[key] = val
-		}
+	moracide := util.FieldsGetString(fields, "resp_moracide_tag")
+	if len(moracide) == 0 {
+		moracide = util.FieldsGetString(fields, "req_moracide_tag")
 	}
 
-	if itf, ok := fields["resp_moracide_tags"]; ok {
-		respMoracideTags := itf.(map[string]string)
-		for key, val := range respMoracideTags {
-			if val == "true" {
-				moracideTags[key] = val
-			}
-		}
-	}
-
-	if xpcTrace.otelSpan != nil {
-		for key, val := range moracideTags {
-			xpcTrace.otelSpan.SetAttributes(attribute.String(key, val))
-			log.Debugf("added otel span moracide tag key = %s, value = %s", key, val)
-		}
+	if xpcTrace.otelSpan != nil && len(moracide) > 0 {
+		xpcTrace.otelSpan.SetAttributes(attribute.String(common.HeaderMoracide, moracide))
 	}
 }
 
-func extractParamsFromReq(r *http.Request, xpcTrace *XpcTrace, moracideTagPrefix string) {
+func extractParamsFromReq(r *http.Request, xpcTrace *XpcTrace, serviceName string) {
 	xpcTrace.ReqTraceparent = r.Header.Get(common.HeaderTraceparent)
 	xpcTrace.ReqTracestate = r.Header.Get(common.HeaderTracestate)
 	xpcTrace.OutTraceparent = xpcTrace.ReqTraceparent
 	xpcTrace.OutTracestate = xpcTrace.ReqTracestate
-	log.Debugf("Tracing: input traceparent : %s, tracestate : %s", xpcTrace.ReqTraceparent, xpcTrace.ReqTracestate)
-
 	xpcTrace.ReqUserAgent = r.Header.Get(UserAgentHeader)
-
-	// In future, -H 'X-Cl-Experiment-1', -H 'X-Cl-Experiment-oswebconfig'... OR 'X-Cl-Experiment-xapproxy_25.1.1.1' are all possible
-	// So walk through all headers and collect any header that starts with this prefix
-	moracideTagPrefix = strings.ToLower(moracideTagPrefix)
-	for headerKey, headerVals := range r.Header {
-		if strings.HasPrefix(strings.ToLower(headerKey), moracideTagPrefix) {
-			if len(headerVals) > 1 {
-				log.Debugf("Tracing: moracide tag key = %s, has multiple values = %+v", headerKey, headerVals)
-			}
-			val := "false"
-			for _, v := range headerVals {
-				if v == "true" {
-					val = v
-					break
-				}
-			}
-			xpcTrace.ReqMoracideTags[headerKey] = val
-			log.Debugf("Tracing: found moracide tag key = %s, val = %s, all vals = %+v", headerKey, val, headerVals)
+	xpcTrace.ReqMoracideTag = r.Header.Get(common.HeaderMoracide)
+	if ss := r.Header.Get(common.HeaderCanary); ss == "true" {
+		if len(xpcTrace.ReqMoracideTag) > 0 {
+			xpcTrace.ReqMoracideTag += "," + serviceName
+		} else {
+			xpcTrace.ReqMoracideTag = serviceName
 		}
 	}
 }

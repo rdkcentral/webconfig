@@ -428,30 +428,18 @@ func (c *HttpClient) addMoracideTags(header http.Header, fields log.Fields) {
 		}
 	}
 
-	itf, ok := fields["req_moracide_tags"]
-	if !ok {
-		return
-	}
-	moracideTagMap := itf.(map[string]string)
-
-	for key, val := range moracideTagMap {
-		log.WithFields(fields).Debugf("Adding moracide tag %s = %s to outgoing req", key, val)
-		header.Set(key, val)
+	moracide := util.FieldsGetString(fields, "req_moracide_tag")
+	if len(moracide) > 0 {
+		header.Set(common.HeaderMoracide, moracide)
 	}
 }
 
 func (c *HttpClient) addMoracideTagsFromResponse(header http.Header, fields log.Fields) bool {
 	var respMoracideTagsFound bool
-	m := make(map[string]string)
-	for k := range header {
-		if strings.HasPrefix(strings.ToLower(k), c.moracideTagPrefix) {
-			respMoracideTagsFound = true
-			val := header.Get(k)
-			m[k] = val
-		}
-	}
-	if len(m) > 0 {
-		fields["resp_moracide_tags"] = m
+	moracide := header.Get(common.HeaderMoracide)
+	if len(moracide) > 0 {
+		fields["resp_moracide_tag"] = moracide
+		respMoracideTagsFound = true
 	}
 	return respMoracideTagsFound
 }

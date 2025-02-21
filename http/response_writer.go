@@ -165,19 +165,3 @@ func (w *XResponseWriter) SetPartnerId(partnerId string) {
 	w.partnerId = partnerId
 	w.audit["partner"] = partnerId
 }
-
-func (w *XResponseWriter) ReqMoracideTags() map[string]string {
-	itf, ok := w.audit["req_moracide_tags"]
-	if !ok {
-		return nil
-	}
-	return itf.(map[string]string)
-}
-
-func (w *XResponseWriter) RespMoracideTags() map[string]string {
-	itf, ok := w.audit["resp_moracide_tags"]
-	if !ok {
-		return nil
-	}
-	return itf.(map[string]string)
-}
