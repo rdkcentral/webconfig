@@ -115,6 +115,7 @@ const (
 	HeaderMoneytrace                 = "X-Moneytrace"
 	HeaderWebconfigTransactionId     = "X-Webconfig-Transaction-Id"
 	HeaderMoracide                   = "X-Cl-Experiment"
+	HeaderCanary                     = "X-Cl-Canary"
 )
 
 const (
