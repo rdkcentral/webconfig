@@ -75,12 +75,15 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	var oldState int
 	var fields log.Fields
 	var labels prometheus.Labels
+
 	for _, varg := range vargs {
 		switch ty := varg.(type) {
 		case int:
 			oldState = ty
 		case log.Fields:
 			fields = ty
+		case prometheus.Labels:
+			labels = ty
 		}
 	}
 	var newStatePtr *int
@@ -176,6 +179,8 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		if newStatePtr != nil {
 			if len(labels) == 0 {
 				labels = common.CreatePrometheusLabels(fields, groupId)
+			} else {
+				labels["feature"] = groupId
 			}
 			c.UpdateStateMetrics(oldState, *newStatePtr, labels, cpeMac, fields)
 		}
