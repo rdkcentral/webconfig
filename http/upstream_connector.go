@@ -86,9 +86,15 @@ func (c *UpstreamConnector) PostUpstream(mac string, header http.Header, bbytes 
 		}
 	}
 
-	_, rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
+	status, rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)
+	}
+	if status == http.StatusNotFound {
+		rherr := common.RemoteHttpError{
+			StatusCode: status,
+		}
+		return rbytes, header, owcommon.NewError(rherr)
 	}
 	return rbytes, header, nil
 }
