@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	owcommon "github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
@@ -42,14 +43,23 @@ type UpstreamConnector struct {
 	profileUrlTemplate  string
 }
 
-func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config) *UpstreamConnector {
+func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config, router *mux.Router) *UpstreamConnector {
 	serviceName := "upstream"
 	host := conf.GetString("webconfig.upstream.host", defaultUpstreamHost)
 	upstreamUrlTemplate := conf.GetString("webconfig.upstream.url_template", defaultUpstreamUrlTemplate)
 	profileUrlTemplate := conf.GetString("webconfig.upstream.profile_url_template", defaultProfileUrlTemplate)
 
+	// 33333333
+	var apiClient APIClient
+	if host == defaultUpstreamHost {
+		apiClient = NewInternalHttpClient(router)
+	} else {
+		apiClient = NewHttpClient(conf, serviceName, tlsConfig)
+	}
+	// 44444444
+
 	return &UpstreamConnector{
-		APIClient:           NewHttpClient(conf, serviceName, tlsConfig),
+		APIClient:           apiClient,
 		host:                host,
 		serviceName:         serviceName,
 		upstreamUrlTemplate: upstreamUrlTemplate,

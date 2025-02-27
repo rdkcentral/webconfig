@@ -97,6 +97,7 @@ type WebconfigServer struct {
 	sarama.AsyncProducer
 	*tracing.XpcTracer
 	tlsConfig                     *tls.Config
+	router                        *mux.Router
 	notLoggedHeaders              []string
 	metricsEnabled                bool
 	factoryResetEnabled           bool
@@ -294,7 +295,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 
 	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
 
-	ws := &WebconfigServer{
+	ws := WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
@@ -307,7 +308,6 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 		WebpaConnector:                NewWebpaConnector(conf, tlsConfig),
 		XconfConnector:                NewXconfConnector(conf, tlsConfig),
 		MqttConnector:                 NewMqttConnector(conf, tlsConfig),
-		UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
 		AsyncProducer:                 kafkaProducer,
 		tlsConfig:                     tlsConfig,
 		notLoggedHeaders:              notLoggedHeaders,
@@ -331,9 +331,14 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 		validSubdocIdMap:              validSubdocIdMap,
 		XpcTracer:                     xpcTracer,
 		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
+		// UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
 	}
 
-	return ws
+	router := ws.getRouter(testOnly)
+	ws.router = router
+	ws.UpstreamConnector = NewUpstreamConnector(conf, tlsConfig, router)
+
+	return &ws
 }
 
 func (s *WebconfigServer) Stop() {

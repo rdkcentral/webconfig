@@ -71,7 +71,7 @@ func (s *WebconfigServer) AddBaseRoutes(testOnly bool, router *mux.Router) {
 	sub3.HandleFunc("", s.GetSupportedGroupsHandler).Methods("GET")
 }
 
-func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
+func (s *WebconfigServer) getRouter(testOnly bool) *mux.Router {
 	router := mux.NewRouter()
 	s.AddBaseRoutes(testOnly, router)
 
@@ -142,4 +142,8 @@ func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
 	sub5.HandleFunc("", s.DeleteRefSubDocumentHandler).Methods("DELETE")
 
 	return router
+}
+
+func (s *WebconfigServer) GetRouter(testOnly bool) *mux.Router {
+	return s.router
 }
