@@ -343,6 +343,7 @@ func (s *WebconfigServer) Stop() {
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		xw := NewXResponseWriter(w)
+		fields := xw.Audit()
 		metricsAgent := r.Header.Get(common.HeaderMetricsAgent)
 		if len(metricsAgent) > 0 {
 			xw.SetAuditData("metrics_agent", metricsAgent)
@@ -355,6 +356,7 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 				token := elements[1]
 				if len(token) > 0 {
 					xw.SetToken(token)
+					fields["token"] = token
 				}
 			}
 		}
@@ -475,7 +477,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 
 func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("TestingCpeMiddleware()\n")
+		// fmt.Printf("TestingCpeMiddleware()\n")
 		xw := NewXResponseWriter(w)
 
 		// read the token
@@ -803,6 +805,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	if len(xmTraceId) > 0 {
 		fields["xmoney_trace_id"] = xmTraceId
+	}
+	if len(token) > 0 {
+		fields["token"] = token
 	}
 
 	// add cpemac or csid in loggings
