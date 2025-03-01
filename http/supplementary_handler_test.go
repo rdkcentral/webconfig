@@ -1131,7 +1131,7 @@ func TestSupplementaryUpstreamProfiles(t *testing.T) {
 }
 
 func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.T) {
-	tsc := sc.AddConfig("webconfig.upstream_profiles_enabled = true")
+	tsc := sc.Copy("webconfig.upstream_profiles_enabled = true")
 	server := NewWebconfigServer(tsc, true)
 	router := server.GetRouter(true)
 
@@ -1188,7 +1188,7 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 }
 
 func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) {
-	tsc := sc.AddConfig(
+	tsc := sc.Copy(
 		"webconfig.upstream_profiles_enabled=true",
 		"webconfig.default_empty_profile_enabled=true",
 	)
@@ -1248,7 +1248,7 @@ func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) 
 }
 
 func TestSupplementaryDefaultEmptyProfile(t *testing.T) {
-	tsc := sc.AddConfig("webconfig.default_empty_profile_enabled=true")
+	tsc := sc.Copy("webconfig.default_empty_profile_enabled=true")
 	server := NewWebconfigServer(tsc, true)
 	router := server.GetRouter(true)
 

@@ -46,14 +46,14 @@ func TestGetTestServerConfig(t *testing.T) {
 }
 
 func TestServerConfigAddConfig(t *testing.T) {
-	sc, err := GetTestServerConfig("../config/sample_webconfig.conf")
+	tsc, err := GetTestServerConfig("../config/sample_webconfig.conf")
 	assert.NilError(t, err)
 
-	b1 := sc.GetBoolean("webconfig.upstream_profiles_enabled")
+	b1 := tsc.GetBoolean("webconfig.upstream_profiles_enabled")
 	assert.Assert(t, !b1)
-	b2 := sc.GetBoolean("webconfig.supplementary_appending_enabled")
+	b2 := tsc.GetBoolean("webconfig.supplementary_appending_enabled")
 	assert.Assert(t, b2)
-	s1 := sc.GetString("webconfig.database.active_driver")
+	s1 := tsc.GetString("webconfig.database.active_driver")
 	assert.Equal(t, s1, "cassandra")
 
 	items := []string{
@@ -61,7 +61,7 @@ func TestServerConfigAddConfig(t *testing.T) {
 		"webconfig.supplementary_appending_enabled = false",
 	}
 
-	tsc := sc.AddConfig(items...)
+	tsc.AddConfig(items...)
 	b1 = tsc.GetBoolean("webconfig.upstream_profiles_enabled")
 	assert.Assert(t, b1)
 	b2 = tsc.GetBoolean("webconfig.supplementary_appending_enabled")

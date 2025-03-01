@@ -56,7 +56,20 @@ func (c *ServerConfig) ConfigBytes() []byte {
 	return c.configBytes
 }
 
-func (c *ServerConfig) AddConfig(args ...string) *ServerConfig {
+// NOTE that "bad" entries (keys without values, ill-formatted) can still be added
+// hence no parsing error
+func (c *ServerConfig) AddConfig(args ...string) {
+	lines := []string{
+		string(c.configBytes),
+	}
+	lines = append(lines, args...)
+	ss := strings.Join(lines, "\n")
+	c.Config = configuration.ParseString(ss)
+	c.configBytes = []byte(ss)
+}
+
+// copy the config and add extra items
+func (c *ServerConfig) Copy(args ...string) *ServerConfig {
 	lines := []string{
 		string(c.configBytes),
 	}
@@ -123,3 +136,5 @@ func GetTestServerConfig(args ...string) (*ServerConfig, error) {
 	}
 	return testServerConfig, nil
 }
+
+// ##############

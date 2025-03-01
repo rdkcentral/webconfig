@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -45,7 +45,6 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	_ = GetTestDatabaseClient(sc)
 	log.SetOutput(io.Discard)
 	returnCode := m.Run()
 	os.Exit(returnCode)
