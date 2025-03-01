@@ -1131,15 +1131,8 @@ func TestSupplementaryUpstreamProfiles(t *testing.T) {
 }
 
 func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.T) {
-	log.SetOutput(io.Discard)
-
-	conf := sc.Config
-	ss := "webconfig.upstream_profiles_enabled = true"
-	tconf := conf.AddConfig(ss, conf)
-	tsc := *sc
-	tsc.Config = tconf
-
-	server := NewWebconfigServer(&tsc, true)
+	tsc := sc.AddConfig("webconfig.upstream_profiles_enabled = true")
+	server := NewWebconfigServer(tsc, true)
 	router := server.GetRouter(true)
 
 	// ==== step 1 setup mock xconf server ====
@@ -1195,21 +1188,11 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 }
 
 func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) {
-	log.SetOutput(io.Discard)
-
-	conf := sc.Config
-	host := conf.GetString("webconfig.upstream.host", "not found")
-	fmt.Printf("host = %v\n", host)
-
-	ss := "webconfig.upstream_profiles_enabled=true\nwebconfig.default_empty_profile_enabled=true"
-	tconf := conf.AddConfig(ss, conf)
-	tsc := *sc
-	tsc.Config = tconf
-
-	host = tsc.Config.GetString("webconfig.upstream.host", "not found")
-	fmt.Printf("H02 host = %v\n", host)
-
-	server := NewWebconfigServer(&tsc, true)
+	tsc := sc.AddConfig(
+		"webconfig.upstream_profiles_enabled=true",
+		"webconfig.default_empty_profile_enabled=true",
+	)
+	server := NewWebconfigServer(tsc, true)
 	router := server.GetRouter(true)
 
 	// ==== step 1 setup mock xconf server ====
@@ -1265,15 +1248,8 @@ func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) 
 }
 
 func TestSupplementaryDefaultEmptyProfile(t *testing.T) {
-	log.SetOutput(io.Discard)
-
-	conf := sc.Config
-	ss := "webconfig.default_empty_profile_enabled=true"
-	conf = conf.AddConfig(ss, nil)
-	tsc := *sc
-	tsc.Config = conf
-
-	server := NewWebconfigServer(&tsc, true)
+	tsc := sc.AddConfig("webconfig.default_empty_profile_enabled=true")
+	server := NewWebconfigServer(tsc, true)
 	router := server.GetRouter(true)
 
 	// ==== step 1 setup mock xconf server ====
