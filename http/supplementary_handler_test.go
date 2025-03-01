@@ -1129,3 +1129,201 @@ func TestSupplementaryUpstreamProfiles(t *testing.T) {
 	assert.Assert(t, ok)
 	assert.Equal(t, profile3["name"].(string), "subname2")
 }
+
+func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	conf := sc.Config
+	ss := "webconfig.upstream_profiles_enabled = true"
+	tconf := conf.AddConfig(ss, conf)
+	tsc := *sc
+	tsc.Config = tconf
+
+	server := NewWebconfigServer(&tsc, true)
+	router := server.GetRouter(true)
+
+	// ==== step 1 setup mock xconf server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockServer.Close()
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+
+	// ==== step 2 set up upstream mock server ====
+	mockUpstreamServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockUpstreamServer.Close()
+	server.SetUpstreamHost(mockUpstreamServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, mockUpstreamServer.URL, targetUpstreamHost)
+
+	// ==== step 3 verify /config expect 200 with 1 mpart ====
+	cpeMac := util.GenerateRandomCpeMac()
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	modelName := "TG1682G"
+	partnerID := "comcast"
+	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
+
+	// set up root_document table
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	err = server.SetRootDocument(cpeMac, rdoc)
+	assert.NilError(t, err)
+	getRdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, rdoc.Compare(getRdoc) == 0)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, modelName)
+	req.Header.Set(common.HeaderPartnerID, partnerID)
+	req.Header.Set(common.HeaderAccountID, "1234567890")
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
+
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	t.Logf("%s\n", rbytes)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+}
+
+func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	conf := sc.Config
+	host := conf.GetString("webconfig.upstream.host", "not found")
+	fmt.Printf("host = %v\n", host)
+
+	ss := "webconfig.upstream_profiles_enabled=true\nwebconfig.default_empty_profile_enabled=true"
+	tconf := conf.AddConfig(ss, conf)
+	tsc := *sc
+	tsc.Config = tconf
+
+	host = tsc.Config.GetString("webconfig.upstream.host", "not found")
+	fmt.Printf("H02 host = %v\n", host)
+
+	server := NewWebconfigServer(&tsc, true)
+	router := server.GetRouter(true)
+
+	// ==== step 1 setup mock xconf server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockServer.Close()
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+
+	// ==== step 2 set up upstream mock server ====
+	mockUpstreamServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockUpstreamServer.Close()
+	server.SetUpstreamHost(mockUpstreamServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, mockUpstreamServer.URL, targetUpstreamHost)
+
+	// ==== step 3 verify /config expect 200 with 1 mpart ====
+	cpeMac := util.GenerateRandomCpeMac()
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	modelName := "TG1682G"
+	partnerID := "comcast"
+	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
+
+	// set up root_document table
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	err = server.SetRootDocument(cpeMac, rdoc)
+	assert.NilError(t, err)
+	getRdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, rdoc.Compare(getRdoc) == 0)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, modelName)
+	req.Header.Set(common.HeaderPartnerID, partnerID)
+	req.Header.Set(common.HeaderAccountID, "1234567890")
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
+
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	_ = rbytes
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}
+
+func TestSupplementaryDefaultEmptyProfile(t *testing.T) {
+	log.SetOutput(io.Discard)
+
+	conf := sc.Config
+	ss := "webconfig.default_empty_profile_enabled=true"
+	conf = conf.AddConfig(ss, nil)
+	tsc := *sc
+	tsc.Config = conf
+
+	server := NewWebconfigServer(&tsc, true)
+	router := server.GetRouter(true)
+
+	// ==== step 1 setup mock xconf server ====
+	mockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockServer.Close()
+	server.XconfConnector.SetXconfHost(mockServer.URL)
+
+	// ==== step 2 set up upstream mock server ====
+	mockUpstreamServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer mockUpstreamServer.Close()
+	server.SetUpstreamHost(mockUpstreamServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, mockUpstreamServer.URL, targetUpstreamHost)
+
+	// ==== step 3 verify /config expect 200 with 1 mpart ====
+	cpeMac := util.GenerateRandomCpeMac()
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	modelName := "TG1682G"
+	partnerID := "comcast"
+	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
+
+	// set up root_document table
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	err = server.SetRootDocument(cpeMac, rdoc)
+	assert.NilError(t, err)
+	getRdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, rdoc.Compare(getRdoc) == 0)
+
+	// add headers
+	req.Header.Set(common.HeaderSupplementaryService, "telemetry")
+	req.Header.Set(common.HeaderProfileVersion, "2.0")
+	req.Header.Set(common.HeaderModelName, modelName)
+	req.Header.Set(common.HeaderPartnerID, partnerID)
+	req.Header.Set(common.HeaderAccountID, "1234567890")
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
+
+	res := ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	_ = rbytes
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}

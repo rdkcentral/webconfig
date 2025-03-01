@@ -49,14 +49,12 @@ func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config, rou
 	upstreamUrlTemplate := conf.GetString("webconfig.upstream.url_template", defaultUpstreamUrlTemplate)
 	profileUrlTemplate := conf.GetString("webconfig.upstream.profile_url_template", defaultProfileUrlTemplate)
 
-	// 33333333
 	var apiClient APIClient
 	if host == defaultUpstreamHost {
 		apiClient = NewInternalHttpClient(router)
 	} else {
 		apiClient = NewHttpClient(conf, serviceName, tlsConfig)
 	}
-	// 44444444
 
 	return &UpstreamConnector{
 		APIClient:           apiClient,

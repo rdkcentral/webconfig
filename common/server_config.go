@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-akka/configuration"
 )
@@ -53,6 +54,19 @@ func NewServerConfig(configFile string) (*ServerConfig, error) {
 
 func (c *ServerConfig) ConfigBytes() []byte {
 	return c.configBytes
+}
+
+func (c *ServerConfig) AddConfig(args ...string) *ServerConfig {
+	lines := []string{
+		string(c.configBytes),
+	}
+	lines = append(lines, args...)
+	ss := strings.Join(lines, "\n")
+	conf := configuration.ParseString(ss)
+	return &ServerConfig{
+		Config:      conf,
+		configBytes: []byte(ss),
+	}
 }
 
 func (c *ServerConfig) KafkaClusterNames() []string {

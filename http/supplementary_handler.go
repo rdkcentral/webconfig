@@ -88,6 +88,8 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 			if rherr.StatusCode == http.StatusNotFound {
 				if s.UpstreamProfilesEnabled() {
 					xconfNotFound = true
+				} else if s.DefaultEmptyProfileEnabled() {
+					xconfNotFound = true
 				} else {
 					Error(w, rherr.StatusCode, rherr)
 					return
@@ -103,10 +105,10 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		}
 	}
 
-	var profileBytes []byte
+	var profileBytes, extraProfileBytes []byte
 	if s.UpstreamProfilesEnabled() && rootdoc != nil && len(rootdoc.QueryParams) > 0 {
 		// Get profiles from the second source
-		extraProfileBytes, _, err := s.GetUpstreamProfiles(mac, queryParams, r.Header, fields)
+		extraProfileBytes, _, err = s.GetUpstreamProfiles(mac, queryParams, r.Header, fields)
 		if err != nil {
 			exitNow := true
 			var rherr common.RemoteHttpError
@@ -139,6 +141,16 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		profileBytes = baseProfileBytes
 	}
 
+	if xconfNotFound && extraProfileBytes == nil && !s.DefaultEmptyProfileEnabled() {
+		Error(w, http.StatusNotFound, nil)
+		return
+	}
+
+	if len(profileBytes) == 0 && s.DefaultEmptyProfileEnabled() {
+		profileBytes = []byte(notFoundProfileText)
+	}
+
+	fmt.Printf("A01 %s\n", profileBytes)
 	mpart, err := util.TelemetryBytesToMultipart(profileBytes)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, common.NewError(err))
@@ -147,6 +159,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 	mparts := []common.Multipart{
 		mpart,
 	}
+	fields["telemetry_version"] = mpart.Version
 
 	respBytes, err := common.WriteMultipartBytes(mparts)
 	if err != nil {

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -43,4 +43,29 @@ func TestGetTestServerConfig(t *testing.T) {
 		brokers := sc.GetString("webconfig.kafka.clusters." + ckey + ".brokers")
 		assert.Equal(t, brokers, expectedClusterBrokers[i])
 	}
+}
+
+func TestServerConfigAddConfig(t *testing.T) {
+	sc, err := GetTestServerConfig("../config/sample_webconfig.conf")
+	assert.NilError(t, err)
+
+	b1 := sc.GetBoolean("webconfig.upstream_profiles_enabled")
+	assert.Assert(t, !b1)
+	b2 := sc.GetBoolean("webconfig.supplementary_appending_enabled")
+	assert.Assert(t, b2)
+	s1 := sc.GetString("webconfig.database.active_driver")
+	assert.Equal(t, s1, "cassandra")
+
+	items := []string{
+		"webconfig.upstream_profiles_enabled = true",
+		"webconfig.supplementary_appending_enabled = false",
+	}
+
+	tsc := sc.AddConfig(items...)
+	b1 = tsc.GetBoolean("webconfig.upstream_profiles_enabled")
+	assert.Assert(t, b1)
+	b2 = tsc.GetBoolean("webconfig.supplementary_appending_enabled")
+	assert.Assert(t, !b2)
+	s1 = tsc.GetString("webconfig.database.active_driver")
+	assert.Equal(t, s1, "cassandra")
 }
