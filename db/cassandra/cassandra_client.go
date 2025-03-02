@@ -147,7 +147,7 @@ func (c *CassandraClient) SetMetrics(m *common.AppMetrics) {
 }
 
 func (c *CassandraClient) IsMetricsEnabled() bool {
-	fmt.Printf("is metrics enabled = %v\n", c.AppMetrics != nil)
+	// fmt.Printf("is metrics enabled = %v\n", c.AppMetrics != nil)
 	return c.AppMetrics != nil
 }
 
