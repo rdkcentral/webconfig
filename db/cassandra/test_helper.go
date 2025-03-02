@@ -26,7 +26,6 @@ import (
 
 var (
 	tsession *gocql.Session
-	tcodec   *security.AesCodec
 )
 
 func GetTestCassandraSession(conf *configuration.Config, testOnly bool) (*gocql.Session, error) {
@@ -46,7 +45,9 @@ func GetTestCassandraSession(conf *configuration.Config, testOnly bool) (*gocql.
 	if err != nil {
 		return nil, common.NewError(err)
 	}
-	return tdbclient.Session, nil
+	tsession = tdbclient.Session
+
+	return tsession, nil
 }
 
 func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
