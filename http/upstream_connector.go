@@ -131,3 +131,8 @@ func (c *UpstreamConnector) GetUpstreamProfiles(mac, queryParams string, header 
 	}
 	return rbytes, header, nil
 }
+
+func (c *UpstreamConnector) SetLoopback(router *mux.Router) {
+	c.APIClient = NewInternalHttpClient(router)
+	c.host = ""
+}
