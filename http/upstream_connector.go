@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	defaultUpstreamHost        = "http://localhost:12348"
+	defaultUpstreamHost        = "loopback"
 	defaultUpstreamUrlTemplate = "%s/%s"
 	defaultProfileUrlTemplate  = "%s/%s/%s"
 )
@@ -52,6 +52,7 @@ func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config, rou
 	var apiClient APIClient
 	if host == defaultUpstreamHost {
 		apiClient = NewInternalHttpClient(router)
+		host = ""
 	} else {
 		apiClient = NewHttpClient(conf, serviceName, tlsConfig)
 	}
