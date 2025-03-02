@@ -25,8 +25,13 @@ import (
 )
 
 func TestCassandraClient(t *testing.T) {
-	configFile := "../../config/sample_webconfig.conf"
-	sc, err := common.GetTestServerConfig(configFile)
+	// configFile := "../../config/sample_webconfig.conf"
+	// sc, err := common.GetTestServerConfig(configFile)
+
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	// tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	// assert.NilError(t, err)
 
 	assert.NilError(t, err)
 	dbclient, err := GetTestCassandraClient(sc.Config, true)

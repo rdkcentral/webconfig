@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -78,4 +78,16 @@ func TestNoKeyCodec(t *testing.T) {
 	decrypted, err := nokeyCodec.Decrypt(encrypted)
 	assert.NilError(t, err)
 	assert.Equal(t, srcText, decrypted)
+}
+
+func TestXpcKeyFuncs(t *testing.T) {
+	rkey := GenerateRandomKey()
+	assert.Assert(t, len(rkey) > 0)
+
+	// verify by checking if it is base64-decodable
+	bbytes, err := base64.StdEncoding.DecodeString(rkey)
+	assert.NilError(t, err)
+
+	// because we hard coded to use 16 bytes
+	assert.Equal(t, len(bbytes), 16)
 }
