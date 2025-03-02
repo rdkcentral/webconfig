@@ -27,12 +27,17 @@ import (
 )
 
 func TestRootDocumentOperations(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 	bitmap := 123
 	version := "foo"
 	rdoc := common.NewRootDocument(bitmap, "", "", "", "", version, "")
 
-	err := tdbclient.SetRootDocument(cpeMac, rdoc)
+	err = tdbclient.SetRootDocument(cpeMac, rdoc)
 	assert.NilError(t, err)
 
 	fetched, err := tdbclient.GetRootDocument(cpeMac)
@@ -42,10 +47,15 @@ func TestRootDocumentOperations(t *testing.T) {
 }
 
 func TestRootDocumentDb(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// verify starting empty
-	_, err := tdbclient.GetRootDocument(cpeMac)
+	_, err = tdbclient.GetRootDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 
 	// add version1 and bitmap1
@@ -120,10 +130,15 @@ func TestRootDocumentDb(t *testing.T) {
 }
 
 func TestRootDocumentUpdate(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// verify starting empty
-	_, err := tdbclient.GetRootDocument(cpeMac)
+	_, err = tdbclient.GetRootDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 
 	// ==== step 1 set a new rootdoc ====
@@ -172,6 +187,11 @@ func TestRootDocumentUpdate(t *testing.T) {
 }
 
 func TestRootDocumentLocked(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	bitmap := 123
@@ -185,7 +205,7 @@ func TestRootDocumentLocked(t *testing.T) {
 	epoch := int(time.Now().UnixMilli())
 	rootdoc.LockedTill = epoch + 1000
 
-	err := tdbclient.SetRootDocument(cpeMac, rootdoc)
+	err = tdbclient.SetRootDocument(cpeMac, rootdoc)
 	assert.NilError(t, err)
 
 	fetched, err := tdbclient.GetRootDocument(cpeMac)

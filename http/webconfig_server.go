@@ -207,9 +207,9 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 	var dbclient db.DatabaseClient
 	var tokenManager *security.TokenManager
 
-	fmt.Println("1111111111111111111")
-	fmt.Println(conf)
-	fmt.Println("2222222222222222222")
+	// fmt.Println("1111111111111111111")
+	// fmt.Println(conf)
+	// fmt.Println("2222222222222222222")
 
 	// setup up database client
 	if testOnly {

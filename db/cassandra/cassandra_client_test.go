@@ -29,31 +29,31 @@ func TestCassandraClient(t *testing.T) {
 	sc, err := common.GetTestServerConfig(configFile)
 
 	assert.NilError(t, err)
-	dbc, err := GetTestCassandraClient(sc.Config, true)
+	dbclient, err := GetTestCassandraClient(sc.Config, true)
 	assert.NilError(t, err)
-	assert.Assert(t, dbc != nil)
+	assert.Assert(t, dbclient != nil)
 
-	_ = tdbclient.LocalDc()
-	assert.Assert(t, tdbclient.Codec() != nil)
+	_ = dbclient.LocalDc()
+	assert.Assert(t, dbclient.Codec() != nil)
 
-	tgtSubdocIds := tdbclient.EncryptedSubdocIds()
+	tgtSubdocIds := dbclient.EncryptedSubdocIds()
 	assert.Assert(t, len(tgtSubdocIds) == 4)
 
 	// state correction flag
 	enabled := true
-	tdbclient.SetStateCorrectionEnabled(enabled)
-	assert.Equal(t, tdbclient.StateCorrectionEnabled(), enabled)
+	dbclient.SetStateCorrectionEnabled(enabled)
+	assert.Equal(t, dbclient.StateCorrectionEnabled(), enabled)
 	enabled = false
-	tdbclient.SetStateCorrectionEnabled(enabled)
-	assert.Equal(t, tdbclient.StateCorrectionEnabled(), enabled)
+	dbclient.SetStateCorrectionEnabled(enabled)
+	assert.Equal(t, dbclient.StateCorrectionEnabled(), enabled)
 
 	// lock root_document flag
 	enabled = true
-	tdbclient.SetLockRootDocumentEnabled(enabled)
-	assert.Equal(t, tdbclient.LockRootDocumentEnabled(), enabled)
+	dbclient.SetLockRootDocumentEnabled(enabled)
+	assert.Equal(t, dbclient.LockRootDocumentEnabled(), enabled)
 	enabled = false
-	tdbclient.SetLockRootDocumentEnabled(enabled)
-	assert.Equal(t, tdbclient.LockRootDocumentEnabled(), enabled)
+	dbclient.SetLockRootDocumentEnabled(enabled)
+	assert.Equal(t, dbclient.LockRootDocumentEnabled(), enabled)
 }
 
 func TestGetConfig(t *testing.T) {

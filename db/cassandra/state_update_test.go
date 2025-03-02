@@ -31,6 +31,11 @@ import (
 )
 
 func TestStateUpdate1(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// setup a doct
@@ -42,7 +47,7 @@ func TestStateUpdate1(t *testing.T) {
 
 	srcDoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
 	fields := make(log.Fields)
-	err := tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
+	err = tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
 	assert.NilError(t, err)
 
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
@@ -84,6 +89,11 @@ func TestStateUpdate1(t *testing.T) {
 }
 
 func TestStateUpdate2(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// setup a doct
@@ -95,7 +105,7 @@ func TestStateUpdate2(t *testing.T) {
 
 	srcDoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
 	fields := make(log.Fields)
-	err := tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
+	err = tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
 	assert.NilError(t, err)
 
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)

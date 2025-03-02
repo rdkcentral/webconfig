@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
@@ -22,25 +22,24 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
 func TestMain(m *testing.M) {
-	sc, err := common.GetTestServerConfig()
-	if err != nil {
-		panic(err)
-	}
+	// tsc, err := common.GetTestServerConfig()
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	tdbclient, err = GetTestCassandraClient(sc.Config, true)
-	if err != nil {
-		panic(err)
-	}
+	// tdbclient, err := GetTestCassandraClient(tsc.Config, true)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	log.SetOutput(io.Discard)
 
 	// init other shared objects
-	tcodec = tdbclient.Codec()
+	// tcodec = tdbclient.Codec()
 
 	returnCode := m.Run()
 

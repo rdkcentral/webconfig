@@ -120,21 +120,19 @@ func GetTestServerConfig(args ...string) (*ServerConfig, error) {
 		return c, nil
 	}
 
-	if testServerConfig != nil {
-		return testServerConfig, nil
+	if testServerConfig == nil {
+		configFile, err := GetTestConfigFile()
+		if err != nil {
+			return nil, NewError(err)
+		}
+
+		// init shared objects
+		sc, err := NewServerConfig(configFile)
+		if err != nil {
+			return nil, NewError(err)
+		}
+		testServerConfig = sc
 	}
 
-	configFile, err := GetTestConfigFile()
-	if err != nil {
-		return nil, NewError(err)
-	}
-
-	// init shared objects
-	testServerConfig, err = NewServerConfig(configFile)
-	if err != nil {
-		return nil, NewError(err)
-	}
-	return testServerConfig, nil
+	return testServerConfig.Copy(), nil
 }
-
-// ##############

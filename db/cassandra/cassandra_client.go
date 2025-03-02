@@ -68,15 +68,9 @@ current column types:
 */
 
 func NewCassandraClient(conf *configuration.Config, testOnly bool, args ...interface{}) (*CassandraClient, error) {
-	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
-	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
-	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
-	dbdriver := "cassandra"
-	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
-	localDc := dbconf.GetString("local_dc")
-
+	// ==== core objects BEGIN ====
 	var codec *security.AesCodec
-	var err error
+	// var err error
 	var session *gocql.Session
 
 	if len(args) > 0 {
@@ -88,107 +82,35 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool, args ...inter
 				session = ty
 			}
 		}
-		return &CassandraClient{
-			Session:                session,
-			AesCodec:               codec,
-			concurrentQueries:      make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
-			localDc:                localDc,
-			blockedSubdocIds:       blockedSubdocIds,
-			encryptedSubdocIds:     encryptedSubdocIds,
-			stateCorrectionEnabled: stateCorrectionEnabled,
-		}, nil
-
 	}
 
-	if x := conf.GetString("webconfig.database.active_driver"); x == "yugabyte" {
-		dbdriver = "yugabyte"
-	}
-
-	// build codec
-	if testOnly {
-		codec = security.NewTestCodec(conf)
-		if x := os.Getenv("TESTDB_DRIVER"); x == "yugabyte" {
-			dbdriver = x
-		}
-	} else {
-		codec, err = security.NewAesCodec(conf)
+	if codec == nil {
+		ncodec, err := security.NewAesCodec(conf)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
+		codec = ncodec
 	}
 
-	// init
-	hosts := dbconf.GetStringList("hosts")
-	cluster := gocql.NewCluster(hosts...)
-
-	cluster.Consistency = gocql.LocalQuorum
-	cluster.ProtoVersion = ProtocolVersion
-	cluster.DisableInitialHostLookup = DisableInitialHostLookup
-	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
-	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
-	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
-
-	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
-		ConsistencyLevelsToTry: []gocql.Consistency{
-			gocql.LocalQuorum,
-			gocql.LocalOne,
-			gocql.One,
-		},
-	}
-
-	if len(localDc) > 0 {
-		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
-	}
-
-	var password string
-	encryptedPassword := os.Getenv("ENCRYPTED_PASSWORD")
-	if len(encryptedPassword) == 0 {
-		encryptedPassword = dbconf.GetString("encrypted_password")
-	}
-	user := dbconf.GetString("user")
-	isSslEnabled := dbconf.GetBoolean("is_ssl_enabled")
-
-	// if the password is encrypted, we need to decrypt it
-	if encryptedPassword != "" {
-		password, err = codec.Decrypt(encryptedPassword)
+	if session == nil {
+		nsession, err := NewCassandraSession(conf, testOnly, codec)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
-	} else {
-		password = dbconf.GetString("password")
+		session = nsession
 	}
+	// ==== core objects END   ====
 
-	cluster.Authenticator = gocql.PasswordAuthenticator{
-		Username: user,
-		Password: password,
-	}
-
-	if isSslEnabled {
-		sslOpts := &gocql.SslOptions{
-			EnableHostVerification: false,
-		}
-		cluster.SslOpts = sslOpts
-	}
-
-	// check and create test_keyspace
-	if testOnly {
-		cluster.Keyspace = dbconf.GetString("test_keyspace", DefaultTestKeyspace)
-	} else {
-		cluster.Keyspace = dbconf.GetString("keyspace", DefaultKeyspace)
-	}
-
-	// now point to the real keyspace
-	session, err = cluster.CreateSession()
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	session.SetPageSize(int(dbconf.GetInt32("page_size", DefaultPageSize)))
-
+	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
+	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
+	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
+	dbdriver := "cassandra"
+	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
+	localDc := dbconf.GetString("local_dc")
 	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
 
 	return &CassandraClient{
 		Session:                 session,
-		ClusterConfig:           cluster,
 		AesCodec:                codec,
 		concurrentQueries:       make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
 		localDc:                 localDc,
@@ -225,6 +147,7 @@ func (c *CassandraClient) SetMetrics(m *common.AppMetrics) {
 }
 
 func (c *CassandraClient) IsMetricsEnabled() bool {
+	fmt.Printf("is metrics enabled = %v\n", c.AppMetrics != nil)
 	return c.AppMetrics != nil
 }
 
@@ -300,30 +223,76 @@ func (c *CassandraClient) TearDown() error {
 	}
 	return nil
 }
+func NewCassandraSession(conf *configuration.Config, testOnly bool, codec *security.AesCodec) (*gocql.Session, error) {
+	dbdriver := "cassandra"
+	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
+	localDc := dbconf.GetString("local_dc")
 
-// test dbclient by other modules
-var (
-	tdbclient *CassandraClient
-	tcodec    *security.AesCodec
-)
+	// init
+	hosts := dbconf.GetStringList("hosts")
+	cluster := gocql.NewCluster(hosts...)
+	cluster.Consistency = gocql.LocalQuorum
+	cluster.ProtoVersion = ProtocolVersion
+	cluster.DisableInitialHostLookup = DisableInitialHostLookup
+	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
+	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
+	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
 
-func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraClient, error) {
-	if tdbclient != nil {
-		return tdbclient, nil
+	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
+		ConsistencyLevelsToTry: []gocql.Consistency{
+			gocql.LocalQuorum,
+			gocql.LocalOne,
+			gocql.One,
+		},
 	}
 
-	var err error
-	tdbclient, err = NewCassandraClient(conf, testOnly)
+	if len(localDc) > 0 {
+		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
+	}
+
+	var password string
+	encryptedPassword := os.Getenv("ENCRYPTED_PASSWORD")
+	if len(encryptedPassword) == 0 {
+		encryptedPassword = dbconf.GetString("encrypted_password")
+	}
+	user := dbconf.GetString("user")
+	isSslEnabled := dbconf.GetBoolean("is_ssl_enabled")
+
+	// if the password is encrypted, we need to decrypt it
+	if encryptedPassword != "" {
+		decrypted, err := codec.Decrypt(encryptedPassword)
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		password = decrypted
+	} else {
+		password = dbconf.GetString("password")
+	}
+
+	cluster.Authenticator = gocql.PasswordAuthenticator{
+		Username: user,
+		Password: password,
+	}
+
+	if isSslEnabled {
+		sslOpts := &gocql.SslOptions{
+			EnableHostVerification: false,
+		}
+		cluster.SslOpts = sslOpts
+	}
+
+	// check and create test_keyspace
+	if testOnly {
+		cluster.Keyspace = dbconf.GetString("test_keyspace", DefaultTestKeyspace)
+	} else {
+		cluster.Keyspace = dbconf.GetString("keyspace", DefaultKeyspace)
+	}
+
+	// now point to the real keyspace
+	session, err := cluster.CreateSession()
 	if err != nil {
 		return nil, common.NewError(err)
 	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	err = tdbclient.TearDown()
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	return tdbclient, nil
+	session.SetPageSize(int(dbconf.GetInt32("page_size", DefaultPageSize)))
+	return session, nil
 }

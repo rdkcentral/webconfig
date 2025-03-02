@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
@@ -32,6 +32,9 @@ import (
 )
 
 func TestMocaSubDocument(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 	subdocId := "moca"
 
@@ -45,7 +48,9 @@ func TestMocaSubDocument(t *testing.T) {
 
 	// verify empty before start
 	fields := log.Fields{}
-	var err error
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	_, err = tdbclient.GetSubDocument(cpeMac, subdocId)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 
@@ -63,6 +68,9 @@ func TestMocaSubDocument(t *testing.T) {
 }
 
 func TestPrivatessidSubDocument(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 	groupId := "privatessid"
 
@@ -77,7 +85,9 @@ func TestPrivatessidSubDocument(t *testing.T) {
 	srcDoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, nil, nil)
 
 	fields := log.Fields{}
-	var err error
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	err = tdbclient.SetSubDocument(cpeMac, groupId, srcDoc, fields)
 	assert.NilError(t, err)
 
@@ -90,6 +100,9 @@ func TestPrivatessidSubDocument(t *testing.T) {
 }
 
 func TestMultiSubDocuments(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// prepare the source data
@@ -100,6 +113,9 @@ func TestMultiSubDocuments(t *testing.T) {
 	srcmap := make(map[string]common.SubDocument)
 
 	fields := log.Fields{}
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	for _, mpart := range mparts {
 		groupId := mpart.Name
 		srcBytes := mpart.Bytes
@@ -154,9 +170,15 @@ func TestMultiSubDocuments(t *testing.T) {
 }
 
 func TestBlockedSubdocIds(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	blockedSubdocIds := []string{"portforwarding", "macbinding"}
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	tdbclient.SetBlockedSubdocIds(blockedSubdocIds)
 
 	// prepare the source data
@@ -191,7 +213,7 @@ func TestBlockedSubdocIds(t *testing.T) {
 	}
 	// add version1 and bitmap1
 	version1 := "indigo violet"
-	err := tdbclient.SetRootDocumentVersion(cpeMac, version1)
+	err = tdbclient.SetRootDocumentVersion(cpeMac, version1)
 	assert.NilError(t, err)
 
 	bitmap1 := 32479
@@ -220,11 +242,16 @@ func TestBlockedSubdocIds(t *testing.T) {
 }
 
 func TestExpirySubDocument(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// verify empty before start
 	fields := log.Fields{}
-	var err error
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	_, err = tdbclient.GetDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 

@@ -14,20 +14,25 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/google/uuid"
 	"gotest.tools/assert"
 )
 
 func TestRefSubDocumentOperation(t *testing.T) {
+	sc, err := common.GetTestServerConfig()
+	assert.NilError(t, err)
+	tdbclient, err := GetTestCassandraClient(sc.Config, true)
+	assert.NilError(t, err)
+
 	refId := uuid.New().String()
 
 	// prepare the source data
@@ -37,7 +42,6 @@ func TestRefSubDocumentOperation(t *testing.T) {
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 
 	// verify empty before start
-	var err error
 	_, err = tdbclient.GetRefSubDocument(refId)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 
