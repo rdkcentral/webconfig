@@ -672,6 +672,8 @@ func (m *AppMetrics) ResetStateGauges() {
 	m.statePendingDownload.Reset()
 	m.stateInDeployment.Reset()
 	m.stateFailure.Reset()
+	m.kafkaLag.Reset()
+	m.kafkaDuration.Reset()
 }
 
 type SimpleMetrics struct {

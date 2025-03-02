@@ -207,21 +207,19 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool, args ...db.Datab
 	var dbclient db.DatabaseClient
 	var tokenManager *security.TokenManager
 
-	// fmt.Println("1111111111111111111")
-	// fmt.Println(conf)
-	// fmt.Println("2222222222222222222")
-
-	// setup up database client
-	if testOnly {
-		dbclient = GetTestDatabaseClient(sc)
-	} else {
-		if len(args) > 0 {
-			dbclient = args[0]
+	if len(args) > 0 {
+		dbclient = args[0]
+	}
+	if dbclient == nil {
+		if testOnly {
+			dbclient = GetTestDatabaseClient(sc)
 		} else {
 			dbclient = GetDatabaseClient(sc)
 		}
-		tokenManager = security.NewTokenManager(conf)
 	}
+
+	// setup up database client
+	tokenManager = security.NewTokenManager(conf)
 
 	// setup jwks manager
 	jwksEnabled := conf.GetBoolean("webconfig.jwt.api_token.jwks_enabled", defaultJwksEnabled)

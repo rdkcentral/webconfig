@@ -223,6 +223,7 @@ func (c *CassandraClient) TearDown() error {
 	}
 	return nil
 }
+
 func NewCassandraSession(conf *configuration.Config, testOnly bool, codec *security.AesCodec) (*gocql.Session, error) {
 	dbdriver := "cassandra"
 	dbconf := conf.GetConfig("webconfig.database." + dbdriver)
