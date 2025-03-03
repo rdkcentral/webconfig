@@ -26,25 +26,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// tsc, err := common.GetTestServerConfig()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// tdbclient, err := GetTestCassandraClient(tsc.Config, true)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 	log.SetOutput(io.Discard)
-
-	// init other shared objects
-	// tcodec = tdbclient.Codec()
-
 	returnCode := m.Run()
-
-	// tear down
-	// _ = suite.TearDown()
-
 	os.Exit(returnCode)
 }

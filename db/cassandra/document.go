@@ -107,8 +107,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 	}()
 
 	// build the statement and avoid unnecessary fields/columns
-	var version string
-	_ = version
 	columns := []string{"cpe_mac", "group_id"}
 	values := []interface{}{cpeMac, groupId}
 	if subdoc.Payload() != nil && len(subdoc.Payload()) > 0 {
@@ -130,7 +128,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columns = append(columns, "version")
 		values = append(values, subdoc.Version())
 		columnMap["version"] = subdoc.Version()
-		version = *subdoc.Version()
 	}
 	if subdoc.State() != nil {
 		columns = append(columns, "state")
@@ -139,7 +136,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columnMap["state"] = subdoc.State()
 	}
 
-	var debugUpdatedTime int64
 	if subdoc.UpdatedTime() != nil {
 		columns = append(columns, "updated_time")
 		utime := int64(*subdoc.UpdatedTime())
@@ -149,7 +145,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		}
 		values = append(values, &utime)
 		columnMap["updated_time"] = utime
-		debugUpdatedTime = utime
 	}
 	if subdoc.ErrorCode() != nil {
 		columns = append(columns, "error_code")
@@ -172,8 +167,6 @@ func (c *CassandraClient) SetSubDocument(cpeMac string, groupId string, subdoc *
 		columnMap["expiry"] = utime
 	}
 	stmt = fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
-	// fmt.Printf("RDKW SetSubDocument(%v, %v), updated_time=%v, version=%v\n", cpeMac, groupId, debugUpdatedTime, version)
-	_ = debugUpdatedTime
 
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()

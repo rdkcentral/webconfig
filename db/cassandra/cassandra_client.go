@@ -147,7 +147,6 @@ func (c *CassandraClient) SetMetrics(m *common.AppMetrics) {
 }
 
 func (c *CassandraClient) IsMetricsEnabled() bool {
-	// fmt.Printf("is metrics enabled = %v\n", c.AppMetrics != nil)
 	return c.AppMetrics != nil
 }
 
@@ -189,11 +188,6 @@ func (c *CassandraClient) IsEncryptedGroup(subdocId string) bool {
 }
 
 func (c *CassandraClient) SetUp() error {
-	t0 := time.Now()
-	defer func() {
-		fmt.Printf("rdkw.Setup(): %v\n", time.Since(t0))
-	}()
-
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
@@ -207,11 +201,6 @@ func (c *CassandraClient) SetUp() error {
 }
 
 func (c *CassandraClient) TearDown() error {
-	t0 := time.Now()
-	defer func() {
-		fmt.Printf("rdkw.TearDown(): %v\n", time.Since(t0))
-	}()
-
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
