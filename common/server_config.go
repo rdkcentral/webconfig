@@ -18,21 +18,10 @@
 package common
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/go-akka/configuration"
-)
-
-var (
-	testServerConfig *ServerConfig
-	testConfigFiles  = []string{
-		"/app/webconfig/test_webconfig.conf",
-		"../config/sample_webconfig.conf",
-		"/app/webconfig/webconfig.conf",
-		"/app/webconfig/conf/webconfig.conf",
-	}
 )
 
 type ServerConfig struct {
@@ -90,49 +79,4 @@ func (c *ServerConfig) KafkaClusterNames() []string {
 
 	clustersNode := clustersNodeValue.GetObject()
 	return clustersNode.GetKeys()
-}
-
-func GetTestConfigFile() (string, error) {
-	testConfigFile := os.Getenv("TEST_CONFIG_FILE")
-	if len(testConfigFile) > 0 {
-		if _, err := os.Stat(testConfigFile); err == nil {
-			return testConfigFile, nil
-		}
-	}
-
-	for _, cf := range testConfigFiles {
-		if _, err := os.Stat(cf); os.IsNotExist(err) {
-			continue
-		}
-		return cf, nil
-	}
-	return "", NewError(fmt.Errorf("Cannot find any predefined config file for test"))
-}
-
-// REMINDER
-// this is called from mutiple packages, but we only init the client/session once
-func GetTestServerConfig(args ...string) (*ServerConfig, error) {
-	if len(args) > 0 {
-		c, err := NewServerConfig(args[0])
-		if err != nil {
-			return nil, NewError(err)
-		}
-		return c, nil
-	}
-
-	if testServerConfig == nil {
-		configFile, err := GetTestConfigFile()
-		if err != nil {
-			return nil, NewError(err)
-		}
-
-		// init shared objects
-		sc, err := NewServerConfig(configFile)
-		if err != nil {
-			return nil, NewError(err)
-		}
-		testServerConfig = sc
-	}
-
-	return testServerConfig.Copy(), nil
 }
