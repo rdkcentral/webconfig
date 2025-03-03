@@ -1084,7 +1084,6 @@ func TestSupplementaryUpstreamProfiles(t *testing.T) {
 	rbytes, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	t.Logf("%s\n", rbytes)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
 	mparts, err = util.ParseMultipart(res.Header, rbytes)
@@ -1180,10 +1179,9 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
 
 	res := ExecuteRequest(req, router).Result()
-	rbytes, err := io.ReadAll(res.Body)
+	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	t.Logf("%s\n", rbytes)
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 }
 
