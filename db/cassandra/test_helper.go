@@ -29,23 +29,21 @@ var (
 )
 
 func GetTestCassandraSession(conf *configuration.Config, testOnly bool) (*gocql.Session, error) {
-	if tsession != nil {
-		return tsession, nil
+	if tsession == nil {
+		tdbclient, err := NewCassandraClient(conf, testOnly)
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		err = tdbclient.SetUp()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		err = tdbclient.TearDown()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		tsession = tdbclient.Session
 	}
-
-	tdbclient, err := NewCassandraClient(conf, testOnly)
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	err = tdbclient.TearDown()
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	tsession = tdbclient.Session
 
 	return tsession, nil
 }
