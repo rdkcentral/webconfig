@@ -31,20 +31,18 @@ var (
 )
 
 func GetTestCodec(conf *configuration.Config) (*AesCodec, error) {
-	if tcodec != nil {
-		return tcodec, nil
-	}
+	if tcodec == nil {
+		envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
+		if ss := os.Getenv(envName); len(ss) == 0 {
+			os.Setenv(envName, GenerateRandomKey())
+		}
 
-	envName := conf.GetString("webconfig.security.encryption_key_env_name", envNameDefault)
-	if ss := os.Getenv(envName); len(ss) == 0 {
-		os.Setenv(envName, GenerateRandomKey())
+		codec, err := NewAesCodec(conf)
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		tcodec = codec
 	}
-
-	codec, err := NewAesCodec(conf)
-	if err != nil {
-		return nil, common.NewError(err)
-	}
-	tcodec = codec
 	return tcodec, nil
 }
 
