@@ -232,14 +232,12 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 			}
 		}
-		// 3333
 		for _, subdocId := range c.BlockedSubdocIds() {
 			document.DeleteSubDocument(subdocId)
 		}
 		if s.FilterOutputByBitmapEnabled() {
 			document = document.FilterByBitmap()
 		}
-		// 44444
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)

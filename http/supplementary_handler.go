@@ -150,7 +150,6 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		profileBytes = []byte(notFoundProfileText)
 	}
 
-	// fmt.Printf("A01 %s\n", profileBytes)
 	mpart, err := util.TelemetryBytesToMultipart(profileBytes)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, common.NewError(err))

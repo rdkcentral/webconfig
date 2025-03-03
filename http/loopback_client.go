@@ -44,8 +44,6 @@ func (w *LoopbackResponseWriter) Status() int {
 	return w.status
 }
 
-// -------------------------
-
 type LoopbackClient struct {
 	router *mux.Router
 }
@@ -59,13 +57,8 @@ func NewLoopbackClient(router *mux.Router) *LoopbackClient {
 func (c *LoopbackClient) Do(req *http.Request) (*http.Response, error) {
 	rw := NewLoopbackResponseWriter()
 	c.router.ServeHTTP(rw, req)
-	// fmt.Printf("req = %v\n", req)
-	// fmt.Printf("status = %v\n", rw.Status())
-	// fmt.Printf("body = %s\n", rw.Body())
 
 	body := rw.Body()
-	// reader := bytes.NewReader(body)
-	// Use io.NopCloser to wrap the reader
 	reader := io.NopCloser(bytes.NewReader(body))
 
 	// Create a new http.Response

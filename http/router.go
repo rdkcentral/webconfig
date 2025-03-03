@@ -18,8 +18,6 @@
 package http
 
 import (
-	"fmt"
-
 	"github.com/gorilla/mux"
 )
 
@@ -74,8 +72,6 @@ func (s *WebconfigServer) AddBaseRoutes(testOnly bool, router *mux.Router) {
 }
 
 func (s *WebconfigServer) getRouter(testOnly bool) *mux.Router {
-	// fmt.Printf("rdkw getRouter() testOnly = %v\n", testOnly)
-	fmt.Printf("")
 	router := mux.NewRouter()
 	s.AddBaseRoutes(testOnly, router)
 

@@ -93,13 +93,11 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if document.Length() == 0 {
-				// fmt.Println("A01")
 				WriteResponseBytes(w, nil, http.StatusNoContent)
 				return
 			}
 
 			// TODO, we can build/filter it again for blocked subdocs if needed
-
 			mbytes, err := document.HttpBytes(fields)
 			if err != nil {
 				Error(w, http.StatusInternalServerError, common.NewError(err))
@@ -131,9 +129,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	if len(queryParams) == 0 {
 		document, err := db.BuildMqttSendDocument(s.DatabaseClient, mac, fields)
 		if err != nil {
-			// fmt.Printf("A02 err = %v\n", err)
 			if s.IsDbNotFound(err) {
-				// fmt.Println("A02")
 				Error(w, http.StatusNoContent, nil)
 				return
 			}
@@ -141,7 +137,6 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if document.Length() == 0 {
-			// fmt.Println("A03")
 			WriteResponseBytes(w, nil, http.StatusNoContent)
 			return
 		}
