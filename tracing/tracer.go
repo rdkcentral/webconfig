@@ -42,12 +42,13 @@ type XpcTracer struct {
 	moracideTagPrefix string // Special request header for moracide expts e.g. canary deployments
 
 	// internal vars used by Otel
-	appEnv     string // set this to dev for red, staging for yellow and prod for green
-	appName    string
-	appVersion string
-	appSHA     string // unused
-	region     string // AWS Region e.g. us-west-2, unused, use it as a span tagattribute
-	siteColor  string // red/yellow/green, unused, use it as a span attribute
+	appEnv            string // set this to dev for red, staging for yellow and prod for green
+	appName           string
+	appVersion        string
+	appSHA            string // unused
+	region            string // AWS Region e.g. us-west-2, unused, use it as a span tagattribute
+	siteColor         string // red/yellow/green, unused, use it as a span attribute
+	versionForTracing string
 
 	// internal otel vars
 	otelEndpoint       string
@@ -129,7 +130,16 @@ func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
 	if xpcTracer.region == "" {
 		xpcTracer.region = os.Getenv("site_region_name")
 	}
-	log.Debugf("site_color = %s, env = %s, region = %s", siteColor, xpcTracer.appEnv, xpcTracer.region)
+
+	xpcTracer.versionForTracing = os.Getenv("OTEL_VERSION")
+	if xpcTracer.versionForTracing == "" {
+		xpcTracer.versionForTracing = xpcTracer.appVersion
+	}
+	if xpcTracer.versionForTracing == "" {
+		xpcTracer.versionForTracing = "v1"
+	}
+
+	log.Debugf("site_color = %s, env = %s, region = %s version = %s", siteColor, xpcTracer.appEnv, xpcTracer.region, xpcTracer.versionForTracing)
 }
 
 func OtelSetSpan(fields log.Fields, tag string) {
