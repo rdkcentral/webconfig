@@ -45,7 +45,6 @@ type XpcTracer struct {
 	appEnv            string // set this to dev for red, staging for yellow and prod for green
 	appName           string
 	appVersion        string
-	appSHA            string // unused
 	region            string // AWS Region e.g. us-west-2, unused, use it as a span tagattribute
 	siteColor         string // red/yellow/green, unused, use it as a span attribute
 	versionForTracing string
@@ -109,13 +108,10 @@ func (t *XpcTracer) Region() string {
 }
 
 func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
-	codeGitCommit := strings.Split(conf.GetString("webconfig.code_git_commit"), "-")
+	codeGitCommit := strings.SplitN(conf.GetString("webconfig.code_git_commit"), "-", 2)
 	xpcTracer.appName = codeGitCommit[0]
 	if len(codeGitCommit) > 1 {
 		xpcTracer.appVersion = codeGitCommit[1]
-	}
-	if len(codeGitCommit) > 2 {
-		xpcTracer.appSHA = codeGitCommit[2]
 	}
 
 	// Env vars
