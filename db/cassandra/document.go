@@ -204,12 +204,24 @@ func (c *CassandraClient) DeleteDocument(cpeMac string) error {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt := "DELETE FROM xpc_group_config WHERE cpe_mac=?"
 	if c.awsKeyspaceEnabled {
-		stmt += " ALLOW FILTERING"
-	}
-	if err := c.Query(stmt, cpeMac).Exec(); err != nil {
-		return common.NewError(err)
+		stmt := "SELECT group_id FROM xpc_group_config WHERE cpe_mac=? ALLOW FILTERING"
+		iter := c.Query(stmt, cpeMac).Iter()
+		for {
+			var groupId string
+			if !iter.Scan(&groupId) {
+				break
+			}
+			stmt := "DELETE FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
+			if err := c.Query(stmt, cpeMac, groupId).Exec(); err != nil {
+				return common.NewError(err)
+			}
+		}
+	} else {
+		stmt := "DELETE FROM xpc_group_config WHERE cpe_mac=?"
+		if err := c.Query(stmt, cpeMac).Exec(); err != nil {
+			return common.NewError(err)
+		}
 	}
 
 	return nil
