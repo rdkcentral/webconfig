@@ -108,10 +108,11 @@ func (t *XpcTracer) Region() string {
 }
 
 func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
-	codeGitCommit := strings.SplitN(conf.GetString("webconfig.code_git_commit"), "-", 2)
-	xpcTracer.appName = codeGitCommit[0]
-	if len(codeGitCommit) > 1 {
-		xpcTracer.appVersion = codeGitCommit[1]
+	codeGitCommit := conf.GetString("webconfig.code_git_commit")
+	cgcData := strings.SplitN(codeGitCommit, "-", 2)
+	xpcTracer.appName = cgcData[0]
+	if len(cgcData) > 1 {
+		xpcTracer.appVersion = cgcData[1]
 	}
 
 	// Env vars
@@ -129,7 +130,7 @@ func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
 
 	xpcTracer.versionForTracing = os.Getenv("OTEL_VERSION")
 	if xpcTracer.versionForTracing == "" {
-		xpcTracer.versionForTracing = xpcTracer.appVersion
+		xpcTracer.versionForTracing = codeGitCommit
 	}
 	if xpcTracer.versionForTracing == "" {
 		xpcTracer.versionForTracing = "v1"
