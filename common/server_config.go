@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-akka/configuration"
 )
@@ -63,6 +64,32 @@ func (c *ServerConfig) KafkaClusterNames() []string {
 
 	clustersNode := clustersNodeValue.GetObject()
 	return clustersNode.GetKeys()
+}
+
+// NOTE that "bad" entries (keys without values, ill-formatted) can still be added
+// hence no parsing error
+func (c *ServerConfig) AddConfig(args ...string) {
+	lines := []string{
+		string(c.configBytes),
+	}
+	lines = append(lines, args...)
+	ss := strings.Join(lines, "\n")
+	c.Config = configuration.ParseString(ss)
+	c.configBytes = []byte(ss)
+}
+
+// copy the config and add extra items
+func (c *ServerConfig) Copy(args ...string) *ServerConfig {
+	lines := []string{
+		string(c.configBytes),
+	}
+	lines = append(lines, args...)
+	ss := strings.Join(lines, "\n")
+	conf := configuration.ParseString(ss)
+	return &ServerConfig{
+		Config:      conf,
+		configBytes: []byte(ss),
+	}
 }
 
 func GetTestConfigFile() (string, error) {
