@@ -441,7 +441,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 		errorDetails := ""
 		errorDetailsPtr = &errorDetails
 	} else if *m.ApplicationStatus == "pending" {
-		return updatedSubdocIds, nil
+		return updatedSubdocIds, common.NewError(common.ErrPending)
 	}
 
 	targetGroupId := *m.Namespace
