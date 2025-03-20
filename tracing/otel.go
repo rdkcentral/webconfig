@@ -117,7 +117,6 @@ func otelStdoutTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, er
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(xpcTracer.appName),
-				semconv.ServiceVersionKey.String(xpcTracer.versionForTracing),
 				semconv.ServiceNamespaceKey.String(xpcTracer.appEnv),
 			),
 		),
@@ -144,7 +143,6 @@ func otelHttpTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, erro
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(xpcTracer.appName),
-				semconv.ServiceVersionKey.String(xpcTracer.versionForTracing),
 				semconv.ServiceNamespaceKey.String(xpcTracer.appEnv),
 			),
 		),

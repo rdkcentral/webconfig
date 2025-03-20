@@ -35,6 +35,7 @@ var (
 	ErrRootDocumentLocked = fmt.Errorf("root document is locked")
 	ErrInvalidQueryParams = fmt.Errorf("invalid query parameters")
 	ErrLowTrust           = fmt.Errorf("token trust is lower than threshold")
+	ErrPending            = fmt.Errorf("application_status pending")
 )
 
 type Http400Error struct {

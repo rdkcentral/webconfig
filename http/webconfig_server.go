@@ -120,6 +120,7 @@ type WebconfigServer struct {
 	validSubdocIdMap              map[string]int
 	filterOutputByBitmapEnabled   bool
 	defaultEmptyProfileEnabled    bool
+	bitmapFilterExemptSubdocIds   []string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -293,6 +294,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
 	defaultEmptyProfileEnabled := conf.GetBoolean("webconfig.default_empty_profile_enabled")
+	bitmapFilterExemptSubdocIds := conf.GetStringList("webconfig.bitmap_filter_exempt_subdoc_ids")
 
 	ws := &WebconfigServer{
 		Server: &http.Server{
@@ -332,6 +334,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		XpcTracer:                     xpcTracer,
 		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
 		defaultEmptyProfileEnabled:    defaultEmptyProfileEnabled,
+		bitmapFilterExemptSubdocIds:   bitmapFilterExemptSubdocIds,
 	}
 
 	return ws
@@ -707,6 +710,14 @@ func (s *WebconfigServer) DefaultEmptyProfileEnabled() bool {
 
 func (s *WebconfigServer) SetDefaultEmptyProfileEnabled(enabled bool) {
 	s.defaultEmptyProfileEnabled = enabled
+}
+
+func (s *WebconfigServer) BitmapFilterExemptSubdocIds() []string {
+	return s.bitmapFilterExemptSubdocIds
+}
+
+func (s *WebconfigServer) SetBitmapFilterExemptSubdocIds(x []string) {
+	s.bitmapFilterExemptSubdocIds = x
 }
 
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
