@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -579,6 +579,47 @@ func TestParseSupportedDocsHeaderWebui(t *testing.T) {
 		"interference",
 		"xmspeedboost",
 		"webui",
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
+}
+
+func TestParseSupportedDocsHeaderChannelplan(t *testing.T) {
+	rdkSupportedDocsHeaderStr := "16777695,33554435,50331649,67108865,83886081,100663487,117440513,134217729,201326594,218103809,251658241,268435457,285212673"
+
+	// build expected
+	supportedSubdocIds := []string{
+		"advsecurity",
+		"aker",
+		"gwfailover",
+		"homessid",
+		"hotspot",
+		"lan",
+		"macbinding",
+		"mesh",
+		"moca",
+		"portforwarding",
+		"privatessid",
+		"telemetry",
+		"voiceservice",
+		"wan",
+		"wanfailover",
+		"xdns",
+		"prioritizedmacs",
+		"connectedbuilding",
+		"lldqoscontrol",
+		"clienttosteeringprofile",
+		"meshsteeringprofiles",
+		"wifistatsconfig",
+		"mwoconfigs",
+		"interference",
+		"xmspeedboost",
+		"webui",
+		"channelplan",
 	}
 
 	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
