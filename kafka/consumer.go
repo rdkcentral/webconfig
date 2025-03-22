@@ -20,6 +20,7 @@ package kafka
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -227,15 +228,19 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			fields["event_name"] = eventName
 			fields["rpt"] = rptHeaderValue
 
+			forwardMessage := false
 			if err != nil {
 				if c.IsDbNotFound(err) {
-					log.WithFields(fields).Trace("db not found")
+					log.WithFields(fields).Info("db not found")
+				} else if errors.Is(err, common.ErrPending) {
+					log.WithFields(fields).Trace("pending")
 				} else {
 					fields["error"] = err.Error()
 					fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
 					log.WithFields(fields).Error("errors")
 				}
 			} else {
+				forwardMessage = true
 				log.WithFields(fields).Info(logMessage)
 			}
 
@@ -256,7 +261,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
 			}
 
-			if c.KafkaProducerEnabled() && m != nil {
+			if c.KafkaProducerEnabled() && m != nil && forwardMessage {
 				c.ForwardKafkaMessage(message.Key, m, fields)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {
