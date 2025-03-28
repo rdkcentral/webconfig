@@ -176,7 +176,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		}
 
 		if s.FilterOutputByBitmapEnabled() {
-			document = document.FilterByBitmap()
+			document = document.FilterByBitmap(s.BitmapFilterExemptSubdocIds()...)
+		}
+
+		if document.Length() == 0 {
+			return http.StatusNotFound, respHeader, nil, nil
 		}
 
 		respBytes, err := document.Bytes()
@@ -223,11 +227,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 			}
 		}
-		// 3333
+
 		if s.FilterOutputByBitmapEnabled() {
-			document = document.FilterByBitmap()
+			document = document.FilterByBitmap(s.BitmapFilterExemptSubdocIds()...)
 		}
-		// 44444
+
 		respBytes, err = document.Bytes()
 		if err != nil {
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
