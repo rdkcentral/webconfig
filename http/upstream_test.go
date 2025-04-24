@@ -1661,3 +1661,140 @@ func TestUpstreamBackfill(t *testing.T) {
 		assert.Assert(t, len(sd.Payload()) > 0)
 	}
 }
+
+func TestUpstreamNoBitmapHeader(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== step 1 GET /config to create root document meta ====
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err := http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+
+	supportedDocs := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName := "CGM4331COM"
+	partner := "comcast"
+	schemaVersion := "33554433-1.3,33554434-1.3"
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
+	req.Header.Set(common.HeaderModelName, modelName)
+	req.Header.Set(common.HeaderPartnerID, partner)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion)
+
+	res := ExecuteRequest(req, router).Result()
+	assert.NilError(t, err)
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// ==== step 2 POST group lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := util.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== step 3 POST group wan ====
+	subdocId = "wan"
+	wanBytes := util.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== step 4 GET /config ====
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion)
+	req.Header.Set(common.HeaderModelName, modelName)
+	req.Header.Set(common.HeaderPartnerID, partner)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+
+	// ==== step 5 GET /config but with header changes with mock ====
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// build the response
+			for k := range r.Header {
+				w.Header().Set(k, r.Header.Get(k))
+			}
+			w.WriteHeader(http.StatusOK)
+			if rbytes, err := io.ReadAll(r.Body); err == nil {
+				_, err := w.Write(rbytes)
+				assert.NilError(t, err)
+			}
+		}))
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
+
+	server.SetUpstreamEnabled(true)
+	server.SetFilterOutputByBitmapEnabled(true)
+
+	// ==== step 6 GET /config with no supported-docs/bitmap headers ====
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	req.Header.Set(common.HeaderIfNoneMatch, "0")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}

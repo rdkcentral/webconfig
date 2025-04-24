@@ -318,8 +318,14 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
+	var bitmap int
+	if newRootDocument.Bitmap != 0 {
+		bitmap = newRootDocument.Bitmap
+	} else if oldRootDocument.Bitmap != 0 {
+		bitmap = oldRootDocument.Bitmap
+	}
 	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(newRootDocument.Bitmap, "", "", "", "", upstreamRespEtag, "")
+	finalRootDocument := common.NewRootDocument(bitmap, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 
