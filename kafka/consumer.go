@@ -231,7 +231,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			forwardMessage := false
 			if err != nil {
 				if c.IsDbNotFound(err) {
-					log.WithFields(fields).Info("db not found")
+					log.WithFields(fields).Trace("db not found")
 				} else if errors.Is(err, common.ErrPending) {
 					log.WithFields(fields).Trace("pending")
 				} else {
