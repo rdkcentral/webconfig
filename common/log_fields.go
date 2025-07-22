@@ -19,6 +19,7 @@ package common
 
 import (
 	"maps"
+	"slices"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -27,12 +28,20 @@ var (
 	unloggedFields = []string{
 		"moneytrace",
 		"token",
+		"xpc_trace",
 	}
 	coreFields = []string{
 		"app_name",
 		"audit_id",
 		"body",
 		"cpe_mac",
+	}
+	nonEmptyFields = []string{
+		"traceparent",
+		"tracestate",
+		"out_traceparent",
+		"out_tracestate",
+		"req_moracide_tag",
 	}
 )
 
@@ -44,6 +53,14 @@ func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
 			fields[k] = maps.Clone(ty)
 		case map[string]interface{}:
 			fields[k] = maps.Clone(ty)
+		case string:
+			if slices.Contains(nonEmptyFields, k) {
+				if len(ty) > 0 {
+					fields[k] = ty
+				}
+			} else {
+				fields[k] = ty
+			}
 		default:
 			fields[k] = ty
 		}
@@ -58,6 +75,7 @@ func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
 			delete(fields, x)
 		}
 	}
+
 	return fields
 }
 

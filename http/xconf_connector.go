@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -29,25 +28,27 @@ import (
 )
 
 const (
-	xconfHostDefault = "http://qa2.xconfds.coast.xcal.tv:8080"
-	xconfUrlTemplate = "%s/loguploader/getTelemetryProfiles?%s"
+	defaultXconfHost        = "http://localhost:12346"
+	defaultXconfUrlTemplate = "%s/%s"
 )
 
 type XconfConnector struct {
 	*HttpClient
 	host        string
 	serviceName string
+	urlTemplate string
 }
 
 func NewXconfConnector(conf *configuration.Config, tlsConfig *tls.Config) *XconfConnector {
 	serviceName := "xconf"
-	confKey := fmt.Sprintf("webconfig.%v.host", serviceName)
-	host := conf.GetString(confKey, xconfHostDefault)
+	host := conf.GetString("webconfig.xconf.host", defaultXconfHost)
+	urlTemplate := conf.GetString("webconfig.xconf.url_template", defaultXconfUrlTemplate)
 
 	return &XconfConnector{
 		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig),
 		host:        host,
 		serviceName: serviceName,
+		urlTemplate: urlTemplate,
 	}
 }
 
@@ -59,13 +60,21 @@ func (c *XconfConnector) SetXconfHost(host string) {
 	c.host = host
 }
 
+func (c *XconfConnector) XconfUrlTemplate() string {
+	return c.urlTemplate
+}
+
+func (c *XconfConnector) SetXconfUrlTemplate(x string) {
+	c.urlTemplate = x
+}
+
 func (c *XconfConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *XconfConnector) GetProfiles(ctx context.Context, urlSuffix string, fields log.Fields) ([]byte, http.Header, error) {
-	url := fmt.Sprintf(xconfUrlTemplate, c.XconfHost(), urlSuffix)
-	rbytes, resHeader, err := c.DoWithRetries(ctx, "GET", url, nil, nil, fields, c.ServiceName())
+func (c *XconfConnector) GetProfiles(urlSuffix string, fields log.Fields) ([]byte, http.Header, error) {
+	url := fmt.Sprintf(c.XconfUrlTemplate(), c.XconfHost(), urlSuffix)
+	rbytes, resHeader, err := c.DoWithRetries("GET", url, nil, nil, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, resHeader, owcommon.NewError(err)
 	}

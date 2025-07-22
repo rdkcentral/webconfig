@@ -62,6 +62,7 @@ var (
 			{5, 38}, // mwoconfigs
 			{6, 39}, // interference
 			{7, 34}, // wifimotionsettings
+			{8, 41}, // channelplan
 		},
 		7: {
 			{1, 14},
@@ -148,6 +149,7 @@ var (
 		"mwoconfigs":              38,
 		"interference":            39,
 		"webui":                   40,
+		"channelplan":             41,
 	}
 )
 

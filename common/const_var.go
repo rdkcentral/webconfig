@@ -112,6 +112,10 @@ const (
 	HeaderContentLength              = "Content-Length"
 	HeaderRefSubdocumentVersion      = "X-Refsubdocument-Version"
 	HeaderUpstreamResponse           = "X-Upstream-Response"
+	HeaderMoneytrace                 = "X-Moneytrace"
+	HeaderWebconfigTransactionId     = "X-Webconfig-Transaction-Id"
+	HeaderMoracide                   = "X-Cl-Experiment"
+	HeaderCanary                     = "X-Cl-Canary"
 )
 
 const (

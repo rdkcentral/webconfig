@@ -18,9 +18,9 @@
 package kafka
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -106,8 +106,6 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 
 // NOTE we choose to return an EventMessage object just to pass along the metricsAgent
 func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.EventMessage, error) {
-	ctx := context.TODO()
-
 	rHeader, _ := util.ParseHttp(inbytes)
 	params := rHeader.Get(common.HeaderDocName)
 	cpeMac := rHeader.Get(common.HeaderDeviceId)
@@ -151,7 +149,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 		rHeader.Set(common.HeaderSchemaVersion, "none")
 	}
 
-	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, ctx, rHeader, common.RouteMqtt, fields)
+	status, respHeader, respBytes, err := wchttp.BuildWebconfigResponse(c.WebconfigServer, rHeader, common.RouteMqtt, fields)
 	if err != nil && respBytes == nil {
 		respBytes = []byte(err.Error())
 	}
@@ -162,7 +160,7 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	}
 
 	mqttBytes := common.BuildPayloadAsHttp(status, respHeader, respBytes)
-	_, err = c.PostMqtt(ctx, cpeMac, mqttBytes, fields)
+	_, err = c.PostMqtt(cpeMac, mqttBytes, fields)
 	if err != nil {
 		return &m, common.NewError(err)
 	}
@@ -230,15 +228,19 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			fields["event_name"] = eventName
 			fields["rpt"] = rptHeaderValue
 
+			forwardMessage := false
 			if err != nil {
 				if c.IsDbNotFound(err) {
 					log.WithFields(fields).Trace("db not found")
+				} else if errors.Is(err, common.ErrPending) {
+					log.WithFields(fields).Trace("pending")
 				} else {
 					fields["error"] = err.Error()
 					fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
 					log.WithFields(fields).Error("errors")
 				}
 			} else {
+				forwardMessage = true
 				log.WithFields(fields).Info(logMessage)
 			}
 
@@ -259,7 +261,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				metrics.CountKafkaEvents(eventName, status, message.Partition)
 			}
 
-			if c.KafkaProducerEnabled() && m != nil {
+			if c.KafkaProducerEnabled() && m != nil && forwardMessage {
 				c.ForwardKafkaMessage(message.Key, m, fields)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {

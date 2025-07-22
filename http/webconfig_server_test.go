@@ -122,6 +122,13 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	server.SetMinTrust(trust)
 	assert.Equal(t, server.MinTrust(), trust)
 
+	x := true
+	server.SetFilterOutputByBitmapEnabled(x)
+	assert.Assert(t, server.FilterOutputByBitmapEnabled())
+	x = false
+	server.SetFilterOutputByBitmapEnabled(x)
+	assert.Assert(t, !server.FilterOutputByBitmapEnabled())
+
 	validSubdocIdMap := map[string]int{
 		"red":    1,
 		"orange": 2,

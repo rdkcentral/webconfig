@@ -21,11 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/tracing"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 const (
@@ -175,25 +173,16 @@ func addMoracideTagsAsResponseHeaders(w http.ResponseWriter) {
 	if !ok {
 		return
 	}
-
-	reqMoracideTagPrefix := strings.ToLower("req_"+tracing.GetMoracideTagPrefix())
-	respMoracideTagPrefix := strings.ToLower("resp_"+tracing.GetMoracideTagPrefix())
 	fields := xw.Audit()
-	moracideTags := make(map[string]string)
-	for key, val := range fields {
-		if strings.HasPrefix(strings.ToLower(key), reqMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from req %s = %s to response", key, val)
-			moracideTags[key[4:]] = val.(string)
-		}
-		if strings.HasPrefix(strings.ToLower(key), respMoracideTagPrefix) {
-			log.Debugf("Adding moracide tag from resp %s = %s to response", key, val)
-			realKey := key[5:]
-			if existingVal, ok := moracideTags[realKey]; !ok || (ok && existingVal != "true") {
-				moracideTags[realKey] = val.(string)
-			}
-		}
+	if fields == nil {
+		return
 	}
-	for key, val := range moracideTags {
-		w.Header().Set(key, val)
+
+	moracide := util.FieldsGetString(fields, "resp_moracide_tag")
+	if len(moracide) == 0 {
+		moracide = util.FieldsGetString(fields, "req_moracide_tag")
+	}
+	if len(moracide) > 0 {
+		w.Header().Set(common.HeaderMoracide, moracide)
 	}
 }

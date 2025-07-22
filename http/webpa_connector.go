@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -33,14 +32,14 @@ import (
 )
 
 const (
-	defaultWebpaHost      = "https://api.webpa.comcast.net:8090"
+	defaultWebpaHost      = "http://localhost:12345"
 	defaultApiVersion     = "v2"
 	webpaServiceName      = "webpa"
 	asyncWebpaServiceName = "asyncwebpa"
 
-	webpaUrlTemplate = "%s/api/%s/device/mac:%s/config"
-	webpaError404    = `{"code": 521, "message": "Device not found in webpa"}`
-	webpaError520    = `{"code": 520, "message": "Error unsupported namespace"}`
+	defaultWebpaUrlTemplate = "%s/%s/%s"
+	webpaError404           = `{"code": 521, "message": "Device not found in webpa"}`
+	webpaError520           = `{"code": 520, "message": "Error unsupported namespace"}`
 
 	// a new error code to indicate it is webpa 520
 	// but it is caused by some temporary conditions,
@@ -66,6 +65,7 @@ type WebpaConnector struct {
 	syncClient       *HttpClient
 	asyncClient      *HttpClient
 	host             string
+	urlTemplate      string
 	queue            chan struct{}
 	retries          int
 	retryInMsecs     int
@@ -112,32 +112,23 @@ func asyncHandle520(rbytes []byte) ([]byte, http.Header, bool, error) {
 }
 
 func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *WebpaConnector {
-	confKey := fmt.Sprintf("webconfig.%v.host", webpaServiceName)
-	host := conf.GetString(confKey, defaultWebpaHost)
-
-	confKey = fmt.Sprintf("webconfig.%v.async_poke_enabled", webpaServiceName)
-	asyncPokeEnabled := conf.GetBoolean(confKey, false)
-
-	confKey = fmt.Sprintf("webconfig.%v.async_poke_concurrent_calls", webpaServiceName)
-	concurrentCalls := int(conf.GetInt32(confKey, 0))
+	host := conf.GetString("webconfig.webpa.host", defaultWebpaHost)
+	asyncPokeEnabled := conf.GetBoolean("webconfig.webpa.async_poke_enabled", false)
+	concurrentCalls := int(conf.GetInt32("webconfig.webpa.async_poke_concurrent_calls", 0))
 	var queue chan struct{}
 	if concurrentCalls > 0 {
 		queue = make(chan struct{}, concurrentCalls)
 	}
 
-	confKey = fmt.Sprintf("webconfig.%v.retries", webpaServiceName)
-	retries := int(conf.GetInt32(confKey, defaultRetries))
-
-	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", webpaServiceName)
-	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
+	retries := int(conf.GetInt32("webconfig.webpa.retries", defaultRetries))
+	retryInMsecs := int(conf.GetInt32("webconfig.webpa.retry_in_msecs", defaultRetriesInMsecs))
+	apiVersion := conf.GetString("webconfig.webpa.api_version", defaultApiVersion)
+	urlTemplate := conf.GetString("webconfig.webpa.url_template", defaultWebpaUrlTemplate)
 
 	syncClient := NewHttpClient(conf, webpaServiceName, tlsConfig)
 	syncClient.SetStatusHandler(520, syncHandle520)
 	asyncClient := NewHttpClient(conf, asyncWebpaServiceName, tlsConfig)
 	asyncClient.SetStatusHandler(520, asyncHandle520)
-
-	confKey = fmt.Sprintf("webconfig.%v.api_version", webpaServiceName)
-	apiVersion := conf.GetString(confKey, defaultApiVersion)
 
 	connector := WebpaConnector{
 		syncClient:       syncClient,
@@ -148,6 +139,7 @@ func NewWebpaConnector(conf *configuration.Config, tlsConfig *tls.Config) *Webpa
 		retryInMsecs:     retryInMsecs,
 		asyncPokeEnabled: asyncPokeEnabled,
 		apiVersion:       apiVersion,
+		urlTemplate:      urlTemplate,
 	}
 
 	return &connector
@@ -159,6 +151,14 @@ func (c *WebpaConnector) WebpaHost() string {
 
 func (c *WebpaConnector) SetWebpaHost(host string) {
 	c.host = host
+}
+
+func (c *WebpaConnector) WebpaUrlTemplate() string {
+	return c.urlTemplate
+}
+
+func (c *WebpaConnector) SetWebpaUrlTemplate(x string) {
+	c.urlTemplate = x
 }
 
 func (c *WebpaConnector) ApiVersion() string {
@@ -186,8 +186,8 @@ func (c *WebpaConnector) SetAsyncPokeEnabled(enabled bool) {
 	c.asyncPokeEnabled = enabled
 }
 
-func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
-	url := fmt.Sprintf(webpaUrlTemplate, c.WebpaHost(), c.ApiVersion(), cpeMac)
+func (c *WebpaConnector) Patch(rHeader http.Header, cpeMac string, token string, bbytes []byte, fields log.Fields) (string, error) {
+	url := fmt.Sprintf(c.WebpaUrlTemplate(), c.WebpaHost(), c.ApiVersion(), cpeMac)
 
 	var traceId, xmTraceId string
 	if itf, ok := fields["trace_id"]; ok {
@@ -211,16 +211,16 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 	header.Set("X-Webpa-Transaction-Id", transactionId)
 
 	method := "PATCH"
-	_, _, cont, err := c.syncClient.Do(ctx, method, url, header, bbytes, fields, webpaServiceName, 0)
+	_, _, cont, err := c.syncClient.Do(method, url, header, bbytes, fields, webpaServiceName, 0)
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			if rherr.StatusCode == 524 {
 				if c.asyncPokeEnabled {
 					c.queue <- struct{}{}
-					go c.AsyncDoWithRetries(ctx, method, url, header, bbytes, fields, asyncWebpaServiceName)
+					go c.AsyncDoWithRetries(method, url, header, bbytes, fields, asyncWebpaServiceName)
 				} else {
-					_, err := c.SyncDoWithRetries(ctx, method, url, header, bbytes, fields, webpaServiceName)
+					_, err := c.SyncDoWithRetries(method, url, header, bbytes, fields, webpaServiceName)
 					if err != nil {
 						return transactionId, common.NewError(err)
 					}
@@ -229,7 +229,7 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 			}
 		}
 		if cont {
-			_, _, err := c.syncClient.DoWithRetries(ctx, "PATCH", url, header, bbytes, fields, webpaServiceName)
+			_, _, err := c.syncClient.DoWithRetries("PATCH", url, header, bbytes, fields, webpaServiceName)
 			if err != nil {
 				return transactionId, common.NewError(err)
 			}
@@ -240,8 +240,8 @@ func (c *WebpaConnector) Patch(ctx context.Context, rHeader http.Header, cpeMac 
 	return transactionId, nil
 }
 
-func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
-	tfields := common.FilterLogFields(fields)
+func (c *WebpaConnector) AsyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) {
+	tfields := common.FilterLogFields(fields, "status")
 	tfields["logger"] = "asyncwebpa"
 	for i := 1; i <= c.retries; i++ {
 		cbytes := make([]byte, len(bbytes))
@@ -249,7 +249,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, 
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		_, _, cont, _ := c.asyncClient.Do(ctx, method, url, header, cbytes, fields, loggerName, i)
+		_, _, cont, _ := c.asyncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			msg := fmt.Sprintf("finished success after 1 retry")
 			if i > 1 {
@@ -266,7 +266,7 @@ func (c *WebpaConnector) AsyncDoWithRetries(ctx context.Context, method string, 
 }
 
 // this has 1 less retries compared to the standard DoWithRetries()
-func (c *WebpaConnector) SyncDoWithRetries(ctx context.Context, method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
+func (c *WebpaConnector) SyncDoWithRetries(method string, url string, header http.Header, bbytes []byte, fields log.Fields, loggerName string) ([]byte, error) {
 	var rbytes []byte
 	var err error
 	var cont bool
@@ -277,7 +277,7 @@ func (c *WebpaConnector) SyncDoWithRetries(ctx context.Context, method string, u
 		if i > 0 {
 			time.Sleep(time.Duration(c.retryInMsecs) * time.Millisecond)
 		}
-		rbytes, _, cont, err = c.syncClient.Do(ctx, method, url, header, cbytes, fields, loggerName, i)
+		rbytes, _, cont, err = c.syncClient.Do(method, url, header, cbytes, fields, loggerName, i)
 		if !cont {
 			// in the case of 524/in-progress, we continue
 			var rherr common.RemoteHttpError

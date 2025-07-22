@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -31,25 +30,27 @@ import (
 )
 
 const (
-	mqttHostDefault = "https://hcbroker.staging.us-west-2.plume.comcast.net"
-	mqttUrlTemplate = "%s/v2/mqtt/pub/x/to/%s/webconfig"
+	defaultMqttHost        = "http://localhost:12347"
+	defaultMqttUrlTemplate = "%s/%s"
 )
 
 type MqttConnector struct {
 	*HttpClient
 	host        string
 	serviceName string
+	urlTemplate string
 }
 
 func NewMqttConnector(conf *configuration.Config, tlsConfig *tls.Config) *MqttConnector {
 	serviceName := "mqtt"
-	confKey := fmt.Sprintf("webconfig.%v.host", serviceName)
-	host := conf.GetString(confKey, mqttHostDefault)
+	host := conf.GetString("webconfig.mqtt.host", defaultMqttHost)
+	urlTemplate := conf.GetString("webconfig.mqtt.url_template", defaultMqttUrlTemplate)
 
 	return &MqttConnector{
 		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig),
 		host:        host,
 		serviceName: serviceName,
+		urlTemplate: urlTemplate,
 	}
 }
 
@@ -61,12 +62,20 @@ func (c *MqttConnector) SetMqttHost(host string) {
 	c.host = host
 }
 
+func (c *MqttConnector) MqttUrlTemplate() string {
+	return c.urlTemplate
+}
+
+func (c *MqttConnector) SetMqttUrlTemplate(x string) {
+	c.urlTemplate = x
+}
+
 func (c *MqttConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *MqttConnector) PostMqtt(ctx context.Context, cpeMac string, bbytes []byte, fields log.Fields) ([]byte, error) {
-	url := fmt.Sprintf(mqttUrlTemplate, c.MqttHost(), cpeMac)
+func (c *MqttConnector) PostMqtt(cpeMac string, bbytes []byte, fields log.Fields) ([]byte, error) {
+	url := fmt.Sprintf(c.MqttUrlTemplate(), c.MqttHost(), cpeMac)
 
 	var traceId, xmTraceId, outTraceparent, outTracestate string
 	if itf, ok := fields["xmoney_trace_id"]; ok {
@@ -95,7 +104,7 @@ func (c *MqttConnector) PostMqtt(ctx context.Context, cpeMac string, bbytes []by
 	header.Set(common.HeaderTraceparent, outTraceparent)
 	header.Set(common.HeaderTracestate, outTracestate)
 
-	rbytes, _, err := c.DoWithRetries(ctx, "POST", url, header, bbytes, fields, c.ServiceName())
+	rbytes, _, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, common.NewError(err)
 	}

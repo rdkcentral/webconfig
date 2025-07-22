@@ -1,3 +1,20 @@
+/**
+* Copyright 2021 Comcast Cable Communications Management, LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+* SPDX-License-Identifier: Apache-2.0
+ */
 package tracing
 
 import (
@@ -7,31 +24,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/go-akka/configuration"
+	"github.com/gorilla/mux"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	log "github.com/sirupsen/logrus"
 )
 
-type providerConstructor func() (oteltrace.TracerProvider, error)
+type providerConstructor func(*XpcTracer) (oteltrace.TracerProvider, error)
 
 var (
 	providerBuilders = map[string]providerConstructor{
-		"http": otelHttpTraceProvider,
+		"http":   otelHttpTraceProvider,
 		"stdout": otelStdoutTraceProvider,
-		"noop": otelNoopTraceProvider,
+		"noop":   otelNoopTraceProvider,
 	}
 )
 
@@ -42,7 +59,7 @@ const defaultOtelTracerProvider = "noop"
 
 // initOtel - initialize OpenTelemetry constructs
 // tracing instrumentation code.
-func otelInit(conf *configuration.Config) {
+func otelInit(xpcTracer *XpcTracer, conf *configuration.Config) {
 	xpcTracer.OtelEnabled = conf.GetBoolean("webconfig.tracing.otel.enabled")
 	if !xpcTracer.OtelEnabled {
 		return
@@ -65,7 +82,7 @@ func otelInit(conf *configuration.Config) {
 		return
 	} else {
 		var err error
-		if xpcTracer.otelTracerProvider, err = providerBuilder(); err != nil {
+		if xpcTracer.otelTracerProvider, err = providerBuilder(xpcTracer); err != nil {
 			log.Errorf("building otel provider for %s failed with %v", xpcTracer.otelProvider, err)
 			return
 		}
@@ -82,11 +99,11 @@ func otelInit(conf *configuration.Config) {
 	xpcTracer.otelTracer = otel.Tracer(xpcTracer.appName)
 }
 
-func otelNoopTraceProvider() (oteltrace.TracerProvider, error) {
+func otelNoopTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, error) {
 	return noop.NewTracerProvider(), nil
 }
 
-func otelStdoutTraceProvider() (oteltrace.TracerProvider, error) {
+func otelStdoutTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, error) {
 	option := stdouttrace.WithPrettyPrint()
 	exporter, err := stdouttrace.New(option)
 	if err != nil {
@@ -107,7 +124,7 @@ func otelStdoutTraceProvider() (oteltrace.TracerProvider, error) {
 	return tp, nil
 }
 
-func otelHttpTraceProvider() (oteltrace.TracerProvider, error) {
+func otelHttpTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, error) {
 	// Send traces over HTTP
 	if xpcTracer.otelEndpoint == "" {
 		return nil, fmt.Errorf("building http otel provider failure, no endpoint specified")
@@ -132,23 +149,7 @@ func otelHttpTraceProvider() (oteltrace.TracerProvider, error) {
 	), nil
 }
 
-func otelShutdown() {
-	sdkTraceProvider, ok := xpcTracer.otelTracerProvider.(*sdktrace.TracerProvider)
-	if ok && sdkTraceProvider != nil {
-		sdkTraceProvider.Shutdown(context.TODO())
-	}
-}
-
-// otelOpName should return "http.request" by default
-func otelOpName() string {
-	opName := xpcTracer.otelOpName
-	if opName == "" {
-		opName = "http.request"
-	}
-	return opName
-}
-
-func otelNewSpan(r *http.Request) (context.Context, oteltrace.Span) {
+func NewOtelSpan(xpcTracer *XpcTracer, r *http.Request) (context.Context, oteltrace.Span) {
 	ctx := r.Context()
 	var otelSpan oteltrace.Span
 	if !xpcTracer.OtelEnabled {
@@ -174,7 +175,7 @@ func otelNewSpan(r *http.Request) (context.Context, oteltrace.Span) {
 		custom Comcast attribute: X-Cl-Experiment: true/false
 		additional: env, operation.name, http.url_details.path
 	*/
-	ctx, otelSpan = xpcTracer.otelTracer.Start(ctx, otelOpName(),
+	ctx, otelSpan = xpcTracer.otelTracer.Start(ctx, xpcTracer.OtelOpName(),
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			attribute.String("env", xpcTracer.appEnv),
@@ -182,11 +183,11 @@ func otelNewSpan(r *http.Request) (context.Context, oteltrace.Span) {
 			attribute.String("http.route", pathTemplate),
 			attribute.String("http.url", r.URL.String()),
 			attribute.String("http.url_details.path", r.URL.Path),
-			attribute.String("operation.name", otelOpName()),
+			attribute.String("operation.name", xpcTracer.OtelOpName()),
 		),
 	)
-	if xpcTracer.rgn != "" {
-		rgnAttr := attribute.String("region", xpcTracer.rgn)
+	if xpcTracer.region != "" {
+		rgnAttr := attribute.String("region", xpcTracer.region)
 		otelSpan.SetAttributes(rgnAttr)
 	}
 
@@ -196,7 +197,7 @@ func otelNewSpan(r *http.Request) (context.Context, oteltrace.Span) {
 	log.Debugf("added span attribute key = http.route, value = %s", pathTemplate)
 	log.Debugf("added span attribute key = http.url, value = %s", r.URL.String())
 	log.Debugf("added span attribute key = http.url_details.path, value = %s", r.URL.Path)
-	log.Debugf("added span attribute key = operation.name, value = %s", otelOpName())
+	log.Debugf("added span attribute key = operation.name, value = %s", xpcTracer.OtelOpName())
 
 	carrier := propagation.MapCarrier{}
 	otel.GetTextMapPropagator().Inject(ctx, carrier)
@@ -222,7 +223,7 @@ func otelSetStatusCode(span oteltrace.Span, statusCode int) {
 	}
 }
 
-func otelEndSpan(span oteltrace.Span) {
+func EndOtelSpan(xpcTracer *XpcTracer, span oteltrace.Span) {
 	if !xpcTracer.OtelEnabled {
 		return
 	}
@@ -230,12 +231,14 @@ func otelEndSpan(span oteltrace.Span) {
 }
 
 func otelExtractParamsFromSpan(ctx context.Context, xpcTrace *XpcTrace) {
-	if !xpcTracer.OtelEnabled {
-		return
-	}
 	if tmp := GetContext(ctx, "otel_span"); tmp != nil {
 		if otelSpan, ok := tmp.(oteltrace.Span); ok {
+			if otelSpan == nil {
+				return
+			}
 			xpcTrace.otelSpan = otelSpan
+			spanCtx := otelSpan.SpanContext()
+			xpcTrace.TraceID = spanCtx.TraceID().String()
 		}
 	}
 	if xpcTrace.otelSpan == nil {

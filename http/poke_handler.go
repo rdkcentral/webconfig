@@ -32,9 +32,6 @@ import (
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
-	// tracing propagation
-	ctx := r.Context()
-
 	// handler
 	params := mux.Vars(r)
 	mac := params["mac"]
@@ -66,6 +63,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fields := xw.Audit()
+	fields["API"] = util.GetAPIName(r.URL.RawQuery)
 
 	// extract "metrics_agent"
 	metricsAgent := "default"
@@ -107,14 +105,12 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			_, err = s.PostMqtt(ctx, deviceId, mbytes, fields)
+			_, err = s.PostMqtt(deviceId, mbytes, fields)
 			if err != nil {
 				var rherr common.RemoteHttpError
 				if errors.As(err, &rherr) {
-					if rherr.StatusCode == http.StatusNotFound {
-						Error(w, http.StatusNotFound, nil)
-						return
-					}
+					Error(w, rherr.StatusCode, common.NewError(err))
+					return
 				}
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 				return
@@ -160,7 +156,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transactionId, err := s.Poke(ctx, r.Header, mac, token, pokeStr, fields)
+	transactionId, err := s.Poke(r.Header, mac, token, pokeStr, fields)
 
 	if err != nil {
 		var rherr common.RemoteHttpError

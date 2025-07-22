@@ -162,6 +162,25 @@ func (d *RootDocument) Update(r *RootDocument) {
 	}
 }
 
+func (d *RootDocument) UpdateMetadata(r *RootDocument) {
+	// Version and QueryParams are cloud data, so not changed
+	if r.Bitmap > 0 {
+		d.Bitmap = r.Bitmap
+	}
+	if len(r.FirmwareVersion) > 0 {
+		d.FirmwareVersion = r.FirmwareVersion
+	}
+	if len(r.ModelName) > 0 {
+		d.ModelName = r.ModelName
+	}
+	if len(r.PartnerId) > 0 {
+		d.PartnerId = r.PartnerId
+	}
+	if len(r.SchemaVersion) > 0 {
+		d.SchemaVersion = r.SchemaVersion
+	}
+}
+
 func (d *RootDocument) String() string {
 	m := d.ColumnMap()
 	bbytes, err := json.MarshalIndent(m, "", "  ")

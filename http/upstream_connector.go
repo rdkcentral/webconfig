@@ -18,7 +18,6 @@
 package http
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -30,9 +29,9 @@ import (
 )
 
 const (
-	upstreamHostDefault        = "http://localhost:1234"
-	defaultUpstreamUrlTemplate = "/api/v1/device/%v/upstream"
-	defaultProfileUrlTemplate  = "/api/v1/device/%v/profile?%v"
+	defaultUpstreamHost        = "http://localhost:12348"
+	defaultUpstreamUrlTemplate = "%s/%s"
+	defaultProfileUrlTemplate  = "%s/%s/%s"
 )
 
 type UpstreamConnector struct {
@@ -45,12 +44,9 @@ type UpstreamConnector struct {
 
 func NewUpstreamConnector(conf *configuration.Config, tlsConfig *tls.Config) *UpstreamConnector {
 	serviceName := "upstream"
-	confKey := fmt.Sprintf("webconfig.%v.host", serviceName)
-	host := conf.GetString(confKey, upstreamHostDefault)
-	confKey = fmt.Sprintf("webconfig.%v.url_template", serviceName)
-	upstreamUrlTemplate := conf.GetString(confKey, defaultUpstreamUrlTemplate)
-	confKey = fmt.Sprintf("webconfig.%v.profile_url_template", serviceName)
-	profileUrlTemplate := conf.GetString(confKey, defaultProfileUrlTemplate)
+	host := conf.GetString("webconfig.upstream.host", defaultUpstreamHost)
+	upstreamUrlTemplate := conf.GetString("webconfig.upstream.url_template", defaultUpstreamUrlTemplate)
+	profileUrlTemplate := conf.GetString("webconfig.upstream.profile_url_template", defaultProfileUrlTemplate)
 
 	return &UpstreamConnector{
 		HttpClient:          NewHttpClient(conf, serviceName, tlsConfig),
@@ -73,8 +69,8 @@ func (c *UpstreamConnector) ServiceName() string {
 	return c.serviceName
 }
 
-func (c *UpstreamConnector) PostUpstream(ctx context.Context, mac string, header http.Header, bbytes []byte, fields log.Fields) ([]byte, http.Header, error) {
-	url := c.UpstreamHost() + fmt.Sprintf(c.upstreamUrlTemplate, mac)
+func (c *UpstreamConnector) PostUpstream(mac string, header http.Header, bbytes []byte, fields log.Fields) ([]byte, http.Header, error) {
+	url := fmt.Sprintf(c.upstreamUrlTemplate, c.UpstreamHost(), mac)
 
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
@@ -90,15 +86,15 @@ func (c *UpstreamConnector) PostUpstream(ctx context.Context, mac string, header
 		}
 	}
 
-	rbytes, header, err := c.DoWithRetries(ctx, "POST", url, header, bbytes, fields, c.ServiceName())
+	rbytes, header, err := c.DoWithRetries("POST", url, header, bbytes, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)
 	}
 	return rbytes, header, nil
 }
 
-func (c *UpstreamConnector) GetUpstreamProfiles(ctx context.Context, mac, queryParams string, header http.Header, fields log.Fields) ([]byte, http.Header, error) {
-	url := c.UpstreamHost() + fmt.Sprintf(c.profileUrlTemplate, mac, queryParams)
+func (c *UpstreamConnector) GetUpstreamProfiles(mac, queryParams string, header http.Header, fields log.Fields) ([]byte, http.Header, error) {
+	url := fmt.Sprintf(c.profileUrlTemplate, c.UpstreamHost(), mac, queryParams)
 
 	if itf, ok := fields["audit_id"]; ok {
 		auditId := itf.(string)
@@ -114,7 +110,7 @@ func (c *UpstreamConnector) GetUpstreamProfiles(ctx context.Context, mac, queryP
 		}
 	}
 
-	rbytes, header, err := c.DoWithRetries(ctx, "GET", url, header, nil, fields, c.ServiceName())
+	rbytes, header, err := c.DoWithRetries("GET", url, header, nil, fields, c.ServiceName())
 	if err != nil {
 		return rbytes, header, owcommon.NewError(err)
 	}
