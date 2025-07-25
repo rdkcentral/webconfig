@@ -722,7 +722,7 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid partner")
+	return fmt.Errorf("invalid partner %s", partner)
 }
 
 func (c *WebconfigServer) Poke(rHeader http.Header, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
