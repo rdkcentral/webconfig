@@ -849,7 +849,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
-				log.WithFields(fields).Error("request starts")
+				log.WithFields(fields).Error("Request started")
 				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
@@ -858,7 +858,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request starts")
+		log.WithFields(tfields).Info("Request started")
 	}
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
@@ -952,7 +952,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	}
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request ends")
+		log.WithFields(tfields).Info("Request Finished")
 	}
 }
 
