@@ -393,16 +393,25 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		isValid := false
 		token := xw.Token()
 		fields := xw.Audit()
+
+		params := mux.Vars(r)
+		mac, ok := params["mac"]
+		if !ok {
+			Error(xw, http.StatusForbidden, nil)
+			return
+		}
+		mac = strings.ToUpper(mac)
+		if s.ValidateMacEnabled() {
+			if !util.ValidateMac(mac) {
+				err := *common.NewHttp400Error("invalid mac")
+				Error(w, http.StatusBadRequest, common.NewError(err))
+					return
+			}
+		}
+
 		authorization := r.Header.Get("Authorization")
 		var tokenErr error
 		if len(token) > 0 {
-			params := mux.Vars(r)
-			mac, ok := params["mac"]
-			if !ok || len(mac) != 12 {
-				Error(xw, http.StatusForbidden, nil)
-				return
-			}
-
 			if ok, partnerId, trust, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
 				fields["src_partner"] = partnerId
@@ -952,7 +961,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	}
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("Request Finished")
+		log.WithFields(tfields).Info("Request finished")
 	}
 }
 
