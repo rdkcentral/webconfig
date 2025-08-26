@@ -51,19 +51,10 @@ func (s *WebconfigServer) MultipartConfigHandler(w http.ResponseWriter, r *http.
 
 	// ==== data integrity check ====
 	params := mux.Vars(r)
-	mac, ok := params["mac"]
-	if !ok {
-		Error(w, http.StatusNotFound, nil)
-		return
-	}
+	mac := params["mac"]
 	mac = strings.ToUpper(mac)
-	if s.ValidateMacEnabled() {
-		if !util.ValidateMac(mac) {
-			err := *common.NewHttp400Error("invalid mac")
-			Error(w, http.StatusBadRequest, common.NewError(err))
-			return
-		}
-	}
+	// Moved validateMac to CpeMiddleware
+
 	r.Header.Set(common.HeaderDeviceId, mac)
 
 	// ==== processing ====
