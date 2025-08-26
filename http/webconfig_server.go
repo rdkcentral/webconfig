@@ -393,16 +393,25 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		isValid := false
 		token := xw.Token()
 		fields := xw.Audit()
+
+		params := mux.Vars(r)
+		mac, ok := params["mac"]
+		if !ok {
+			Error(xw, http.StatusForbidden, nil)
+			return
+		}
+		mac = strings.ToUpper(mac)
+		if s.ValidateMacEnabled() {
+			if !util.ValidateMac(mac) {
+				err := *common.NewHttp400Error("invalid mac")
+				Error(w, http.StatusBadRequest, common.NewError(err))
+					return
+			}
+		}
+
 		authorization := r.Header.Get("Authorization")
 		var tokenErr error
 		if len(token) > 0 {
-			params := mux.Vars(r)
-			mac, ok := params["mac"]
-			if !ok || len(mac) != 12 {
-				Error(xw, http.StatusForbidden, nil)
-				return
-			}
-
 			if ok, partnerId, trust, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
 				fields["src_partner"] = partnerId
@@ -732,7 +741,7 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid partner")
+	return fmt.Errorf("invalid partner %s", partner)
 }
 
 func (c *WebconfigServer) Poke(rHeader http.Header, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
@@ -849,7 +858,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
-				log.WithFields(fields).Error("request starts")
+				log.WithFields(fields).Error("Request started")
 				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
@@ -858,7 +867,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request starts")
+		log.WithFields(tfields).Info("Request started")
 	}
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
@@ -952,7 +961,7 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	}
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request ends")
+		log.WithFields(tfields).Info("Request finished")
 	}
 }
 
