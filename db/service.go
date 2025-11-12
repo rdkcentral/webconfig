@@ -492,7 +492,7 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 	return updatedSubdocIds, nil
 }
 
-func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, versionMap map[string]string, fields log.Fields) error {
+func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, oldSubdoc *common.SubDocument, deviceVersionMap map[string]string, fields log.Fields) error {
 	var oldState int
 	if oldSubdoc != nil && oldSubdoc.State() != nil {
 		oldState = *oldSubdoc.State()
@@ -504,9 +504,14 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 	}
 	labels["client"] = "default"
 
-	if oldVersion, ok := versionMap[subdocId]; ok {
+	var oldSubdocVersion string
+	if oldSubdoc != nil && oldSubdoc.Version() != nil {
+		oldSubdocVersion = *oldSubdoc.Version()
+	}
+
+	if deviceVersion, ok := deviceVersionMap[subdocId]; ok {
 		if newSubdoc.Version() != nil {
-			if oldVersion == *newSubdoc.Version() && oldSubdoc != nil {
+			if deviceVersion == *newSubdoc.Version() && oldSubdoc != nil && deviceVersion == oldSubdocVersion {
 				return nil
 			}
 		}

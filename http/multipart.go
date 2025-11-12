@@ -236,7 +236,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	if userAgent == "mget" {
 		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
-		return http.StatusOK, respHeader, respBytes, nil
+		return respStatus, respHeader, respBytes, nil
 	}
 
 	if !postUpstream {
