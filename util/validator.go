@@ -32,10 +32,17 @@ func ValidateMac(mac string) bool {
 	if len(mac) != 12 {
 		return false
 	}
+	allZeroes := true
 	for _, r := range mac {
 		if r < 48 || r > 70 || (r > 57 && r < 65) {
 			return false
 		}
+		if r != 48 {
+			allZeroes = false
+		}
+	}
+	if allZeroes {
+		return false
 	}
 	return true
 }

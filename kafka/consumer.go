@@ -211,7 +211,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			switch eventName {
 			case "mqtt-get":
 				m, err = c.handleGetMessage(message.Value, fields)
-				logMessage = "request ends"
+				logMessage = "Request Finished"
 			case "mqtt-state":
 				header, bbytes := util.ParseHttp(message.Value)
 				fields["destination"] = header.Get("Destination")
