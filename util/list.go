@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -52,7 +52,8 @@ func Contains(collection interface{}, element interface{}) bool {
 }
 
 // TODO keep it for backward compatibility in "webconfig" for now
-//      plan to remove it later
+//
+//	plan to remove it later
 func ContainsInt(data []int, x int) bool {
 	for _, d := range data {
 		if d == x {
