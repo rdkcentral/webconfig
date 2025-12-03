@@ -14,16 +14,15 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
-	"crypto/rand"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/google/uuid"
 	"gotest.tools/assert"
 )
 
@@ -31,9 +30,7 @@ func TestRefSubDocumentOperation(t *testing.T) {
 	refId := uuid.New().String()
 
 	// prepare the source data
-	slen := util.RandomInt(100) + 16
-	srcBytes := make([]byte, slen)
-	rand.Read(srcBytes)
+	srcBytes := common.RandomBytes(16, 116)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 
 	// verify empty before start

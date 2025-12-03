@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -43,7 +43,7 @@ func TestFilterOutputByBitmap(t *testing.T) {
 	// post
 	subdocId := "remotedebugger"
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	remotedebuggerBytes := util.RandomBytes(100, 150)
+	remotedebuggerBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
@@ -122,7 +122,7 @@ func TestBitmapFilterExemptSubdocIds(t *testing.T) {
 	// post
 	subdocId := "remotedebugger"
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	remotedebuggerBytes := util.RandomBytes(100, 150)
+	remotedebuggerBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 

@@ -118,7 +118,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// post
 	subdocId := "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -150,7 +150,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	// post
 	subdocId = "wan"
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	wanBytes := util.RandomBytes(100, 150)
+	wanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -226,7 +226,7 @@ func TestBuildMqttSendDocument(t *testing.T) {
 	assert.Equal(t, document.Length(), 2)
 
 	// ==== step 7 change the subdoc again ====
-	lanBytes2 := util.RandomBytes(100, 150)
+	lanBytes2 := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes2))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)

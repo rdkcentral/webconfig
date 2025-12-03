@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package db
 
 import (
@@ -53,12 +53,12 @@ func TestUpdateRootVersion(t *testing.T) {
 	doc := common.NewDocument(nil)
 	tt := int(123)
 
-	bbytes1 := util.RandomBytes(100, 150)
+	bbytes1 := common.RandomBytes(100, 150)
 	v1 := util.GetMurmur3Hash(bbytes1)
 	subdoc1 := common.NewSubDocument(bbytes1, &v1, nil, &tt, nil, nil)
 	doc.SetSubDocument("advsecurity", subdoc1)
 
-	bbytes2 := util.RandomBytes(100, 150)
+	bbytes2 := common.RandomBytes(100, 150)
 	v2 := util.GetMurmur3Hash(bbytes2)
 	subdoc2 := common.NewSubDocument(bbytes2, &v2, nil, &tt, nil, nil)
 	doc.SetSubDocument("mesh", subdoc2)

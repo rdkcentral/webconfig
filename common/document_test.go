@@ -18,8 +18,6 @@
 package common
 
 import (
-	crand "crypto/rand"
-	"math/rand"
 	"strconv"
 	"testing"
 	"time"
@@ -44,9 +42,7 @@ func TestDocument(t *testing.T) {
 	mparts := []Multipart{}
 	versionMap := make(map[string]string)
 	for _, subdocId := range subdocIds {
-		blen := rand.Intn(10) + 10
-		bbytes := make([]byte, blen)
-		crand.Read(bbytes)
+		bbytes := RandomBytes(10, 20)
 		version := strconv.Itoa(int(time.Now().Unix()))
 		mpart := Multipart{
 			Bytes:   bbytes,
@@ -94,9 +90,7 @@ func TestFilterByBitmap(t *testing.T) {
 	mparts := []Multipart{}
 	versionMap := make(map[string]string)
 	for _, subdocId := range subdocIds {
-		blen := rand.Intn(10) + 10
-		bbytes := make([]byte, blen)
-		crand.Read(bbytes)
+		bbytes := RandomBytes(10, 20)
 		version := strconv.Itoa(int(time.Now().Unix()))
 		mpart := Multipart{
 			Bytes:   bbytes,
