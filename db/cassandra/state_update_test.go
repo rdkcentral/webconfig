@@ -35,7 +35,7 @@ func TestStateUpdate1(t *testing.T) {
 
 	// setup a doct
 	groupId := "privatessid"
-	srcBytes := util.RandomBytes(100, 150)
+	srcBytes := common.RandomBytes(100, 150)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload
@@ -88,7 +88,7 @@ func TestStateUpdate2(t *testing.T) {
 
 	// setup a doct
 	groupId := "privatessid"
-	srcBytes := util.RandomBytes(100, 150)
+	srcBytes := common.RandomBytes(100, 150)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload

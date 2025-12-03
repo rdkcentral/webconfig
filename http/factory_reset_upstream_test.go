@@ -95,7 +95,7 @@ func TestFactoryResetWithoutUpstream(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -121,7 +121,7 @@ func TestFactoryResetWithoutUpstream(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -191,7 +191,7 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -217,7 +217,7 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -345,7 +345,7 @@ func TestFactoryResetUpstreamAddData(t *testing.T) {
 			// add a subdoc from upsream
 			mparts := []common.Multipart{
 				{
-					Bytes:   util.RandomBytes(100, 150),
+					Bytes:   common.RandomBytes(100, 150),
 					Version: strconv.Itoa(int(time.Now().Unix())),
 					Name:    "network",
 					State:   common.PendingDownload,
@@ -397,7 +397,7 @@ func TestFactoryResetWithUpstreamThenFilteringByBitmap(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -423,7 +423,7 @@ func TestFactoryResetWithUpstreamThenFilteringByBitmap(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -449,7 +449,7 @@ func TestFactoryResetWithUpstreamThenFilteringByBitmap(t *testing.T) {
 
 	// ==== group 3 webui ====
 	subdocId = "webui"
-	webuiBytes := util.RandomBytes(m, n)
+	webuiBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)

@@ -14,11 +14,10 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
-	"crypto/rand"
 	"net/http"
 	"strconv"
 	"testing"
@@ -36,9 +35,7 @@ func TestMocaSubDocument(t *testing.T) {
 	subdocId := "moca"
 
 	// prepare the source data
-	slen := util.RandomInt(100) + 16
-	srcBytes := make([]byte, slen)
-	rand.Read(srcBytes)
+	srcBytes := common.RandomBytes(16, 116)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload
@@ -66,9 +63,7 @@ func TestPrivatessidSubDocument(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 	groupId := "privatessid"
 
-	slen := util.RandomInt(100) + 16
-	srcBytes := make([]byte, slen)
-	rand.Read(srcBytes)
+	srcBytes := common.RandomBytes(16, 116)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload
@@ -231,7 +226,7 @@ func TestExpirySubDocument(t *testing.T) {
 	// prepare some subdocs
 	subdocIds := []string{"privatessid", "lan", "wan"}
 	for _, subdocId := range subdocIds {
-		srcBytes := util.RandomBytes(100, 150)
+		srcBytes := common.RandomBytes(100, 150)
 		srcVersion := util.GetMurmur3Hash(srcBytes)
 		srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 		srcState := common.PendingDownload
@@ -246,7 +241,7 @@ func TestExpirySubDocument(t *testing.T) {
 	assert.Assert(t, doc.Length() == len(subdocIds))
 
 	// add an expiry-type but not-yet-expired subdoc
-	srcBytes := util.RandomBytes(100, 150)
+	srcBytes := common.RandomBytes(100, 150)
 	now := time.Now()
 	nowTs := int(now.UnixNano() / 1000000)
 	futureT := now.AddDate(0, 0, 2)
@@ -265,7 +260,7 @@ func TestExpirySubDocument(t *testing.T) {
 	assert.Assert(t, doc.Length() == len(subdocIds)+1)
 
 	// set an expired subdoc
-	srcBytes = util.RandomBytes(100, 150)
+	srcBytes = common.RandomBytes(100, 150)
 	past := now.Add(time.Duration(-1) * time.Hour)
 	pastTs := int(past.UnixNano() / 1000000)
 	srcVersion = strconv.Itoa(nowTs)

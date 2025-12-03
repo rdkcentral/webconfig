@@ -42,10 +42,10 @@ func TestUpstream(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidV13Bytes := util.RandomBytes(m, n)
-	privatessidV14Bytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidV13Bytes := common.RandomBytes(m, n)
+	privatessidV14Bytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidV13Bytes,
 		"lan":         lanBytes,
@@ -339,9 +339,9 @@ func TestUpstreamStateChangeFirmwareChange(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidBytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidBytes,
 		"lan":         lanBytes,
@@ -556,10 +556,10 @@ func TestUpstreamUpdatedTime(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidV13Bytes := util.RandomBytes(m, n)
-	privatessidV14Bytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidV13Bytes := common.RandomBytes(m, n)
+	privatessidV14Bytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidV13Bytes,
 		"lan":         lanBytes,
@@ -868,9 +868,9 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidV13Bytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidV13Bytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidV13Bytes,
 		"lan":         lanBytes,
@@ -898,7 +898,7 @@ func TestUpstreamResponseSkipDbUpdate(t *testing.T) {
 			}
 
 			// create a new document
-			pfBytes := util.RandomBytes(m, n)
+			pfBytes := common.RandomBytes(m, n)
 			version := util.GetMurmur3Hash(pfBytes)
 			newMparts := []common.Multipart{
 				{
@@ -1161,9 +1161,9 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidV13Bytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidV13Bytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidV13Bytes,
 		"lan":         lanBytes,
@@ -1191,7 +1191,7 @@ func TestUpstreamResponseSkipDbUpdateNone(t *testing.T) {
 			}
 
 			// create a new document
-			pfBytes := util.RandomBytes(m, n)
+			pfBytes := common.RandomBytes(m, n)
 			version := util.GetMurmur3Hash(pfBytes)
 			newMparts := []common.Multipart{
 				{
@@ -1449,9 +1449,9 @@ func TestUpstreamBackfill(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
-	wanBytes := util.RandomBytes(m, n)
-	privatessidBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
+	privatessidBytes := common.RandomBytes(m, n)
 	srcbytesMap := map[string][]byte{
 		"privatessid": privatessidBytes,
 		"lan":         lanBytes,
@@ -1693,7 +1693,7 @@ func TestUpstreamNoBitmapHeader(t *testing.T) {
 	// ==== step 2 POST group lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -1719,7 +1719,7 @@ func TestUpstreamNoBitmapHeader(t *testing.T) {
 
 	// ==== step 3 POST group wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)

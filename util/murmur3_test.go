@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	tmur "github.com/twmb/murmur3"
 	"gotest.tools/assert"
 )
@@ -46,7 +47,7 @@ func TestSomeMurmur3(t *testing.T) {
 	s1 := GetMurmur3Hash(nil)
 	assert.Equal(t, s1, "0")
 
-	bbytes := RandomBytes(10, 20)
+	bbytes := common.RandomBytes(10, 20)
 	s2 := GetMurmur3Hash(bbytes)
 	assert.Assert(t, len(s2) > 0)
 }
