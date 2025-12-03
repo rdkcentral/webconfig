@@ -105,7 +105,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	// post
 	subdocId := "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -135,7 +135,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 	// post
 	subdocId = "wan"
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	wanBytes := util.RandomBytes(100, 150)
+	wanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -212,7 +212,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	// post
 	subdocId := "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -244,7 +244,7 @@ func TestPostWithDeviceId(t *testing.T) {
 	// post
 	subdocId = "wan"
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v?device_id=%v", cpeMac, subdocId, queryParams)
-	wanBytes := util.RandomBytes(100, 150)
+	wanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -281,7 +281,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	// post
 	subdocId := "gwrestore"
 	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	gwrestoreBytes := util.RandomBytes(100, 150)
+	gwrestoreBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
@@ -318,7 +318,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	// post
 	subdocId = "remotedebugger"
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	remotedebuggerBytes := util.RandomBytes(100, 150)
+	remotedebuggerBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
@@ -362,7 +362,7 @@ func TestSubDocumentHandlerWithVersionHeader(t *testing.T) {
 	// post
 	subdocId = "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -441,7 +441,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	// post
 	subdocId := "gwrestore"
 	gwrestoreUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	gwrestoreBytes := util.RandomBytes(100, 150)
+	gwrestoreBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", gwrestoreUrl, bytes.NewReader(gwrestoreBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
@@ -478,7 +478,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	// post
 	subdocId = "remotedebugger"
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	remotedebuggerBytes := util.RandomBytes(100, 150)
+	remotedebuggerBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 
@@ -522,7 +522,7 @@ func TestSubDocumentHandlerWithExpiredVersionHeader(t *testing.T) {
 	// post
 	subdocId = "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -595,7 +595,7 @@ func TestBadHeaderExpiryHandler(t *testing.T) {
 	// post
 	subdocId := "remotedebugger"
 	remotedebuggerUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	remotedebuggerBytes := util.RandomBytes(100, 150)
+	remotedebuggerBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", remotedebuggerUrl, bytes.NewReader(remotedebuggerBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 

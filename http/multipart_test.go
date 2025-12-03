@@ -303,7 +303,7 @@ func TestVersionFiltering(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -329,7 +329,7 @@ func TestVersionFiltering(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -447,7 +447,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -473,7 +473,7 @@ func TestUpstreamVersionFiltering(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -621,7 +621,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -647,7 +647,7 @@ func TestMqttUpstreamVersionFiltering(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -798,7 +798,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -824,7 +824,7 @@ func TestMultipartConfigMismatch(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 	assert.NilError(t, err)
 
 	// post
@@ -919,7 +919,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -945,7 +945,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 	assert.NilError(t, err)
 
 	// post
@@ -972,7 +972,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// ==== group 3 mesh ====
 	subdocId = "mesh"
-	meshBytes := util.RandomBytes(m, n)
+	meshBytes := common.RandomBytes(m, n)
 	assert.NilError(t, err)
 
 	// post
@@ -999,7 +999,7 @@ func TestStateCorrectionEnabled(t *testing.T) {
 
 	// ==== group 3 moca ====
 	subdocId = "moca"
-	mocaBytes := util.RandomBytes(m, n)
+	mocaBytes := common.RandomBytes(m, n)
 	assert.NilError(t, err)
 
 	// post
@@ -1199,7 +1199,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	// post
 	subdocId := "lan"
 	lanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	lanBytes := util.RandomBytes(100, 150)
+	lanBytes := common.RandomBytes(100, 150)
 	req, err := http.NewRequest("POST", lanUrl, bytes.NewReader(lanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -1223,7 +1223,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	// post
 	subdocId = "wan"
 	wanUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	wanBytes := util.RandomBytes(100, 150)
+	wanBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", wanUrl, bytes.NewReader(wanBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -1246,7 +1246,7 @@ func TestCorruptedEncryptedDocumentHandler(t *testing.T) {
 	// post
 	subdocId = "privatessid"
 	privatessidUrl := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
-	privatessidBytes := util.RandomBytes(100, 150)
+	privatessidBytes := common.RandomBytes(100, 150)
 	req, err = http.NewRequest("POST", privatessidUrl, bytes.NewReader(privatessidBytes))
 	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
 	assert.NilError(t, err)
@@ -1354,7 +1354,7 @@ func TestValidateQueryParams(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -1380,7 +1380,7 @@ func TestValidateQueryParams(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)

@@ -284,11 +284,11 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)
 
 	// ==== step 2 ====
-	supportedDocs2 := "16777231,33554435,50331649,67108865,83886081,100663297,117440513,134217729" + string(util.RandomBytes(10, 15))
-	firmwareVersion2 := "CGM4331COM_4.11p7s1_PROD_sey" + string(util.RandomBytes(10, 15))
-	modelName2 := "CGM4331COM" + string(util.RandomBytes(10, 15))
-	partner2 := "comcast" + string(util.RandomBytes(10, 15))
-	schemaVersion2 := "33554433-1.3,33554434-1.3" + string(util.RandomBytes(10, 15))
+	supportedDocs2 := "16777231,33554435,50331649,67108865,83886081,100663297,117440513,134217729" + string(common.RandomBytes(10, 15))
+	firmwareVersion2 := "CGM4331COM_4.11p7s1_PROD_sey" + string(common.RandomBytes(10, 15))
+	modelName2 := "CGM4331COM" + string(common.RandomBytes(10, 15))
+	partner2 := "comcast" + string(common.RandomBytes(10, 15))
+	schemaVersion2 := "33554433-1.3,33554434-1.3" + string(common.RandomBytes(10, 15))
 
 	req.Header.Set(common.HeaderSupportedDocs, supportedDocs2)
 	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion2)
