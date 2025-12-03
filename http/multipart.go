@@ -445,9 +445,9 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		return http.StatusInternalServerError, respHeader, oldDocBytes, common.NewError(err)
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
+	finalRootDocument := rootDocument.Clone()
+	finalRootDocument.Version = upstreamRespEtag
 
-	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(0, "", "", "", "", upstreamRespEtag, "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 	for _, subdocId := range c.BlockedSubdocIds() {
@@ -471,6 +471,12 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
 	}
+
+	// filter by bitmaps and blockedIds
+	if s.FilterOutputByBitmapEnabled() {
+		finalDocument = finalDocument.FilterByBitmap(s.BitmapFilterExemptSubdocIds()...)
+	}
+
 	finalBytes, err := finalDocument.Bytes()
 	if err != nil {
 		return http.StatusInternalServerError, upstreamRespHeader, finalBytes, common.NewError(err)
