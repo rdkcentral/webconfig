@@ -19,9 +19,13 @@ package security
 
 import (
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -70,15 +74,25 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 	decodeKeys := map[string]*rsa.PublicKey{}
 	for _, kid := range kids {
 		keyfile := conf.GetString(fmt.Sprintf("webconfig.jwt.kid.%s.public_key_file", kid))
-		dk, err := loadDecodeKey(keyfile)
+		var dk *rsa.PublicKey
+		var err error
+
+		publicKeyUrl := conf.GetString(fmt.Sprintf("webconfig.jwt.kid.%s.url", kid))
+		if len(publicKeyUrl) > 0 {
+			dk, err = fetchPublicKeyFromURL(publicKeyUrl)
+		} else {
+			dk, err = loadDecodeKey(keyfile)
+		}
+
 		if err != nil {
 			if panicExitEnabled {
 				panic(err)
 			} else {
 				fmt.Printf("WARNING %v\n", err)
 			}
+		} else {
+			decodeKeys[kid] = dk
 		}
-		decodeKeys[kid] = dk
 	}
 
 	fn := VerifyToken
@@ -102,6 +116,49 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 		cpeCapabilities: conf.GetStringList("webconfig.jwt.cpe_token.capabilities"),
 		verifyFn:        fn,
 	}
+}
+
+func fetchPublicKeyFromURL(publicKeyUrl string) (*rsa.PublicKey, error) {
+	resp, err := http.Get(publicKeyUrl)
+	if err != nil {
+		return nil, common.NewError(fmt.Errorf("unable to fetch the public key from URL: %v", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, common.NewError(fmt.Errorf("unexpected status code %d received while fetching the public key from URL", resp.StatusCode))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, common.NewError(fmt.Errorf("failed to read the response body from public key URL: %v", err))
+	}
+
+	publicKey, err := parsePublicKey(body)
+	if err != nil {
+		return nil, common.NewError(fmt.Errorf("error parsing the public key fetched from URL: %v", err))
+	}
+
+	return publicKey, nil
+}
+
+func parsePublicKey(pemData []byte) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode(pemData)
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return nil, common.NewError(fmt.Errorf("failed to decode PEM block containing public key"))
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, common.NewError(fmt.Errorf("failed to parse public key: %v", err))
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, common.NewError(fmt.Errorf("public key is not of type RSA"))
+	}
+
+	return rsaPub, nil
 }
 
 func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {

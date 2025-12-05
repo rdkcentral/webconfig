@@ -5,6 +5,8 @@ go 1.21
 require (
 	github.com/IBM/sarama v1.42.1
 	github.com/MicahParks/keyfunc/v2 v2.1.0
+	github.com/aws/aws-sdk-go v1.49.12
+	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/go-akka/configuration v0.0.0-20200606091224-a002c0330665
 	github.com/gocql/gocql v1.6.0
 	github.com/golang-jwt/jwt/v5 v5.0.0
@@ -52,6 +54,7 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
