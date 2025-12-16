@@ -403,7 +403,7 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 			if !util.ValidateMac(mac) {
 				err := *common.NewHttp400Error("invalid mac")
 				Error(w, http.StatusBadRequest, common.NewError(err))
-					return
+				return
 			}
 		}
 

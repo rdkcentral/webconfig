@@ -14,11 +14,10 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
-	"crypto/rand"
 	"strconv"
 	"strings"
 
@@ -29,12 +28,10 @@ func GetMockMultiparts(queryStr string) []common.Multipart {
 	groupIds := strings.Split(queryStr, ",")
 	mparts := []common.Multipart{}
 	for _, g := range groupIds {
-		slen := RandomInt(100) + 16
-		bbytes := make([]byte, slen)
-		rand.Read(bbytes)
+		bbytes := common.RandomBytes(16, 116)
 		mpart := common.Multipart{
 			Bytes:   bbytes,
-			Version: strconv.Itoa(RandomInt(100000000)),
+			Version: strconv.Itoa(common.RandomInt(100000000)),
 			Name:    g,
 		}
 		mparts = append(mparts, mpart)

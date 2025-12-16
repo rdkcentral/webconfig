@@ -35,7 +35,7 @@ func TestRefSubDocumentHandler(t *testing.T) {
 	router := server.GetRouter(true)
 
 	refId := uuid.New().String()
-	bbytes := util.RandomBytes(100, 150)
+	bbytes := common.RandomBytes(100, 150)
 
 	// post
 	url := fmt.Sprintf("/api/v1/reference/%v/document", refId)
@@ -86,7 +86,7 @@ func TestSubDocumentWithInvalidRefDoc(t *testing.T) {
 
 	// ==== step 1 setup refdoc1 and subdoc1 ====
 	refId1 := uuid.New().String()
-	bbytes1 := util.RandomBytes(100, 150)
+	bbytes1 := common.RandomBytes(100, 150)
 	subdocId1 := "defaultrfc"
 
 	// post
@@ -123,7 +123,7 @@ func TestSubDocumentWithInvalidRefDoc(t *testing.T) {
 
 	// ==== step 2 setup refdoc2 and subdoc2 ====
 	refId2 := uuid.New().String()
-	bbytes2 := util.RandomBytes(100, 150)
+	bbytes2 := common.RandomBytes(100, 150)
 	subdocId2 := "defaulttelemetry"
 
 	// post

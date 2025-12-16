@@ -95,7 +95,7 @@ func TestFactoryResetWithoutUpstream(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -121,7 +121,7 @@ func TestFactoryResetWithoutUpstream(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -191,7 +191,7 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 	// ==== group 1 lan ====
 	subdocId := "lan"
 	m, n := 50, 100
-	lanBytes := util.RandomBytes(m, n)
+	lanBytes := common.RandomBytes(m, n)
 
 	// post
 	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -217,7 +217,7 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 
 	// ==== group 2 wan ====
 	subdocId = "wan"
-	wanBytes := util.RandomBytes(m, n)
+	wanBytes := common.RandomBytes(m, n)
 
 	// post
 	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
@@ -345,7 +345,7 @@ func TestFactoryResetUpstreamAddData(t *testing.T) {
 			// add a subdoc from upsream
 			mparts := []common.Multipart{
 				{
-					Bytes:   util.RandomBytes(100, 150),
+					Bytes:   common.RandomBytes(100, 150),
 					Version: strconv.Itoa(int(time.Now().Unix())),
 					Name:    "network",
 					State:   common.PendingDownload,
@@ -387,4 +387,187 @@ func TestFactoryResetUpstreamAddData(t *testing.T) {
 	rootDocument, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, rootDocument.Bitmap, 32479)
+}
+
+func TestFactoryResetWithUpstreamThenFilteringByBitmap(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	// ==== group 1 lan ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := common.RandomBytes(m, n)
+
+	// post
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err := io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, lanBytes)
+
+	// ==== group 2 wan ====
+	subdocId = "wan"
+	wanBytes := common.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(wanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, wanBytes)
+
+	// ==== group 3 webui ====
+	subdocId = "webui"
+	webuiBytes := common.RandomBytes(m, n)
+
+	// post
+	url = fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err = http.NewRequest("POST", url, bytes.NewReader(webuiBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// get
+	req, err = http.NewRequest("GET", url, nil)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.DeepEqual(t, rbytes, webuiBytes)
+
+	// ==== GET /config ====
+	deviceConfigUrl := fmt.Sprintf("/api/v1/device/%v/config?group_id=root", cpeMac)
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	req.Header.Set(common.HeaderProductClass, "XB8")
+	req.Header.Set(common.HeaderFirmwareVersion, "CGM4981COM_8.0p4s1_PROD_sey")
+	req.Header.Set(common.HeaderIfNoneMatch, "0")
+	req.Header.Set(common.HeaderModelName, "CGM4981COM")
+	req.Header.Set(common.HeaderSupportedDocs, "16777439,33554435,50331649,67108865,83886081,100663423,117440513,134217735,201326594,218103809,251658241,268435457,285212673")
+	req.Header.Set(common.HeaderSchemaVersion, "16777232-1.3,33554433-1.3,33554434-1.3")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err := util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 3)
+	mpart, ok := mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	// lanVersion := mpart.Version
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, wanBytes)
+	mpart, ok = mparts["webui"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, webuiBytes)
+
+	// ==== setup mock upstream server ====
+	fields := make(log.Fields)
+	mockDoc, err := server.GetDocument(cpeMac, fields)
+	assert.NilError(t, err)
+
+	mockRootDoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	mockDoc.SetRootDocument(mockRootDoc)
+
+	// mockDoc.DeleteSubDocument("wan")
+	// assert.NilError(t, err)
+
+	mockBytes, err := mockDoc.Bytes()
+	assert.NilError(t, err)
+
+	db.RefreshRootDocumentVersion(mockDoc)
+	refreshedRootVersion := mockDoc.RootVersion()
+
+	upstreamMockServer := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// build the response
+			for k := range r.Header {
+				w.Header().Set(k, r.Header.Get(k))
+			}
+			w.Header().Set(common.HeaderContentLength, strconv.Itoa(len(mockBytes)))
+			ifNoneMatch := refreshedRootVersion
+			w.Header().Set(common.HeaderEtag, ifNoneMatch)
+			w.WriteHeader(http.StatusOK)
+			w.Write(mockBytes)
+		}))
+
+	server.SetUpstreamHost(upstreamMockServer.URL)
+	targetUpstreamHost := server.UpstreamHost()
+	assert.Equal(t, upstreamMockServer.URL, targetUpstreamHost)
+	defer upstreamMockServer.Close()
+
+	// ==== GET /config but with header changes without mock ====
+	server.SetUpstreamEnabled(true)
+	server.SetFilterOutputByBitmapEnabled(true)
+
+	req, err = http.NewRequest("GET", deviceConfigUrl, nil)
+	req.Header.Set(common.HeaderProductClass, "XB8")
+	req.Header.Set(common.HeaderFirmwareVersion, "CGM4981COM_8.0p4s1_PROD_sey")
+	req.Header.Set(common.HeaderIfNoneMatch, "NONE")
+	req.Header.Set(common.HeaderModelName, "CGM4981COM")
+	req.Header.Set(common.HeaderSupportedDocs, "16777439,33554435,50331649,67108865,83886081,100663423,117440513,134217735,201326594,218103809,251658241,268435457,285212673")
+	req.Header.Set(common.HeaderSchemaVersion, "16777232-1.3,33554433-1.3,33554434-1.3")
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, router).Result()
+	rbytes, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	mparts, err = util.ParseMultipart(res.Header, rbytes)
+	assert.NilError(t, err)
+	assert.Equal(t, len(mparts), 2)
+	mpart, ok = mparts["lan"]
+	assert.Assert(t, ok)
+	assert.DeepEqual(t, mpart.Bytes, lanBytes)
+	mpart, ok = mparts["wan"]
+	assert.Assert(t, ok)
+
+	// verify Document is now empty
+	doc, err := server.GetDocument(cpeMac, fields)
+	assert.NilError(t, err)
+	assert.Equal(t, doc.Length(), 3)
 }
