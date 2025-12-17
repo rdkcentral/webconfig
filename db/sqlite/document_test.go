@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package sqlite
 
 import (
@@ -122,4 +122,108 @@ func TestDbReadDocument(t *testing.T) {
 	// verify empty
 	_, err = tdbclient.GetDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
+}
+
+func TestGetSubDocumentWithReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "lan"
+	refId := util.GetMurmur3Hash([]byte(cpeMac + subdocId))
+
+	// Step 1: Create a reference subdocument with actual payload
+	actualPayload := common.RandomBytes(100, 200)
+	actualVersion := util.GetMurmur3Hash(actualPayload)
+	refSubdoc := common.NewRefSubDocument(actualPayload, &actualVersion)
+
+	err := tdbclient.SetRefSubDocument(refId, refSubdoc)
+	assert.NilError(t, err)
+
+	// Step 2: Create a subdocument with reference payload (4 zero bytes + refId)
+	referencePayload := append(make([]byte, 4), []byte(refId)...)
+	refVersion := util.GetMurmur3Hash(referencePayload)
+	refState := common.InDeployment
+	refUpdatedTime := int(time.Now().UnixMilli())
+
+	subdocWithRef := common.NewSubDocument(referencePayload, &refVersion, &refState, &refUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err = tdbclient.SetSubDocument(cpeMac, subdocId, subdocWithRef, fields)
+	assert.NilError(t, err)
+
+	// Step 3: Call GetSubDocument and verify it returns the actual payload, not the reference
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is the actual payload from refsubdocument, not the reference
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), actualPayload)
+
+	// Verify other fields remain unchanged
+	assert.Equal(t, *fetchedSubdoc.Version(), refVersion)
+	assert.Equal(t, *fetchedSubdoc.State(), refState)
+	assert.Equal(t, *fetchedSubdoc.UpdatedTime(), refUpdatedTime)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	err = tdbclient.DeleteRefSubDocument(refId)
+	assert.NilError(t, err)
+}
+
+func TestGetSubDocumentWithMissingReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "wan"
+	refId := util.GetMurmur3Hash([]byte(cpeMac + subdocId + "nonexistent"))
+
+	// Create a subdocument with reference payload pointing to non-existent refsubdocument
+	referencePayload := append(make([]byte, 4), []byte(refId)...)
+	refVersion := util.GetMurmur3Hash(referencePayload)
+	refState := common.InDeployment
+	refUpdatedTime := int(time.Now().UnixMilli())
+
+	subdocWithRef := common.NewSubDocument(referencePayload, &refVersion, &refState, &refUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err := tdbclient.SetSubDocument(cpeMac, subdocId, subdocWithRef, fields)
+	assert.NilError(t, err)
+
+	// Call GetSubDocument - should return the reference payload since refsubdocument doesn't exist
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is the reference payload (since refsubdocument was not found)
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), referencePayload)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+}
+
+func TestGetSubDocumentWithoutReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "mesh"
+
+	// Create a regular subdocument without any reference
+	regularPayload := common.RandomBytes(100, 200)
+	regularVersion := util.GetMurmur3Hash(regularPayload)
+	regularState := common.Deployed
+	regularUpdatedTime := int(time.Now().UnixMilli())
+
+	subdoc := common.NewSubDocument(regularPayload, &regularVersion, &regularState, &regularUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err := tdbclient.SetSubDocument(cpeMac, subdocId, subdoc, fields)
+	assert.NilError(t, err)
+
+	// Call GetSubDocument - should return the regular payload unchanged
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is unchanged
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), regularPayload)
+	assert.Equal(t, *fetchedSubdoc.Version(), regularVersion)
+	assert.Equal(t, *fetchedSubdoc.State(), regularState)
+	assert.Equal(t, *fetchedSubdoc.UpdatedTime(), regularUpdatedTime)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
 }

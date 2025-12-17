@@ -48,12 +48,14 @@ type CassandraClient struct {
 	*gocql.ClusterConfig
 	*security.AesCodec
 	*common.AppMetrics
-	concurrentQueries       chan bool
-	localDc                 string
-	blockedSubdocIds        []string
-	encryptedSubdocIds      []string
-	stateCorrectionEnabled  bool
-	lockRootDocumentEnabled bool
+	concurrentQueries                chan bool
+	localDc                          string
+	blockedSubdocIds                 []string
+	encryptedSubdocIds               []string
+	stateCorrectionEnabled           bool
+	lockRootDocumentEnabled          bool
+	supplementaryPrecookEnabled      bool
+	supplementaryPrecookStateTTLDays int
 }
 
 /*
@@ -163,17 +165,21 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
 	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
 	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
+	supplementaryPrecookEnabled := conf.GetBoolean("webconfig.supplementary_precook_enabled")
+	supplementaryPrecookStateTTLDays := int(conf.GetInt32("webconfig.supplementary_precook_state_ttl_days", 7))
 
 	return &CassandraClient{
-		Session:                 session,
-		ClusterConfig:           cluster,
-		AesCodec:                codec,
-		concurrentQueries:       make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
-		localDc:                 localDc,
-		blockedSubdocIds:        blockedSubdocIds,
-		encryptedSubdocIds:      encryptedSubdocIds,
-		stateCorrectionEnabled:  stateCorrectionEnabled,
-		lockRootDocumentEnabled: lockRootDocumentEnabled,
+		Session:                          session,
+		ClusterConfig:                    cluster,
+		AesCodec:                         codec,
+		concurrentQueries:                make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
+		localDc:                          localDc,
+		blockedSubdocIds:                 blockedSubdocIds,
+		encryptedSubdocIds:               encryptedSubdocIds,
+		stateCorrectionEnabled:           stateCorrectionEnabled,
+		lockRootDocumentEnabled:          lockRootDocumentEnabled,
+		supplementaryPrecookEnabled:      supplementaryPrecookEnabled,
+		supplementaryPrecookStateTTLDays: supplementaryPrecookStateTTLDays,
 	}, nil
 }
 
@@ -294,4 +300,20 @@ func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*Cassand
 		return nil, common.NewError(err)
 	}
 	return tdbclient, nil
+}
+
+func (c *CassandraClient) SupplementaryPrecookEnabled() bool {
+	return c.supplementaryPrecookEnabled
+}
+
+func (c *CassandraClient) SetSupplementaryPrecookEnabled(enabled bool) {
+	c.supplementaryPrecookEnabled = enabled
+}
+
+func (c *CassandraClient) SupplementaryPrecookStateTTLDays() int {
+	return c.supplementaryPrecookStateTTLDays
+}
+
+func (c *CassandraClient) SetSupplementaryPrecookStateTTLDays(days int) {
+	c.supplementaryPrecookStateTTLDays = days
 }
