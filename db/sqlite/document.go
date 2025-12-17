@@ -14,17 +14,18 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package sqlite
 
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/db"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/db"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,20 +33,20 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	rows, err := c.Query("SELECT payload,state,updated_time,version,error_code,error_details FROM xpc_group_config WHERE cpe_mac=? AND group_id=?", cpeMac, groupId)
+	rows, err := c.Query("SELECT payload,state,updated_time,version,error_code,error_details,expiry FROM xpc_group_config WHERE cpe_mac=? AND group_id=?", cpeMac, groupId)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
 	var ns1, ns2 sql.NullString
 	var b1 []byte
-	var nt1 sql.NullTime
+	var nt1, nt2 sql.NullTime
 	var ni1, ni2 sql.NullInt64
 
 	if !rows.Next() {
 		return nil, sql.ErrNoRows
 	}
-	err = rows.Scan(&b1, &ni1, &nt1, &ns1, &ni2, &ns2)
+	err = rows.Scan(&b1, &ni1, &nt1, &ns1, &ni2, &ns2, &nt2)
 	defer rows.Close()
 	if err != nil {
 		return nil, common.NewError(err)
@@ -53,7 +54,7 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 
 	var s1, s2 *string
 	var i1, i2 *int
-	var ts *int
+	var ts, expiry *int
 	if ns1.Valid {
 		s1 = &(ns1.String)
 	}
@@ -65,6 +66,11 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 		tt := int(t1.UnixNano() / 1000000)
 		ts = &tt
 	}
+	if nt2.Valid {
+		t2 := nt2.Time
+		tt := int(t2.UnixNano() / 1000000)
+		expiry = &tt
+	}
 	if ni1.Valid {
 		ii := int(ni1.Int64)
 		i1 = &ii
@@ -74,7 +80,24 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 		i2 = &ii
 	}
 
+	// Check if payload contains a reference to a refsubdocument
+	if refId, ok := db.GetRefId(b1); ok {
+		refsubdocument, err := c.GetRefSubDocument(refId)
+		if err != nil {
+			if !c.IsDbNotFound(err) {
+				return nil, common.NewError(err)
+			}
+			// If refsubdocument not found, continue with the reference payload
+		} else {
+			// Replace payload with the actual payload from refsubdocument
+			b1 = refsubdocument.Payload()
+		}
+	}
+
 	doc := common.NewSubDocument(b1, s1, i1, ts, i2, s2)
+	if expiry != nil {
+		doc.SetExpiry(expiry)
+	}
 	return doc, nil
 }
 
@@ -100,6 +123,18 @@ func (c *SqliteClient) insertSubDocument(cpeMac string, groupId string, doc *com
 	if doc.UpdatedTime() != nil {
 		columns = append(columns, "updated_time")
 		values = append(values, doc.UpdatedTime())
+	}
+	if doc.Expiry() != nil {
+		columns = append(columns, "expiry")
+		values = append(values, doc.Expiry())
+	}
+	if doc.ErrorCode() != nil {
+		columns = append(columns, "error_code")
+		values = append(values, doc.ErrorCode())
+	}
+	if doc.ErrorDetails() != nil {
+		columns = append(columns, "error_details")
+		values = append(values, doc.ErrorDetails())
 	}
 	qstr := fmt.Sprintf("INSERT INTO xpc_group_config(%v) VALUES(%v)", db.GetColumnsStr(columns), db.GetValuesStr(len(columns)))
 	stmt, err := c.Prepare(qstr)
@@ -136,6 +171,14 @@ func (c *SqliteClient) updateSubDocument(cpeMac string, groupId string, doc *com
 	if doc.UpdatedTime() != nil {
 		columns = append(columns, "updated_time")
 		values = append(values, doc.UpdatedTime())
+	}
+	if doc.ErrorCode() != nil {
+		columns = append(columns, "error_code")
+		values = append(values, doc.ErrorCode())
+	}
+	if doc.ErrorDetails() != nil {
+		columns = append(columns, "error_details")
+		values = append(values, doc.ErrorDetails())
 	}
 	values = append(values, cpeMac)
 	values = append(values, groupId)
@@ -208,6 +251,32 @@ func (c *SqliteClient) DeleteSubDocument(cpeMac string, groupId string) error {
 	defer func() { <-c.concurrentQueries }()
 
 	stmt, err := c.Prepare("DELETE FROM xpc_group_config WHERE cpe_mac=? AND group_id=?")
+	if err != nil {
+		return common.NewError(err)
+	}
+
+	_, err = stmt.Exec(cpeMac, groupId)
+	if err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+func (c *SqliteClient) DeleteSubDocumentColumns(cpeMac string, groupId string, columns ...string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	// Build UPDATE statement to set columns to NULL
+	updateExprs := make([]string, len(columns))
+	for i, col := range columns {
+		updateExprs[i] = col + "=NULL"
+	}
+	qstr := fmt.Sprintf("UPDATE xpc_group_config SET %v WHERE cpe_mac=? AND group_id=?", strings.Join(updateExprs, ","))
+	stmt, err := c.Prepare(qstr)
 	if err != nil {
 		return common.NewError(err)
 	}

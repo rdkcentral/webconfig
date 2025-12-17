@@ -480,6 +480,12 @@ func UpdateDocumentState(c DatabaseClient, cpeMac string, m *common.EventMessage
 
 	newSubdoc := common.NewSubDocument(nil, nil, &state, &updatedTime, errorCodePtr, errorDetailsPtr)
 
+	// Set expiry for telemetry subdoc if supplementary precook is enabled, success state, and TTL is configured
+	if c.SupplementaryPrecookEnabled() && targetGroupId == "telemetry" && state == common.Deployed && c.SupplementaryPrecookStateTTLDays() > 0 {
+		expiryTime := int(time.Now().Add(time.Duration(c.SupplementaryPrecookStateTTLDays()) * 24 * time.Hour).UnixMilli())
+		newSubdoc.SetExpiry(&expiryTime)
+	}
+
 	// metricsAgent handling
 	if m.MetricsAgent != nil {
 		labels["client"] = *m.MetricsAgent

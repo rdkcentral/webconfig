@@ -14,18 +14,19 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gocql/gocql"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,6 +54,20 @@ func (c *CassandraClient) GetSubDocument(cpeMac string, groupId string) (*common
 		payload, err = c.DecryptBytes(payload)
 		if err != nil {
 			return nil, common.NewError(err)
+		}
+	}
+
+	// Check if payload contains a reference to a refsubdocument
+	if refId, ok := db.GetRefId(payload); ok {
+		refsubdocument, err := c.GetRefSubDocument(refId)
+		if err != nil {
+			if !c.IsDbNotFound(err) {
+				return nil, common.NewError(err)
+			}
+			// If refsubdocument not found, continue with the reference payload
+		} else {
+			// Replace payload with the actual payload from refsubdocument
+			payload = refsubdocument.Payload()
 		}
 	}
 
@@ -189,6 +204,23 @@ func (c *CassandraClient) DeleteSubDocument(cpeMac string, groupId string) error
 	defer func() { <-c.concurrentQueries }()
 
 	stmt := "DELETE FROM xpc_group_config WHERE cpe_mac=? AND group_id=?"
+	if err := c.Query(stmt, cpeMac, groupId).Exec(); err != nil {
+		return common.NewError(err)
+	}
+	return nil
+}
+
+func (c *CassandraClient) DeleteSubDocumentColumns(cpeMac string, groupId string, columns ...string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	// Build DELETE statement for specific columns
+	// In Cassandra: DELETE col1, col2 FROM table WHERE conditions
+	stmt := fmt.Sprintf("DELETE %v FROM xpc_group_config WHERE cpe_mac=? AND group_id=?", strings.Join(columns, ","))
 	if err := c.Query(stmt, cpeMac, groupId).Exec(); err != nil {
 		return common.NewError(err)
 	}

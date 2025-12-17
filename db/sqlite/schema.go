@@ -39,6 +39,7 @@ var (
     state int,
     error_code int,
     error_details text,
+    expiry timestamp,
     PRIMARY KEY (cpe_mac, group_id)
 )`,
 		`CREATE TABLE IF NOT EXISTS root_document (

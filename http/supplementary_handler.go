@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
@@ -51,6 +52,100 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		err := fmt.Errorf("MultipartConfigHandler() responsewriter cast error")
 		Error(w, http.StatusInternalServerError, common.NewError(err))
 		return
+	}
+
+	// Check if supplementary_precook feature is enabled
+	if s.SupplementaryPrecookEnabled() {
+		// Check state from xpc_group_config by cpe_mac and group_id=telemetry
+		telemetrySubdoc, err := s.GetSubDocument(mac, "telemetry")
+		if err != nil && !s.IsDbNotFound(err) {
+			Error(w, http.StatusInternalServerError, common.NewError(err))
+			return
+		}
+
+		if telemetrySubdoc != nil && telemetrySubdoc.State() != nil {
+			state := *telemetrySubdoc.State()
+
+			// If state=1 (Deployed), check expiry first before returning 304
+			if state == common.Deployed {
+				// Check if expiry has passed
+				if telemetrySubdoc.Expiry() != nil {
+					currentTime := int(time.Now().UnixNano() / 1000000)
+					if *telemetrySubdoc.Expiry() <= currentTime {
+						// Expiry has passed, continue with normal xconf flow
+						// Do not return 304
+					} else {
+						// Expiry has not passed, return 304
+						w.WriteHeader(http.StatusNotModified)
+						return
+					}
+				} else {
+					// No expiry set, return 304
+					w.WriteHeader(http.StatusNotModified)
+					return
+				}
+			}
+
+			// If state in (2, 3, 4), use the data from the "telemetry" row as response
+			if state == common.PendingDownload || state == common.InDeployment || state == common.Failure {
+				if telemetrySubdoc.Payload() != nil && len(telemetrySubdoc.Payload()) > 0 { // Update state to InDeployment (3) to indicate the data is being delivered
+					newState := common.InDeployment
+					updatedTime := int(time.Now().UnixNano() / 1000000)
+					errorCode := 0
+					errorDetails := ""
+					newSubdoc := common.NewSubDocument(nil, nil, &newState, &updatedTime, &errorCode, &errorDetails)
+					// Note: Not setting expiry here means it won't be updated in the database
+
+					labels, err := s.DatabaseClient.GetRootDocumentLabels(mac)
+					if err == nil {
+						labels["client"] = "default"
+						_ = s.DatabaseClient.SetSubDocument(mac, "telemetry", newSubdoc, state, labels, fields)
+						// Clear expiry and error fields when transitioning to InDeployment
+						columnsToDelete := []string{}
+						if telemetrySubdoc.Expiry() != nil {
+							columnsToDelete = append(columnsToDelete, "expiry")
+						}
+						if telemetrySubdoc.ErrorCode() != nil {
+							columnsToDelete = append(columnsToDelete, "error_code")
+						}
+						if telemetrySubdoc.ErrorDetails() != nil {
+							columnsToDelete = append(columnsToDelete, "error_details")
+						}
+						if len(columnsToDelete) > 0 {
+							_ = s.DatabaseClient.DeleteSubDocumentColumns(mac, "telemetry", columnsToDelete...)
+						}
+					}
+					// Build multipart response from stored payload (already in msgpack format)
+					version := ""
+					if telemetrySubdoc.Version() != nil {
+						version = *telemetrySubdoc.Version()
+					}
+					mpart := common.Multipart{
+						Bytes:   telemetrySubdoc.Payload(),
+						Version: version,
+						Name:    "telemetry",
+						State:   state,
+					}
+					mparts := []common.Multipart{mpart}
+					fields["telemetry_version"] = version
+					respBytes, err := common.WriteMultipartBytes(mparts)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						_, _ = w.Write([]byte(err.Error()))
+						return
+					}
+
+					rootVersion := util.GetRandomRootVersion()
+					w.Header().Set(common.HeaderContentType, common.MultipartContentType)
+					w.Header().Set(common.HeaderEtag, rootVersion)
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(respBytes)
+					return
+				}
+			}
+
+			// If state == 0 or no payload, continue with existing code
+		}
 	}
 
 	// append the extra query_params if any
