@@ -277,6 +277,17 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 		saramaConfig := sarama.NewConfig()
 		saramaConfig.Producer.Return.Errors = true
+
+		// Load TLS configuration for producer
+		tlsConfig, err := common.LoadKafkaTLSConfig(conf, "webconfig.kafka_producer")
+		if err != nil {
+			panic(fmt.Errorf("failed to load TLS configuration for Kafka producer: %v", err))
+		}
+		if tlsConfig != nil {
+			saramaConfig.Net.TLS.Enable = true
+			saramaConfig.Net.TLS.Config = tlsConfig
+		}
+
 		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
 		if err != nil {
 			panic(err)

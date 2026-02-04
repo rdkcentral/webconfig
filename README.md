@@ -78,6 +78,98 @@ The actual kafka topic names can be any. Below is just an example. "topics" shou
         }
 ```
 
+#### Kafka TLS/SSL Configuration
+
+Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumers and producers. This is recommended for production environments to ensure data encryption in transit and proper authentication.
+
+**TLS Configuration Options:**
+
+- `tls.enabled` - Enable/disable TLS for Kafka connections (default: false)
+- `tls.cert_file` - Path to client certificate file for mTLS authentication (optional)
+- `tls.key_file` - Path to client private key file for mTLS authentication (optional)
+- `tls.ca_cert_file` - Path to CA certificate file for broker verification (optional)
+- `tls.insecure_skip_verify` - Skip certificate verification (insecure, for testing only, default: false)
+
+**Consumer TLS Configuration Example:**
+
+```shell
+    kafka {
+        enabled = true
+        brokers = "kafka-broker:9093"  # Use secure port
+        topics = "config-version-report"
+        consumer_group = "webconfig"
+
+        tls {
+            enabled = true
+            cert_file = "/etc/webconfig/kafka/client.crt"
+            key_file = "/etc/webconfig/kafka/client.key"
+            ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+            insecure_skip_verify = false
+        }
+
+        # Per-cluster TLS configuration
+        clusters {
+            mesh {
+                enabled = true
+                brokers = "kafka-mesh:9093"
+                topics = "staging-chi-onewifi-from-device"
+
+                tls {
+                    enabled = true
+                    cert_file = "/etc/webconfig/kafka/mesh-client.crt"
+                    key_file = "/etc/webconfig/kafka/mesh-client.key"
+                    ca_cert_file = "/etc/webconfig/kafka/mesh-ca.crt"
+                }
+            }
+        }
+    }
+```
+
+**Producer TLS Configuration Example:**
+
+```shell
+    kafka_producer {
+        enabled = true
+        brokers = "kafka-broker:9093"
+        topic = "webconfig_downstream"
+
+        tls {
+            enabled = true
+            cert_file = "/etc/webconfig/kafka/producer-client.crt"
+            key_file = "/etc/webconfig/kafka/producer-client.key"
+            ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+        }
+    }
+```
+
+**Certificate Requirements:**
+
+1. **Client Certificate (mTLS)**: If `cert_file` and `key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
+
+2. **CA Certificate**: If `ca_cert_file` is provided, it will be used to verify the Kafka broker's certificate. This is useful when using self-signed certificates or internal CAs.
+
+3. **Certificate Validation**: All certificate files are validated at startup. The application will fail to start with clear error messages if:
+   - Certificate files are missing or unreadable
+   - Certificates are in invalid format
+   - Certificate and key don't match
+
+**TLS Security Best Practices:**
+
+1. **Use TLS in Production**: Always enable TLS for production Kafka connections to encrypt data in transit
+2. **Use mTLS**: Provide client certificates (`cert_file` and `key_file`) for mutual authentication
+3. **Verify Certificates**: Never use `insecure_skip_verify = true` in production - it disables certificate verification and is insecure
+4. **Protect Certificate Files**: Set appropriate file permissions (0600) on certificate and key files
+5. **Use Secure Ports**: Configure Kafka brokers to listen on secure ports (typically 9093 for TLS)
+6. **Certificate Rotation**: Plan for certificate rotation - the service must be restarted to pick up new certificates
+
+**Troubleshooting TLS Issues:**
+
+- Check logs for TLS-related errors during startup
+- Verify certificate file paths are correct and files are readable
+- Ensure Kafka brokers are configured to accept TLS connections
+- Test certificate validity: `openssl x509 -in client.crt -text -noout`
+- Verify certificate and key match: `openssl x509 -noout -modulus -in client.crt | openssl md5` vs `openssl rsa -noout -modulus -in client.key | openssl md5`
+
 ### Configuration for database
 The main database operations are defined as an interface. Any driver that implements the interface should work. We has implemented using sqlite, cassandra and yugabytedb. After the db is properly configured, the dbinit.cql can be used to create the tables for cassandra.
 
