@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/go-akka/configuration"
 	_ "github.com/mattn/go-sqlite3"
@@ -175,15 +177,23 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 		return nil, common.NewError(err)
 	}
 
+	// Check if SKIP_TABLE_CREATION environment variable is set (case-insensitive)
+	skipTableCreation := false
+	if skipEnv, exists := os.LookupEnv("SKIP_TABLE_CREATION"); exists {
+		skipTableCreation = strings.EqualFold(skipEnv, "true") || strings.EqualFold(skipEnv, "1") || strings.EqualFold(skipEnv, "yes")
+	}
+
 	// need to do it this way to sure we have correct schema but empty tables
-	if err = tdbclient.SetUp(); err != nil {
-		return nil, common.NewError(err)
-	}
-	if err = tdbclient.TearDown(); err != nil {
-		return nil, common.NewError(err)
-	}
-	if err = tdbclient.SetUp(); err != nil {
-		return nil, common.NewError(err)
+	if !skipTableCreation {
+		if err = tdbclient.SetUp(); err != nil {
+			return nil, common.NewError(err)
+		}
+		if err = tdbclient.TearDown(); err != nil {
+			return nil, common.NewError(err)
+		}
+		if err = tdbclient.SetUp(); err != nil {
+			return nil, common.NewError(err)
+		}
 	}
 
 	return tdbclient, nil

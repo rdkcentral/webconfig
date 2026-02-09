@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-akka/configuration"
@@ -291,14 +292,24 @@ func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*Cassand
 	if err != nil {
 		return nil, common.NewError(err)
 	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		return nil, common.NewError(err)
+
+	// Check if SKIP_TABLE_CREATION environment variable is set (case-insensitive)
+	skipTableCreation := false
+	if skipEnv, exists := os.LookupEnv("SKIP_TABLE_CREATION"); exists {
+		skipTableCreation = strings.EqualFold(skipEnv, "true") || strings.EqualFold(skipEnv, "1") || strings.EqualFold(skipEnv, "yes")
 	}
-	err = tdbclient.TearDown()
-	if err != nil {
-		return nil, common.NewError(err)
+
+	if !skipTableCreation {
+		err = tdbclient.SetUp()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		err = tdbclient.TearDown()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
 	}
+
 	return tdbclient, nil
 }
 
