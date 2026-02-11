@@ -206,8 +206,12 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 	keyFile := dbconf.GetString("tls.key_file")
 	caCertFile := dbconf.GetString("tls.ca_cert_file")
 
-	// Create TLS config for Cassandra connection
+	// Create TLS config for Cassandra connection with compatible cipher suite
+	// Cassandra 3.11.x requires specific cipher suites that are disabled by default in newer Go crypto
 	tlsConfig := &tls.Config{
+		CipherSuites: []uint16{
+			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		},
 		InsecureSkipVerify: insecureSkipVerify,
 	}
 
