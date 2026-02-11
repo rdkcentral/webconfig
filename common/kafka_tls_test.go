@@ -77,9 +77,7 @@ func TestLoadKafkaTLSConfig_Disabled(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = false
-		}
+		tls_enabled = false
 	}
 }
 `
@@ -94,9 +92,7 @@ func TestLoadKafkaTLSConfig_EnabledWithoutCerts(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-		}
+		tls_enabled = true
 	}
 }
 `
@@ -122,11 +118,9 @@ func TestLoadKafkaTLSConfig_WithClientCertificates(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			cert_file = "` + certFile + `"
-			key_file = "` + keyFile + `"
-		}
+			tls_enabled = true
+		tls_cert_file = "` + certFile + `"
+		tls_key_file = "` + keyFile + `"
 	}
 }
 `
@@ -151,10 +145,8 @@ func TestLoadKafkaTLSConfig_WithCACertificate(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			ca_cert_file = "` + caCertFile + `"
-		}
+			tls_enabled = true
+		tls_ca_cert_file = "` + caCertFile + `"
 	}
 }
 `
@@ -171,10 +163,8 @@ func TestLoadKafkaTLSConfig_WithInsecureSkipVerify(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			insecure_skip_verify = true
-		}
+			tls_enabled = true
+		tls_insecure_skip_verify = true
 	}
 }
 `
@@ -190,11 +180,9 @@ func TestLoadKafkaTLSConfig_MissingCertFile(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			cert_file = "/nonexistent/client.crt"
-			key_file = "/nonexistent/client.key"
-		}
+			tls_enabled = true
+		tls_cert_file = "/nonexistent/client.crt"
+		tls_key_file = "/nonexistent/client.key"
 	}
 }
 `
@@ -210,12 +198,10 @@ func TestLoadKafkaTLSConfig_MissingCertFileWithInsecureSkipVerify(t *testing.T) 
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			insecure_skip_verify = true
-			cert_file = "/nonexistent/client.crt"
-			key_file = "/nonexistent/client.key"
-		}
+			tls_enabled = true
+		tls_insecure_skip_verify = true
+		tls_cert_file = "/nonexistent/client.crt"
+		tls_key_file = "/nonexistent/client.key"
 	}
 }
 `
@@ -244,11 +230,9 @@ func TestLoadKafkaTLSConfig_InvalidCertFile(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			cert_file = "` + certFile + `"
-			key_file = "` + keyFile + `"
-		}
+			tls_enabled = true
+		tls_cert_file = "` + certFile + `"
+		tls_key_file = "` + keyFile + `"
 	}
 }
 `
@@ -264,10 +248,8 @@ func TestLoadKafkaTLSConfig_MissingCACertFile(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			ca_cert_file = "/nonexistent/ca.crt"
-		}
+			tls_enabled = true
+		tls_ca_cert_file = "/nonexistent/ca.crt"
 	}
 }
 `
@@ -283,11 +265,9 @@ func TestLoadKafkaTLSConfig_MissingCACertFileWithInsecureSkipVerify(t *testing.T
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			insecure_skip_verify = true
-			ca_cert_file = "/nonexistent/ca.crt"
-		}
+			tls_enabled = true
+		tls_insecure_skip_verify = true
+		tls_ca_cert_file = "/nonexistent/ca.crt"
 	}
 }
 `
@@ -313,10 +293,8 @@ func TestLoadKafkaTLSConfig_InvalidCACertFile(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			ca_cert_file = "` + caCertFile + `"
-		}
+			tls_enabled = true
+		tls_ca_cert_file = "` + caCertFile + `"
 	}
 }
 `
@@ -343,12 +321,10 @@ func TestLoadKafkaTLSConfig_FullConfiguration(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka {
-		tls {
-			enabled = true
-			cert_file = "` + certFile + `"
-			key_file = "` + keyFile + `"
-			ca_cert_file = "` + caCertFile + `"
-		}
+			tls_enabled = true
+		tls_cert_file = "` + certFile + `"
+		tls_key_file = "` + keyFile + `"
+		tls_ca_cert_file = "` + caCertFile + `"
 	}
 }
 `
@@ -367,10 +343,8 @@ func TestLoadKafkaTLSConfig_DifferentPrefixes(t *testing.T) {
 	confStr := `
 webconfig {
 	kafka_producer {
-		tls {
-			enabled = true
-			insecure_skip_verify = true
-		}
+			tls_enabled = true
+		tls_insecure_skip_verify = true
 	}
 }
 `
@@ -387,9 +361,7 @@ webconfig {
 	kafka {
 		clusters {
 			mesh {
-				tls {
-					enabled = true
-				}
+				tls_enabled = true
 			}
 		}
 	}
