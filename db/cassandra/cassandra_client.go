@@ -154,6 +154,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 			Config:                 tlsConfig,
 			EnableHostVerification: false,
 		}
+
 		cluster.SslOpts = sslOpts
 	}
 
@@ -197,14 +198,22 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 // Returns a tls.Config with certificates loaded from the configuration.
 // The function expects tls.{} block under the database driver config (cassandra or yugabyte).
 func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls.Config, error) {
-	tlsConfig := &tls.Config{}
-
 	// Check insecure_skip_verify flag first
 	insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
 
 	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
 	certFile := dbconf.GetString("tls.cert_file")
 	keyFile := dbconf.GetString("tls.key_file")
+	caCertFile := dbconf.GetString("tls.ca_cert_file")
+
+	// Create TLS config with Cassandra 3.11.x compatible cipher suite
+	// Based on working example that successfully connects to Cassandra 3.11.15
+	tlsConfig := &tls.Config{
+		CipherSuites: []uint16{
+			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		},
+		InsecureSkipVerify: insecureSkipVerify,
+	}
 
 	// When insecure_skip_verify is true and no cert files configured, skip loading certificates
 	// This allows TLS without client authentication (server-only TLS)
@@ -247,7 +256,6 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 	}
 
 	// Load CA certificate if provided (optional when insecure_skip_verify is true)
-	caCertFile := dbconf.GetString("tls.ca_cert_file")
 	// When insecure_skip_verify is true and no CA file configured, skip loading CA cert
 	// This allows TLS without server verification (insecure mode)
 	if insecureSkipVerify && len(caCertFile) == 0 {
@@ -284,7 +292,6 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 	}
 
 	if insecureSkipVerify {
-		tlsConfig.InsecureSkipVerify = true
 		log.WithFields(log.Fields{
 			"driver": dbdriver,
 		}).Warn("Cassandra TLS certificate verification is disabled (insecure_skip_verify=true). This is insecure and should only be used for testing.")
@@ -295,6 +302,7 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 		"has_client_cert":      len(tlsConfig.Certificates) > 0,
 		"has_ca_cert":          tlsConfig.RootCAs != nil,
 		"insecure_skip_verify": insecureSkipVerify,
+		"cipher_suites":        len(tlsConfig.CipherSuites),
 	}).Info("TLS configuration loaded for Cassandra connection")
 
 	return tlsConfig, nil
