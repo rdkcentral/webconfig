@@ -32,7 +32,7 @@ import (
 // Returns nil if TLS is not enabled.
 // Returns error if TLS is enabled but configuration is invalid.
 func LoadKafkaTLSConfig(conf *configuration.Config, prefix string) (*tls.Config, error) {
-	tlsEnabled := conf.GetBoolean(prefix + ".tls.enabled")
+	tlsEnabled := conf.GetBoolean(prefix + ".tls_enabled")
 	if !tlsEnabled {
 		return nil, nil
 	}
@@ -40,11 +40,11 @@ func LoadKafkaTLSConfig(conf *configuration.Config, prefix string) (*tls.Config,
 	tlsConfig := &tls.Config{}
 
 	// Check insecure_skip_verify flag first
-	insecureSkipVerify := conf.GetBoolean(prefix + ".tls.insecure_skip_verify")
+	insecureSkipVerify := conf.GetBoolean(prefix + ".tls_insecure_skip_verify")
 
 	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
-	certFile := conf.GetString(prefix + ".tls.cert_file")
-	keyFile := conf.GetString(prefix + ".tls.key_file")
+	certFile := conf.GetString(prefix + ".tls_cert_file")
+	keyFile := conf.GetString(prefix + ".tls_key_file")
 
 	// When insecure_skip_verify is true and no cert files configured, skip loading certificates
 	// This allows TLS without client authentication (server-only TLS)
@@ -84,7 +84,7 @@ func LoadKafkaTLSConfig(conf *configuration.Config, prefix string) (*tls.Config,
 	}
 
 	// Load CA certificate if provided (optional when insecure_skip_verify is true)
-	caCertFile := conf.GetString(prefix + ".tls.ca_cert_file")
+	caCertFile := conf.GetString(prefix + ".tls_ca_cert_file")
 	// When insecure_skip_verify is true and no CA file configured, skip loading CA cert
 	// This allows TLS without broker verification (insecure mode)
 	if insecureSkipVerify && len(caCertFile) == 0 {
