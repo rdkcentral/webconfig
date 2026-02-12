@@ -277,6 +277,17 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 		saramaConfig := sarama.NewConfig()
 		saramaConfig.Producer.Return.Errors = true
+
+		// Load TLS configuration for producer
+		tlsConfig, err := common.LoadKafkaTLSConfig(conf, "webconfig.kafka_producer")
+		if err != nil {
+			panic(fmt.Errorf("failed to load TLS configuration for Kafka producer: %v", err))
+		}
+		if tlsConfig != nil {
+			saramaConfig.Net.TLS.Enable = true
+			saramaConfig.Net.TLS.Config = tlsConfig
+		}
+
 		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
 		if err != nil {
 			panic(err)
@@ -293,6 +304,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	}
 
 	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
+	defaultEmptyProfileEnabled := conf.GetBoolean("webconfig.default_empty_profile_enabled")
 	bitmapFilterExemptSubdocIds := conf.GetStringList("webconfig.bitmap_filter_exempt_subdoc_ids")
 
 	ws := &WebconfigServer{
@@ -332,6 +344,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validSubdocIdMap:              validSubdocIdMap,
 		XpcTracer:                     xpcTracer,
 		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
+		defaultEmptyProfileEnabled:    defaultEmptyProfileEnabled,
 		bitmapFilterExemptSubdocIds:   bitmapFilterExemptSubdocIds,
 	}
 
@@ -711,6 +724,14 @@ func (s *WebconfigServer) SetFilterOutputByBitmapEnabled(enabled bool) {
 	s.filterOutputByBitmapEnabled = enabled
 }
 
+func (s *WebconfigServer) DefaultEmptyProfileEnabled() bool {
+	return s.defaultEmptyProfileEnabled
+}
+
+func (s *WebconfigServer) SetDefaultEmptyProfileEnabled(enabled bool) {
+	s.defaultEmptyProfileEnabled = enabled
+}
+
 func (s *WebconfigServer) BitmapFilterExemptSubdocIds() []string {
 	return s.bitmapFilterExemptSubdocIds
 }
@@ -830,7 +851,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	case "cpe":
 		mac := params["gid"]
 		mac = strings.ToUpper(mac)
-		fields["cpemac"] = mac
 		fields["cpe_mac"] = mac
 	case "configset":
 		csid := params["gid"]
@@ -839,7 +859,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	if mac, ok := params["mac"]; ok {
 		mac = strings.ToUpper(mac)
-		fields["cpemac"] = mac
 		fields["cpe_mac"] = mac
 	}
 
@@ -885,9 +904,22 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 				fields["response"] = mpdict
 			}
 		} else {
-			res_itf, res_text := GetResponseLogObjs(rbytes)
-			fields["response"] = res_itf
-			fields["response_text"] = res_text
+			var logged bool
+			if itf, ok := fields["telemetry_version"]; ok {
+				if version, ok := itf.(string); ok {
+					if len(version) > 0 {
+						logged = true
+						fields["response"] = map[string]string{
+							"telemetry": version,
+						}
+					}
+				}
+			}
+			if !logged {
+				res_itf, res_text := GetResponseLogObjs(rbytes)
+				fields["response"] = res_itf
+				fields["response_text"] = res_text
+			}
 		}
 
 		var doc_map util.Dict

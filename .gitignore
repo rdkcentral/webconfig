@@ -14,8 +14,12 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# #####################
+# ignored files
 bin/*
 .vscode/*
 .env
 *.sh
+
+# Ignore OpenSpec generated files and folders
+openspec/*
+.github/*

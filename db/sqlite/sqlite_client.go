@@ -43,10 +43,12 @@ type SqliteClient struct {
 	db.BaseClient
 	*sql.DB
 	*common.AppMetrics
-	concurrentQueries       chan bool
-	blockedSubdocIds        []string
-	stateCorrectionEnabled  bool
-	lockRootDocumentEnabled bool
+	concurrentQueries                chan bool
+	blockedSubdocIds                 []string
+	stateCorrectionEnabled           bool
+	lockRootDocumentEnabled          bool
+	supplementaryPrecookEnabled      bool
+	supplementaryPrecookStateTTLDays int
 }
 
 func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
@@ -62,6 +64,8 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 
 	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
 	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
+	supplementaryPrecookEnabled := conf.GetBoolean("webconfig.supplementary_precook_enabled")
+	supplementaryPrecookStateTTLDays := int(conf.GetInt32("webconfig.supplementary_precook_state_ttl_days", 7))
 
 	db, err := sql.Open("sqlite3", dbfile)
 	if err != nil {
@@ -69,11 +73,13 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 	}
 
 	return &SqliteClient{
-		DB:                      db,
-		concurrentQueries:       make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
-		blockedSubdocIds:        blockedSubdocIds,
-		stateCorrectionEnabled:  stateCorrectionEnabled,
-		lockRootDocumentEnabled: lockRootDocumentEnabled,
+		DB:                               db,
+		concurrentQueries:                make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
+		blockedSubdocIds:                 blockedSubdocIds,
+		stateCorrectionEnabled:           stateCorrectionEnabled,
+		lockRootDocumentEnabled:          lockRootDocumentEnabled,
+		supplementaryPrecookEnabled:      supplementaryPrecookEnabled,
+		supplementaryPrecookStateTTLDays: supplementaryPrecookStateTTLDays,
 	}, nil
 }
 
@@ -181,4 +187,20 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 	}
 
 	return tdbclient, nil
+}
+
+func (c *SqliteClient) SupplementaryPrecookEnabled() bool {
+	return c.supplementaryPrecookEnabled
+}
+
+func (c *SqliteClient) SetSupplementaryPrecookEnabled(enabled bool) {
+	c.supplementaryPrecookEnabled = enabled
+}
+
+func (c *SqliteClient) SupplementaryPrecookStateTTLDays() int {
+	return c.supplementaryPrecookStateTTLDays
+}
+
+func (c *SqliteClient) SetSupplementaryPrecookStateTTLDays(days int) {
+	c.supplementaryPrecookStateTTLDays = days
 }

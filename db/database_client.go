@@ -30,6 +30,7 @@ type DatabaseClient interface {
 	GetSubDocument(string, string) (*common.SubDocument, error)
 	SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
 	DeleteSubDocument(string, string) error
+	DeleteSubDocumentColumns(string, string, ...string) error
 
 	GetDocument(string, ...interface{}) (*common.Document, error)
 	SetDocument(string, *common.Document) error
@@ -71,4 +72,10 @@ type DatabaseClient interface {
 
 	LockRootDocumentEnabled() bool
 	SetLockRootDocumentEnabled(bool)
+
+	// supplementary precook
+	SupplementaryPrecookEnabled() bool
+	SetSupplementaryPrecookEnabled(bool)
+	SupplementaryPrecookStateTTLDays() int
+	SetSupplementaryPrecookStateTTLDays(int)
 }

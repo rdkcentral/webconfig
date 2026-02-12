@@ -18,9 +18,12 @@
 package cassandra
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-akka/configuration"
@@ -29,6 +32,7 @@ import (
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -48,12 +52,14 @@ type CassandraClient struct {
 	*gocql.ClusterConfig
 	*security.AesCodec
 	*common.AppMetrics
-	concurrentQueries       chan bool
-	localDc                 string
-	blockedSubdocIds        []string
-	encryptedSubdocIds      []string
-	stateCorrectionEnabled  bool
-	lockRootDocumentEnabled bool
+	concurrentQueries                chan bool
+	localDc                          string
+	blockedSubdocIds                 []string
+	encryptedSubdocIds               []string
+	stateCorrectionEnabled           bool
+	lockRootDocumentEnabled          bool
+	supplementaryPrecookEnabled      bool
+	supplementaryPrecookStateTTLDays int
 }
 
 /*
@@ -139,9 +145,16 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	if isSslEnabled {
+		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver)
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+
 		sslOpts := &gocql.SslOptions{
+			Config:                 tlsConfig,
 			EnableHostVerification: false,
 		}
+
 		cluster.SslOpts = sslOpts
 	}
 
@@ -163,18 +176,136 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	encryptedSubdocIds := conf.GetStringList("webconfig.encrypted_subdoc_ids")
 	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
 	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
+	supplementaryPrecookEnabled := conf.GetBoolean("webconfig.supplementary_precook_enabled")
+	supplementaryPrecookStateTTLDays := int(conf.GetInt32("webconfig.supplementary_precook_state_ttl_days", 7))
 
 	return &CassandraClient{
-		Session:                 session,
-		ClusterConfig:           cluster,
-		AesCodec:                codec,
-		concurrentQueries:       make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
-		localDc:                 localDc,
-		blockedSubdocIds:        blockedSubdocIds,
-		encryptedSubdocIds:      encryptedSubdocIds,
-		stateCorrectionEnabled:  stateCorrectionEnabled,
-		lockRootDocumentEnabled: lockRootDocumentEnabled,
+		Session:                          session,
+		ClusterConfig:                    cluster,
+		AesCodec:                         codec,
+		concurrentQueries:                make(chan bool, dbconf.GetInt32("concurrent_queries", 500)),
+		localDc:                          localDc,
+		blockedSubdocIds:                 blockedSubdocIds,
+		encryptedSubdocIds:               encryptedSubdocIds,
+		stateCorrectionEnabled:           stateCorrectionEnabled,
+		lockRootDocumentEnabled:          lockRootDocumentEnabled,
+		supplementaryPrecookEnabled:      supplementaryPrecookEnabled,
+		supplementaryPrecookStateTTLDays: supplementaryPrecookStateTTLDays,
 	}, nil
+}
+
+// loadCassandraTLSConfig loads TLS configuration for Cassandra connection.
+// Returns a tls.Config with certificates loaded from the configuration.
+// The function expects tls.{} block under the database driver config (cassandra or yugabyte).
+func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls.Config, error) {
+	// Check insecure_skip_verify flag first
+	insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
+
+	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
+	certFile := dbconf.GetString("tls.cert_file")
+	keyFile := dbconf.GetString("tls.key_file")
+	caCertFile := dbconf.GetString("tls.ca_cert_file")
+
+	// Create TLS config for Cassandra connection with compatible cipher suite
+	// Cassandra 3.11.x requires specific cipher suites that are disabled by default in newer Go crypto
+	tlsConfig := &tls.Config{
+		CipherSuites: []uint16{
+			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		},
+		InsecureSkipVerify: insecureSkipVerify,
+	}
+
+	// When insecure_skip_verify is true and no cert files configured, skip loading certificates
+	// This allows TLS without client authentication (server-only TLS)
+	if insecureSkipVerify && (len(certFile) == 0 || len(keyFile) == 0) {
+		// Insecure mode without client certificates - skip cert loading
+		log.WithFields(log.Fields{
+			"driver": dbdriver,
+		}).Warn("Cassandra TLS enabled in insecure mode without client certificates")
+	} else if len(certFile) > 0 && len(keyFile) > 0 {
+		// Only validate cert files exist when verification is enabled
+		if !insecureSkipVerify {
+			// Validate certificate file exists
+			if _, err := os.Stat(certFile); os.IsNotExist(err) {
+				return nil, fmt.Errorf("Cassandra TLS certificate file does not exist: %s", certFile)
+			}
+
+			// Validate key file exists
+			if _, err := os.Stat(keyFile); os.IsNotExist(err) {
+				return nil, fmt.Errorf("Cassandra TLS key file does not exist: %s", keyFile)
+			}
+		}
+
+		// Load and parse the certificate and key
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load Cassandra TLS certificate and key from %s and %s: %v", certFile, keyFile, err)
+		}
+
+		tlsConfig.Certificates = []tls.Certificate{cert}
+		log.WithFields(log.Fields{
+			"driver":    dbdriver,
+			"cert_file": certFile,
+			"key_file":  keyFile,
+		}).Info("Loaded Cassandra TLS client certificate for mTLS")
+	} else if len(certFile) > 0 || len(keyFile) > 0 {
+		// Partial cert configuration detected - require both cert and key when verification is enabled
+		if !insecureSkipVerify {
+			return nil, fmt.Errorf("Cassandra TLS enabled with verification but incomplete certificate configuration (cert: %s, key: %s)", certFile, keyFile)
+		}
+	}
+
+	// Load CA certificate if provided (optional when insecure_skip_verify is true)
+	// When insecure_skip_verify is true and no CA file configured, skip loading CA cert
+	// This allows TLS without server verification (insecure mode)
+	if insecureSkipVerify && len(caCertFile) == 0 {
+		// Insecure mode without CA cert - skip CA loading
+		log.WithFields(log.Fields{
+			"driver": dbdriver,
+		}).Warn("Cassandra TLS enabled in insecure mode without CA certificate")
+	} else if len(caCertFile) > 0 {
+		// Only validate CA cert file exists when verification is enabled
+		if !insecureSkipVerify {
+			// Validate CA certificate file exists
+			if _, err := os.Stat(caCertFile); os.IsNotExist(err) {
+				return nil, fmt.Errorf("Cassandra TLS CA certificate file does not exist: %s", caCertFile)
+			}
+		}
+
+		// Load CA certificate
+		caCert, err := os.ReadFile(caCertFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Cassandra TLS CA certificate from %s: %v", caCertFile, err)
+		}
+
+		// Parse CA certificate
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse Cassandra TLS CA certificate from %s", caCertFile)
+		}
+
+		tlsConfig.RootCAs = caCertPool
+		log.WithFields(log.Fields{
+			"driver":       dbdriver,
+			"ca_cert_file": caCertFile,
+		}).Info("Loaded Cassandra TLS CA certificate for server verification")
+	}
+
+	if insecureSkipVerify {
+		log.WithFields(log.Fields{
+			"driver": dbdriver,
+		}).Warn("Cassandra TLS certificate verification is disabled (insecure_skip_verify=true). This is insecure and should only be used for testing.")
+	}
+
+	log.WithFields(log.Fields{
+		"driver":               dbdriver,
+		"has_client_cert":      len(tlsConfig.Certificates) > 0,
+		"has_ca_cert":          tlsConfig.RootCAs != nil,
+		"insecure_skip_verify": insecureSkipVerify,
+		"cipher_suites":        len(tlsConfig.CipherSuites),
+	}).Info("TLS configuration loaded for Cassandra connection")
+
+	return tlsConfig, nil
 }
 
 func (c *CassandraClient) Codec() *security.AesCodec {
@@ -285,13 +416,39 @@ func GetTestCassandraClient(conf *configuration.Config, testOnly bool) (*Cassand
 	if err != nil {
 		return nil, common.NewError(err)
 	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		return nil, common.NewError(err)
+
+	// Check if SKIP_TABLE_CREATION environment variable is set (case-insensitive)
+	skipTableCreation := false
+	if skipEnv, exists := os.LookupEnv("SKIP_TABLE_CREATION"); exists {
+		skipTableCreation = strings.EqualFold(skipEnv, "true") || strings.EqualFold(skipEnv, "1") || strings.EqualFold(skipEnv, "yes")
 	}
-	err = tdbclient.TearDown()
-	if err != nil {
-		return nil, common.NewError(err)
+
+	if !skipTableCreation {
+		err = tdbclient.SetUp()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
+		err = tdbclient.TearDown()
+		if err != nil {
+			return nil, common.NewError(err)
+		}
 	}
+
 	return tdbclient, nil
+}
+
+func (c *CassandraClient) SupplementaryPrecookEnabled() bool {
+	return c.supplementaryPrecookEnabled
+}
+
+func (c *CassandraClient) SetSupplementaryPrecookEnabled(enabled bool) {
+	c.supplementaryPrecookEnabled = enabled
+}
+
+func (c *CassandraClient) SupplementaryPrecookStateTTLDays() int {
+	return c.supplementaryPrecookStateTTLDays
+}
+
+func (c *CassandraClient) SetSupplementaryPrecookStateTTLDays(days int) {
+	c.supplementaryPrecookStateTTLDays = days
 }

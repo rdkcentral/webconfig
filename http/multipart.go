@@ -245,6 +245,11 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
+		// 304
+		if document.Length() == 0 {
+			respStatus = http.StatusNotModified
+		}
+
 		respHeader.Set(common.HeaderContentType, common.MultipartContentType)
 		respHeader.Set(common.HeaderEtag, document.RootVersion())
 		return respStatus, respHeader, respBytes, nil
@@ -335,7 +340,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 
 	if s.FilterOutputByBitmapEnabled() {
-		finalFilteredDocument = finalFilteredDocument.FilterByBitmap()
+		finalFilteredDocument = finalFilteredDocument.FilterByBitmap(s.BitmapFilterExemptSubdocIds()...)
 	}
 
 	// 304
