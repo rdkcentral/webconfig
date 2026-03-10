@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package sqlite
 
 import (
@@ -71,7 +71,7 @@ func TestRootDocumentDb(t *testing.T) {
 	// set by a RootDocument
 	version4 := "indigo violet"
 	bitmap4 := 67
-	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4, "")
+	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4, "", "", "")
 	err = tdbclient.SetRootDocument(cpeMac, rdoc4)
 	assert.NilError(t, err)
 	fetched, err := tdbclient.GetRootDocument(cpeMac)
@@ -147,7 +147,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName1 := "TG4482"
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
-	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "")
+	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", "", "")
 
 	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
 	assert.NilError(t, err)
@@ -163,7 +163,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName2 := "TG4482"
 	partnerId2 := "cox"
 	firmwareVersion2 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "")
+	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "", "", "")
 
 	err = tdbclient.SetRootDocument(cpeMac, rootdoc2)
 	assert.NilError(t, err)
@@ -175,9 +175,51 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName3 := "TG4482"
 	partnerId3 := "cox"
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "")
+	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "", "", "")
 
 	tgtRootdoc3, err := tdbclient.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.DeepEqual(t, tgtRootdoc3, rootdoc3)
+}
+
+func TestRootDocumentProductClassCustomerType(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// verify starting empty
+	_, err := tdbclient.GetRootDocument(cpeMac)
+	assert.Assert(t, tdbclient.IsDbNotFound(err))
+
+	// ==== step 1: set rootdoc with product_class and customer_type ====
+	bitmap1 := 100
+	version1 := "v1"
+	schemaVersion1 := "33554433-1.3"
+	modelName1 := "TG3482G"
+	partnerId1 := "comcast"
+	firmwareVersion1 := "TG3482G_4.10p7s1_PROD_sey"
+	productClass1 := "rg"
+	customerType1 := "residential"
+	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass1, customerType1)
+
+	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
+	assert.NilError(t, err)
+
+	// read from db and verify product_class and customer_type are stored
+	tgtRootdoc1, err := tdbclient.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass1, tgtRootdoc1.ProductClass)
+	assert.Equal(t, customerType1, tgtRootdoc1.CustomerType)
+
+	// ==== step 2: update with new product_class and customer_type ====
+	productClass2 := "xb"
+	customerType2 := "business"
+	rootdoc2 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass2, customerType2)
+
+	err = tdbclient.SetRootDocument(cpeMac, rootdoc2)
+	assert.NilError(t, err)
+
+	// verify the updated values are stored
+	tgtRootdoc2, err := tdbclient.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass2, tgtRootdoc2.ProductClass)
+	assert.Equal(t, customerType2, tgtRootdoc2.CustomerType)
 }

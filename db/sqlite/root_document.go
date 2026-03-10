@@ -14,21 +14,21 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package sqlite
 
 import (
 	"database/sql"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rdkcentral/webconfig/common"
 )
 
 func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, error) {
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	rows, err := c.Query("SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version FROM root_document WHERE cpe_mac=?", cpeMac)
+	rows, err := c.Query("SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,product_class,customer_type FROM root_document WHERE cpe_mac=?", cpeMac)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -38,8 +38,8 @@ func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, err
 	}
 
 	var ni sql.NullInt64
-	var ns1, ns2, ns3, ns4, ns5 sql.NullString
-	err = rows.Scan(&ni, &ns1, &ns2, &ns3, &ns4, &ns5)
+	var ns1, ns2, ns3, ns4, ns5, ns6, ns7 sql.NullString
+	err = rows.Scan(&ni, &ns1, &ns2, &ns3, &ns4, &ns5, &ns6, &ns7)
 	defer rows.Close()
 	if err != nil {
 		return nil, common.NewError(err)
@@ -67,7 +67,15 @@ func (c *SqliteClient) GetRootDocument(cpeMac string) (*common.RootDocument, err
 		version = ns5.String
 	}
 
-	return common.NewRootDocument(bitmap, firmware_version, model_name, partner_id, schema_version, version, ""), nil
+	var product_class, customer_type string
+	if ns6.Valid {
+		product_class = ns6.String
+	}
+	if ns7.Valid {
+		customer_type = ns7.String
+	}
+
+	return common.NewRootDocument(bitmap, firmware_version, model_name, partner_id, schema_version, version, "", product_class, customer_type), nil
 }
 
 func (c *SqliteClient) insertRootDocumentVersion(cpeMac, version string) error {
@@ -206,12 +214,12 @@ func (c *SqliteClient) insertRootDocument(cpeMac string, rd *common.RootDocument
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare("INSERT INTO root_document(cpe_mac,bitmap,firmware_version,model_name,partner_id,schema_version,version) VALUES(?,?,?,?,?,?,?)")
+	stmt, err := c.Prepare("INSERT INTO root_document(cpe_mac,bitmap,firmware_version,model_name,partner_id,schema_version,version,product_class,customer_type) VALUES(?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return common.NewError(err)
 	}
 
-	_, err = stmt.Exec(cpeMac, rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version)
+	_, err = stmt.Exec(cpeMac, rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version, rd.ProductClass, rd.CustomerType)
 	if err != nil {
 		return common.NewError(err)
 	}
@@ -222,11 +230,11 @@ func (c *SqliteClient) updateRootDocument(cpeMac string, rd *common.RootDocument
 	c.concurrentQueries <- true
 	defer func() { <-c.concurrentQueries }()
 
-	stmt, err := c.Prepare("UPDATE root_document SET bitmap=?,firmware_version=?,model_name=?,partner_id=?,schema_version=?,version=?  WHERE cpe_mac=?")
+	stmt, err := c.Prepare("UPDATE root_document SET bitmap=?,firmware_version=?,model_name=?,partner_id=?,schema_version=?,version=?,product_class=?,customer_type=?  WHERE cpe_mac=?")
 	if err != nil {
 		return common.NewError(err)
 	}
-	_, err = stmt.Exec(rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version, cpeMac)
+	_, err = stmt.Exec(rd.Bitmap, rd.FirmwareVersion, rd.ModelName, rd.PartnerId, rd.SchemaVersion, rd.Version, rd.ProductClass, rd.CustomerType, cpeMac)
 	if err != nil {
 		return common.NewError(err)
 	}
