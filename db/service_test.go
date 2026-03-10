@@ -65,7 +65,7 @@ func TestUpdateRootVersion(t *testing.T) {
 
 	rootVersion := HashRootVersion(doc.VersionMap())
 	assert.Assert(t, rootVersion != "0")
-	rootDoc := common.NewRootDocument(123, "fw_ver_123", "model_123", "partner_123", "", rootVersion, "")
+	rootDoc := common.NewRootDocument(123, "fw_ver_123", "model_123", "partner_123", "", rootVersion, "", "", "")
 	doc.SetRootDocument(rootDoc)
 
 	doc.DeleteSubDocument("mesh")
