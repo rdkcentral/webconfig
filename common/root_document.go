@@ -38,10 +38,12 @@ type RootDocument struct {
 	Version         string `json:"version"`
 	QueryParams     string `json:"query_params"`
 	LockedTill      int    `json:"locked_till"`
+	ProductClass    string `json:"product_class"`
+	CustomerType    string `json:"customer_type"`
 }
 
-// (bitmap, firmware_version, model_name, partner_id, schema_version, version), nil
-func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params string) *RootDocument {
+// (bitmap, firmware_version, model_name, partner_id, schema_version, version, query_params, product_class, customer_type), nil
+func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params, productClass, customerType string) *RootDocument {
 	return &RootDocument{
 		Bitmap:          bitmap,
 		FirmwareVersion: firmwareVersion,
@@ -50,6 +52,8 @@ func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVe
 		SchemaVersion:   schemaVersion,
 		Version:         version,
 		QueryParams:     query_params,
+		ProductClass:    productClass,
+		CustomerType:    customerType,
 	}
 }
 
@@ -62,6 +66,8 @@ func (d *RootDocument) ColumnMap() map[string]interface{} {
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
+		"product_class":    d.ProductClass,
+		"customer_type":    d.CustomerType,
 	}
 	return dict
 }
@@ -82,6 +88,8 @@ func (d *RootDocument) NonEmptyColumnMap() map[string]interface{} {
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
+		"product_class":    d.ProductClass,
+		"customer_type":    d.CustomerType,
 	}
 
 	for k, v := range tempDict {
@@ -109,6 +117,12 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	if d.SchemaVersion != r.SchemaVersion {
 		return RootDocumentMetaChanged
 	}
+	if d.ProductClass != r.ProductClass {
+		return RootDocumentMetaChanged
+	}
+	if d.CustomerType != r.CustomerType {
+		return RootDocumentMetaChanged
+	}
 	if d.Version != r.Version {
 		return RootDocumentVersionOnlyChanged
 	}
@@ -132,6 +146,12 @@ func (d *RootDocument) Equals(r *RootDocument) bool {
 		return false
 	}
 	if d.SchemaVersion != r.SchemaVersion {
+		return false
+	}
+	if d.ProductClass != r.ProductClass {
+		return false
+	}
+	if d.CustomerType != r.CustomerType {
 		return false
 	}
 	return true
@@ -160,6 +180,12 @@ func (d *RootDocument) Update(r *RootDocument) {
 	if len(r.QueryParams) > 0 {
 		d.QueryParams = r.QueryParams
 	}
+	if len(r.ProductClass) > 0 {
+		d.ProductClass = r.ProductClass
+	}
+	if len(r.CustomerType) > 0 {
+		d.CustomerType = r.CustomerType
+	}
 }
 
 func (d *RootDocument) UpdateMetadata(r *RootDocument) {
@@ -178,6 +204,12 @@ func (d *RootDocument) UpdateMetadata(r *RootDocument) {
 	}
 	if len(r.SchemaVersion) > 0 {
 		d.SchemaVersion = r.SchemaVersion
+	}
+	if len(r.ProductClass) > 0 {
+		d.ProductClass = r.ProductClass
+	}
+	if len(r.CustomerType) > 0 {
+		d.CustomerType = r.CustomerType
 	}
 }
 

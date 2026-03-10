@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -566,7 +566,7 @@ func TestSupplementaryPrecookExpiryDeletedOnStateTransition(t *testing.T) {
 	fwVersion := "TG1682_3.14p9s6_PROD_sey"
 	modelName := "TG1682G"
 	partnerId := "comcast"
-	rootDoc := common.NewRootDocument(0, fwVersion, modelName, partnerId, "", "", queryParams)
+	rootDoc := common.NewRootDocument(0, fwVersion, modelName, partnerId, "", "", queryParams, "", "")
 	err := server.SetRootDocument(cpeMac, rootDoc)
 	assert.NilError(t, err)
 
@@ -641,7 +641,7 @@ func TestSupplementaryPrecookErrorFieldsDeletedOnStateTransition(t *testing.T) {
 	fwVersion := "TG1682_3.14p9s6_PROD_sey"
 	modelName := "TG1682G"
 	partnerId := "comcast"
-	rootDoc := common.NewRootDocument(0, fwVersion, modelName, partnerId, "", "", queryParams)
+	rootDoc := common.NewRootDocument(0, fwVersion, modelName, partnerId, "", "", queryParams, "", "")
 	err := server.SetRootDocument(cpeMac, rootDoc)
 	assert.NilError(t, err)
 

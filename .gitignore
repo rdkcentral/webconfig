@@ -21,5 +21,6 @@ bin/*
 *.sh
 
 # Ignore OpenSpec generated files and folders
-openspec/*
-.github/*
+openspec/
+.github/
+.claude/

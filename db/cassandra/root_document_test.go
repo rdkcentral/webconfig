@@ -30,7 +30,7 @@ func TestRootDocumentOperations(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 	bitmap := 123
 	version := "foo"
-	rdoc := common.NewRootDocument(bitmap, "", "", "", "", version, "")
+	rdoc := common.NewRootDocument(bitmap, "", "", "", "", version, "", "", "")
 
 	err := tdbclient.SetRootDocument(cpeMac, rdoc)
 	assert.NilError(t, err)
@@ -86,7 +86,7 @@ func TestRootDocumentDb(t *testing.T) {
 	// set by a RootDocument
 	version4 := "indigo violet"
 	bitmap4 := 67
-	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4, "")
+	rdoc4 := common.NewRootDocument(bitmap4, "", "", "", "", version4, "", "", "")
 	err = tdbclient.SetRootDocument(cpeMac, rdoc4)
 	assert.NilError(t, err)
 	fetched, err := tdbclient.GetRootDocument(cpeMac)
@@ -134,7 +134,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
 	queryParams1 := "stormReadyWifi=true"
-	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, queryParams1)
+	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, queryParams1, "", "")
 
 	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
 	assert.NilError(t, err)
@@ -151,7 +151,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	partnerId2 := "cox"
 	firmwareVersion2 := "TG4482PC2_4.14p7s3_PROD_sey"
 	queryParams2 := "stormReadyWifi=true"
-	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, queryParams2)
+	rootdoc2 := common.NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, queryParams2, "", "")
 
 	err = tdbclient.SetRootDocument(cpeMac, rootdoc2)
 	assert.NilError(t, err)
@@ -164,7 +164,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	partnerId3 := "cox"
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
 	queryParams3 := "stormReadyWifi=true"
-	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, queryParams3)
+	rootdoc3 := common.NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, queryParams3, "", "")
 
 	tgtRootdoc3, err := tdbclient.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
@@ -181,7 +181,7 @@ func TestRootDocumentLocked(t *testing.T) {
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
 
-	rootdoc := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
 	epoch := int(time.Now().UnixMilli())
 	rootdoc.LockedTill = epoch + 1000
 
