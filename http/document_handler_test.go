@@ -613,3 +613,47 @@ func TestBadHeaderExpiryHandler(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }
+
+func TestPostSubDocumentResetsErrorFields(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "lan"
+
+	// step 1: write a subdoc in Failure state with non-zero error fields
+	srcBytes := common.RandomBytes(100, 150)
+	srcVersion := util.GetMurmur3Hash(srcBytes)
+	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
+	srcState := common.Failure
+	errCode := 204
+	errDetails := "failed_retrying:Error unsupported namespace"
+	failureSubdoc := common.NewSubDocument(srcBytes, &srcVersion, &srcState, &srcUpdatedTime, &errCode, &errDetails)
+	err := server.SetSubDocument(cpeMac, subdocId, failureSubdoc)
+	assert.NilError(t, err)
+
+	// verify failure state persisted correctly
+	fetched, err := server.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Equal(t, *fetched.State(), common.Failure)
+	assert.Equal(t, *fetched.ErrorCode(), 204)
+	assert.Equal(t, *fetched.ErrorDetails(), "failed_retrying:Error unsupported namespace")
+
+	// step 2: POST new config via HTTP handler (4 → 2 transition)
+	newBytes := common.RandomBytes(100, 150)
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(newBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// step 3: verify state is PendingDownload and error fields are reset to zero
+	fetched, err = server.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Equal(t, *fetched.State(), common.PendingDownload)
+	assert.Equal(t, *fetched.ErrorCode(), 0)
+	assert.Equal(t, *fetched.ErrorDetails(), "")
+}
