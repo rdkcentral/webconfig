@@ -538,6 +538,10 @@ func UpdateSubDocument(c DatabaseClient, cpeMac, subdocId string, newSubdoc, old
 
 	newState := common.InDeployment
 	newSubdoc.SetState(&newState)
+	zeroErrorCode := 0
+	emptyErrorDetails := ""
+	newSubdoc.SetErrorCode(&zeroErrorCode)
+	newSubdoc.SetErrorDetails(&emptyErrorDetails)
 
 	err = c.SetSubDocument(cpeMac, subdocId, newSubdoc, oldState, labels, fields)
 	if err != nil {

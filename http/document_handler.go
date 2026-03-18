@@ -135,7 +135,9 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 	}
 
 	updatedTime := int(time.Now().UnixNano() / 1000000)
-	subdoc := common.NewSubDocument(bbytes, &version, statePtr, &updatedTime, nil, nil)
+	zeroErrorCode := 0
+	emptyErrorDetails := ""
+	subdoc := common.NewSubDocument(bbytes, &version, statePtr, &updatedTime, &zeroErrorCode, &emptyErrorDetails)
 
 	// handle expiry header
 	expiryTmsStr := r.Header.Get(common.HeaderSubdocumentExpiry)
