@@ -30,6 +30,9 @@ BUILDTIME := $(shell date -u +"%F_%T_%Z")
 all: build
 testall: test testsqlite testyuga
 
+testenv:  ## Run all tests sourcing env.sh for TEST_CONFIG_FILE
+	bash -c "source env.sh && go test ./... -cover -count=1"
+
 build:  ## Build a version
 	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
 
