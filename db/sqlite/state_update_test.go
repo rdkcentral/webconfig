@@ -36,7 +36,7 @@ func TestUpdateSubDocumentResetsErrorFields(t *testing.T) {
 	groupId := "privatessid"
 
 	// step 1: seed a root document so GetRootDocumentLabels succeeds
-	rootdoc := common.NewRootDocument(0, "", "", "", "", "", "", "", "")
+	rootdoc := &common.RootDocument{}
 	err := tdbclient.SetRootDocument(cpeMac, rootdoc)
 	assert.NilError(t, err)
 

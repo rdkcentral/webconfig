@@ -179,6 +179,10 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 	if err = tdbclient.SetUp(); err != nil {
 		return nil, common.NewError(err)
 	}
+	// add any new columns that are missing from an existing DB file
+	if err = tdbclient.SyncSchema(); err != nil {
+		return nil, common.NewError(err)
+	}
 	if err = tdbclient.TearDown(); err != nil {
 		return nil, common.NewError(err)
 	}
@@ -203,4 +207,62 @@ func (c *SqliteClient) SupplementaryPrecookStateTTLDays() int {
 
 func (c *SqliteClient) SetSupplementaryPrecookStateTTLDays(days int) {
 	c.supplementaryPrecookStateTTLDays = days
+}
+
+// SyncSchema adds any columns that are defined in SqliteCreateTableStatements but
+// missing from the existing tables. It is safe to call on both new and existing DB
+// files, and is idempotent — it is a no-op when the schema is already current.
+func (c *SqliteClient) SyncSchema() error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	for _, stmt := range SqliteCreateTableStatements {
+		tableName, colDefs, err := parseCreateTable(stmt)
+		if err != nil {
+			return common.NewError(err)
+		}
+
+		existing, err := c.pragmaTableInfo(tableName)
+		if err != nil {
+			return common.NewError(err)
+		}
+
+		for colName, colType := range colDefs {
+			if _, ok := existing[colName]; ok {
+				continue
+			}
+			var alterSQL string
+			if colType == "" {
+				alterSQL = fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", tableName, colName)
+			} else {
+				alterSQL = fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", tableName, colName, colType)
+			}
+			if _, err := c.Exec(alterSQL); err != nil {
+				return common.NewError(fmt.Errorf("SyncSchema %s.%s: %w", tableName, colName, err))
+			}
+		}
+	}
+	return nil
+}
+
+// pragmaTableInfo returns a map of column name → type for an existing table.
+// Returns an empty map (not an error) if the table does not exist.
+func (c *SqliteClient) pragmaTableInfo(tableName string) (map[string]string, error) {
+	rows, err := c.Query(fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols := make(map[string]string)
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return nil, err
+		}
+		cols[name] = colType
+	}
+	return cols, rows.Err()
 }
