@@ -628,3 +628,49 @@ func TestParseSupportedDocsHeaderChannelplan(t *testing.T) {
 	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
+
+func TestParseSupportedDocsHeaderHotspotwantolan(t *testing.T) {
+	// group_id=12, group-bit=3 → CPE bit 42 (hotspotwantolan)
+	group12Value := (12 << 24) + (1 << (3 - 1)) // bit 3 set in group 12
+	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v", group12Value)
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	assert.Assert(t, IsSubdocSupported(cpeBitmap, "hotspotwantolan"))
+	assert.Assert(t, !IsSubdocSupported(cpeBitmap, "ignitewifi"))
+}
+
+func TestParseSupportedDocsHeaderIgnitewifi(t *testing.T) {
+	// group_id=2, group-bit=4 → CPE bit 43 (ignitewifi)
+	group2Value := (2 << 24) + (1 << (4 - 1)) // bit 4 set in group 2
+	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v", group2Value)
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	assert.Assert(t, IsSubdocSupported(cpeBitmap, "ignitewifi"))
+	assert.Assert(t, !IsSubdocSupported(cpeBitmap, "hotspotwantolan"))
+}
+
+func TestParseSupportedDocsHeaderBothNewSubdocs(t *testing.T) {
+	// group 12: bits 1, 2, 3 → CPE bits 21 (wanmanager), 23 (wanfailover), 42 (hotspotwantolan)
+	// group 2:  bits 1, 2, 3, 4 → CPE bits 7 (privatessid), 8 (homessid), 9 (radio), 43 (ignitewifi)
+	group12Value := (12 << 24) + (1 << 0) + (1 << 1) + (1 << 2)
+	group2Value := (2 << 24) + (1 << 0) + (1 << 1) + (1 << 2) + (1 << 3)
+	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v,%v", group12Value, group2Value)
+
+	supportedSubdocIds := []string{
+		"privatessid",
+		"homessid",
+		"radio",
+		"ignitewifi",
+		"wanmanager",
+		"wanfailover",
+		"hotspotwantolan",
+	}
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
+}

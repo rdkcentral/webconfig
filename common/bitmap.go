@@ -44,6 +44,7 @@ var (
 			{1, 7},
 			{2, 8},
 			{3, 9},
+			{4, 43}, // ignitewifi
 		},
 		3: {
 			{1, 10},
@@ -87,6 +88,7 @@ var (
 		12: {
 			{1, 21},
 			{2, 23},
+			{3, 42}, // hotspotwantolan
 		},
 		13: {
 			{1, 22},
@@ -150,6 +152,8 @@ var (
 		"interference":            39,
 		"webui":                   40,
 		"channelplan":             41,
+		"hotspotwantolan":         42,
+		"ignitewifi":              43,
 	}
 )
 
