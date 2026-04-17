@@ -34,8 +34,8 @@ func (c *CassandraClient) GetRootDocument(cpeMac string) (*common.RootDocument, 
 
 	var rd common.RootDocument
 	var tobj time.Time
-	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,query_params,locked_till,product_class,customer_type FROM root_document WHERE cpe_mac=?"
-	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version, &rd.QueryParams, &tobj, &rd.ProductClass, &rd.CustomerType)
+	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,query_params,locked_till,product_class,account_type FROM root_document WHERE cpe_mac=?"
+	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version, &rd.QueryParams, &tobj, &rd.ProductClass, &rd.AccountType)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
