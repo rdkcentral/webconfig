@@ -48,7 +48,7 @@ var (
 		`CREATE TABLE IF NOT EXISTS root_document (
     cpe_mac text PRIMARY KEY,
     bitmap bigint,
-    customer_type text,
+    account_type text,
     firmware_version text,
     locked_till timestamp,
     model_name text,

@@ -182,14 +182,14 @@ func TestRootDocumentUpdate(t *testing.T) {
 	assert.DeepEqual(t, tgtRootdoc3, rootdoc3)
 }
 
-func TestRootDocumentProductClassCustomerType(t *testing.T) {
+func TestRootDocumentProductClassAccountType(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 
 	// verify starting empty
 	_, err := tdbclient.GetRootDocument(cpeMac)
 	assert.Assert(t, tdbclient.IsDbNotFound(err))
 
-	// ==== step 1: set rootdoc with product_class and customer_type ====
+	// ==== step 1: set rootdoc with product_class and account_type ====
 	bitmap1 := 100
 	version1 := "v1"
 	schemaVersion1 := "33554433-1.3"
@@ -197,22 +197,22 @@ func TestRootDocumentProductClassCustomerType(t *testing.T) {
 	partnerId1 := "comcast"
 	firmwareVersion1 := "TG3482G_4.10p7s1_PROD_sey"
 	productClass1 := "rg"
-	customerType1 := "residential"
-	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass1, customerType1)
+	accountType1 := "residential"
+	srcRootdoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass1, accountType1)
 
 	err = tdbclient.SetRootDocument(cpeMac, srcRootdoc1)
 	assert.NilError(t, err)
 
-	// read from db and verify product_class and customer_type are stored
+	// read from db and verify product_class and account_type are stored
 	tgtRootdoc1, err := tdbclient.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass1, tgtRootdoc1.ProductClass)
-	assert.Equal(t, customerType1, tgtRootdoc1.CustomerType)
+	assert.Equal(t, accountType1, tgtRootdoc1.AccountType)
 
-	// ==== step 2: update with new product_class and customer_type ====
+	// ==== step 2: update with new product_class and account_type ====
 	productClass2 := "xb"
-	customerType2 := "business"
-	rootdoc2 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass2, customerType2)
+	accountType2 := "business"
+	rootdoc2 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", productClass2, accountType2)
 
 	err = tdbclient.SetRootDocument(cpeMac, rootdoc2)
 	assert.NilError(t, err)
@@ -221,5 +221,5 @@ func TestRootDocumentProductClassCustomerType(t *testing.T) {
 	tgtRootdoc2, err := tdbclient.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass2, tgtRootdoc2.ProductClass)
-	assert.Equal(t, customerType2, tgtRootdoc2.CustomerType)
+	assert.Equal(t, accountType2, tgtRootdoc2.AccountType)
 }

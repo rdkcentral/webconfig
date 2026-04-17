@@ -38,7 +38,7 @@ var (
 		`CREATE TABLE IF NOT EXISTS root_document (
     cpe_mac text PRIMARY KEY,
     bitmap bigint,
-    customer_type text,
+    account_type text,
     firmware_version text,
     locked_till timestamp,
     model_name text,
@@ -71,7 +71,7 @@ var (
 		"root_document": {
 			"cpe_mac":          gocql.TypeText,
 			"bitmap":           gocql.TypeBigInt,
-			"customer_type":    gocql.TypeText,
+			"account_type":     gocql.TypeText,
 			"firmware_version": gocql.TypeText,
 			"model_name":       gocql.TypeText,
 			"partner_id":       gocql.TypeText,

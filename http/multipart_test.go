@@ -1545,7 +1545,7 @@ func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
 	partnerId1 := "comcast"
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	productClass1 := "rg"
-	customerType1 := "residential"
+	accountType1 := "residential"
 
 	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
 	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
@@ -1553,7 +1553,7 @@ func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
 	req.Header.Set(common.HeaderPartnerID, partnerId1)
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 	req.Header.Set(common.HeaderProductClass, productClass1)
-	req.Header.Set(common.HeaderCustomerType, customerType1)
+	req.Header.Set(common.HeaderAccountType, accountType1)
 
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -1561,15 +1561,15 @@ func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
-	// read from db and verify product_class and customer_type are stored
+	// read from db and verify product_class and account_type are stored
 	rdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass1, rdoc.ProductClass)
-	assert.Equal(t, customerType1, rdoc.CustomerType)
+	assert.Equal(t, accountType1, rdoc.AccountType)
 
 	// ==== GET /config again with updated X-System-Product-Class and X-System-Type headers ====
 	productClass2 := "xb8"
-	customerType2 := "business"
+	accountType2 := "business"
 
 	req, err = http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
@@ -1579,7 +1579,7 @@ func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
 	req.Header.Set(common.HeaderPartnerID, partnerId1)
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 	req.Header.Set(common.HeaderProductClass, productClass2)
-	req.Header.Set(common.HeaderCustomerType, customerType2)
+	req.Header.Set(common.HeaderAccountType, accountType2)
 
 	res = ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -1590,5 +1590,5 @@ func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
 	rdoc, err = server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass2, rdoc.ProductClass)
-	assert.Equal(t, customerType2, rdoc.CustomerType)
+	assert.Equal(t, accountType2, rdoc.AccountType)
 }
