@@ -94,8 +94,18 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		log.WithFields(tfields).Warn(err)
 	}
 
+	productClass, err := rHeader.Get(common.HeaderProductClass)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+
+	customerType, err := rHeader.Get(common.HeaderCustomerType)
+	if err != nil {
+		log.WithFields(tfields).Warn(err)
+	}
+
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, customerType)
 
 	// ==== parse mac ====
 	mac, err := rHeader.Get(common.HeaderDeviceId)
@@ -647,9 +657,11 @@ func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerI
 	schemaVersion := strings.ToLower(rHeader.Get(common.HeaderSchemaVersion))
 	modelName := rHeader.Get(common.HeaderModelName)
 	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
+	productClass := rHeader.Get(common.HeaderProductClass)
+	customerType := rHeader.Get(common.HeaderCustomerType)
 
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "")
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, customerType)
 
 	// ==== read the cloudRootDocument from db ====
 	cloudRootDocument, err := c.GetRootDocument(mac)

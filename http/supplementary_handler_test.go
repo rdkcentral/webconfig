@@ -459,7 +459,7 @@ func TestSupplementaryWithExtraQueryParams(t *testing.T) {
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	etag := strconv.Itoa(int(time.Now().Unix()))
 	queryParams1 := "stormReadyWifi=true"
-	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1)
+	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1, "", "")
 	bbytes, err := json.Marshal(srcDoc1)
 	assert.NilError(t, err)
 
@@ -649,7 +649,7 @@ func TestSupplementaryAppendingFlag(t *testing.T) {
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	etag := strconv.Itoa(int(time.Now().Unix()))
 	queryParams1 := "stormReadyWifi=true"
-	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1)
+	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1, "", "")
 	bbytes, err := json.Marshal(srcDoc1)
 	assert.NilError(t, err)
 
@@ -1171,7 +1171,7 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
 
 	// set up root_document table
-	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true", "", "")
 	err = server.SetRootDocument(cpeMac, rdoc)
 	assert.NilError(t, err)
 	getRdoc, err := server.GetRootDocument(cpeMac)
@@ -1235,7 +1235,7 @@ func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) 
 	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
 
 	// set up root_document table
-	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true", "", "")
 	err = server.SetRootDocument(cpeMac, rdoc)
 	assert.NilError(t, err)
 	getRdoc, err := server.GetRootDocument(cpeMac)
@@ -1299,7 +1299,7 @@ func TestSupplementaryDefaultEmptyProfile(t *testing.T) {
 	firmwareVersion := "TG1682_3.14p9s6_PROD_sey"
 
 	// set up root_document table
-	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true")
+	rdoc := common.NewRootDocument(32479, firmwareVersion, modelName, partnerID, "", "12345", "stormReadyWifi=true", "", "")
 	err = server.SetRootDocument(cpeMac, rdoc)
 	assert.NilError(t, err)
 	getRdoc, err := server.GetRootDocument(cpeMac)

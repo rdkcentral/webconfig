@@ -35,7 +35,7 @@ func TestDocument(t *testing.T) {
 	modelName := "bar"
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
 	document = NewDocument(rootdoc)
 
 	subdocIds := []string{"red", "orange", "yellow", "green"}
@@ -77,7 +77,7 @@ func TestFilterByBitmap(t *testing.T) {
 	modelName := "bar"
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
 	document = NewDocument(rootdoc)
 
 	subdocIds := []string{

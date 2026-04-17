@@ -77,6 +77,7 @@ const (
 	HeaderPartnerID                  = "X-System-PartnerID"
 	HeaderAccountID                  = "X-System-AccountID"
 	HeaderProductClass               = "X-System-Product-Class"
+	HeaderCustomerType               = "X-System-Type"
 	HeaderUserAgent                  = "User-Agent"
 	HeaderSchemaVersion              = "X-System-Schema-Version"
 	HeaderMetricsAgent               = "X-Metrics-Agent"

@@ -81,7 +81,7 @@ func TestRootDocumentHandler(t *testing.T) {
 
 	expectedBitmap1, err := common.GetCpeBitmap(supportedDocs1)
 	assert.NilError(t, err)
-	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
+	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "", "", "")
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)
 
 	// ==== step 2 build lan subdoc ====
@@ -190,7 +190,7 @@ func TestRootDocumentHandler(t *testing.T) {
 	err = json.Unmarshal(rbytes, &getResp)
 	assert.NilError(t, err)
 
-	expectedRootdoc = common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, "")
+	expectedRootdoc = common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, "", "", "")
 	assert.Equal(t, getResp.Data, *expectedRootdoc)
 }
 
@@ -207,7 +207,7 @@ func TestPostRootDocumentHandler(t *testing.T) {
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	etag := strconv.Itoa(int(time.Now().Unix()))
 	queryParams1 := "stormReadyWifi=true"
-	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1)
+	srcDoc1 := common.NewRootDocument(bitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, etag, queryParams1, "", "")
 	bbytes, err := json.Marshal(srcDoc1)
 	assert.NilError(t, err)
 
@@ -280,7 +280,7 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 
 	expectedBitmap1, err := common.GetCpeBitmap(supportedDocs1)
 	assert.NilError(t, err)
-	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "")
+	expectedRootdoc := common.NewRootDocument(expectedBitmap1, firmwareVersion1, modelName1, partner1, schemaVersion1, "", "", "", "")
 	assert.DeepEqual(t, rootdoc, expectedRootdoc)
 
 	// ==== step 2 ====
@@ -306,4 +306,66 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 	rootdoc2, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Assert(t, rootdoc.Equals(rootdoc2))
+}
+
+func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// make a GET /config request with X-System-Product-Class and X-System-Type headers
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partner1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+	productClass1 := "rg"
+	customerType1 := "residential"
+
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partner1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	req.Header.Set(common.HeaderProductClass, productClass1)
+	req.Header.Set(common.HeaderCustomerType, customerType1)
+
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	// expect 404 since no subdocs are stored
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+
+	// read from db and verify product_class and customer_type are stored
+	rootdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass1, rootdoc.ProductClass)
+	assert.Equal(t, customerType1, rootdoc.CustomerType)
+
+	// ==== make a second request with different product_class and customer_type ====
+	productClass2 := "xb8"
+	customerType2 := "business"
+	req2, err := http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	req2.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req2.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req2.Header.Set(common.HeaderModelName, modelName1)
+	req2.Header.Set(common.HeaderPartnerID, partner1)
+	req2.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	req2.Header.Set(common.HeaderProductClass, productClass2)
+	req2.Header.Set(common.HeaderCustomerType, customerType2)
+
+	res2 := ExecuteRequest(req2, router).Result()
+	_, err = io.ReadAll(res2.Body)
+	assert.NilError(t, err)
+
+	// verify updated values are stored
+	rootdoc2, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass2, rootdoc2.ProductClass)
+	assert.Equal(t, customerType2, rootdoc2.CustomerType)
 }

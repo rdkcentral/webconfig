@@ -38,6 +38,7 @@ var (
 		"X-System-Schema-Version",
 		"X-System-Supported-Docs",
 		"X-System-Product-Class",
+		"X-System-Type",
 		"Transaction-Id",
 	}
 )
@@ -201,7 +202,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		}
 	}
 	if document == nil {
-		rootDocument := common.NewRootDocument(0, "", "", "", "", "", "")
+		rootDocument := common.NewRootDocument(0, "", "", "", "", "", "", "", "")
 		document = common.NewDocument(rootDocument)
 	}
 
@@ -321,7 +322,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		bitmap = oldRootDocument.Bitmap
 	}
 	// filter by versionMap and filter by blockedIds
-	finalRootDocument := common.NewRootDocument(bitmap, "", "", "", "", upstreamRespEtag, "")
+	finalRootDocument := common.NewRootDocument(bitmap, "", "", "", "", upstreamRespEtag, "", "", "")
 	finalDocument := common.NewDocument(finalRootDocument)
 	finalDocument.SetSubDocuments(finalMparts)
 

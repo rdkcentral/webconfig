@@ -1513,3 +1513,82 @@ func TestValidateQueryParams(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusNotModified)
 }
+
+func TestMultipartConfigHandlerNewHeaders(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+
+	// ==== POST lan subdoc ====
+	subdocId := "lan"
+	m, n := 50, 100
+	lanBytes := common.RandomBytes(m, n)
+	url := fmt.Sprintf("/api/v1/device/%v/document/%v", cpeMac, subdocId)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(lanBytes))
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// ==== GET /config with X-System-Product-Class and X-System-Type headers ====
+	configUrl := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+
+	supportedDocs1 := "16777247,33554435,50331649,67108865,83886081,100663297,117440513,134217729"
+	firmwareVersion1 := "CGM4331COM_4.11p7s1_PROD_sey"
+	modelName1 := "CGM4331COM"
+	partnerId1 := "comcast"
+	schemaVersion1 := "33554433-1.3,33554434-1.3"
+	productClass1 := "rg"
+	customerType1 := "residential"
+
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partnerId1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	req.Header.Set(common.HeaderProductClass, productClass1)
+	req.Header.Set(common.HeaderCustomerType, customerType1)
+
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+
+	// read from db and verify product_class and customer_type are stored
+	rdoc, err := server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass1, rdoc.ProductClass)
+	assert.Equal(t, customerType1, rdoc.CustomerType)
+
+	// ==== GET /config again with updated X-System-Product-Class and X-System-Type headers ====
+	productClass2 := "xb8"
+	customerType2 := "business"
+
+	req, err = http.NewRequest("GET", configUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
+	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
+	req.Header.Set(common.HeaderModelName, modelName1)
+	req.Header.Set(common.HeaderPartnerID, partnerId1)
+	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
+	req.Header.Set(common.HeaderProductClass, productClass2)
+	req.Header.Set(common.HeaderCustomerType, customerType2)
+
+	res = ExecuteRequest(req, router).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+
+	// verify updated values are persisted in the root_document table
+	rdoc, err = server.GetRootDocument(cpeMac)
+	assert.NilError(t, err)
+	assert.Equal(t, productClass2, rdoc.ProductClass)
+	assert.Equal(t, customerType2, rdoc.CustomerType)
+}
