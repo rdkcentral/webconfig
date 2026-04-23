@@ -308,7 +308,7 @@ func TestRootDocumentHandlerCorruptedHeaders(t *testing.T) {
 	assert.Assert(t, rootdoc.Equals(rootdoc2))
 }
 
-func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
+func TestMultipartConfigHandlerStoresProductClassAndAccountType(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	router := server.GetRouter(true)
 	cpeMac := util.GenerateRandomCpeMac()
@@ -324,7 +324,7 @@ func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
 	partner1 := "comcast"
 	schemaVersion1 := "33554433-1.3,33554434-1.3"
 	productClass1 := "rg"
-	customerType1 := "residential"
+	accountType1 := "residential"
 
 	req.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
 	req.Header.Set(common.HeaderFirmwareVersion, firmwareVersion1)
@@ -332,7 +332,7 @@ func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
 	req.Header.Set(common.HeaderPartnerID, partner1)
 	req.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 	req.Header.Set(common.HeaderProductClass, productClass1)
-	req.Header.Set(common.HeaderCustomerType, customerType1)
+	req.Header.Set(common.HeaderAccountType, accountType1)
 
 	res := ExecuteRequest(req, router).Result()
 	_, err = io.ReadAll(res.Body)
@@ -340,15 +340,15 @@ func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
 	// expect 404 since no subdocs are stored
 	assert.Equal(t, res.StatusCode, http.StatusNotFound)
 
-	// read from db and verify product_class and customer_type are stored
+	// read from db and verify product_class and account_type are stored
 	rootdoc, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass1, rootdoc.ProductClass)
-	assert.Equal(t, customerType1, rootdoc.CustomerType)
+	assert.Equal(t, accountType1, rootdoc.AccountType)
 
-	// ==== make a second request with different product_class and customer_type ====
+	// ==== make a second request with different product_class and account_type ====
 	productClass2 := "xb8"
-	customerType2 := "business"
+	accountType2 := "business"
 	req2, err := http.NewRequest("GET", configUrl, nil)
 	assert.NilError(t, err)
 	req2.Header.Set(common.HeaderSupportedDocs, supportedDocs1)
@@ -357,7 +357,7 @@ func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
 	req2.Header.Set(common.HeaderPartnerID, partner1)
 	req2.Header.Set(common.HeaderSchemaVersion, schemaVersion1)
 	req2.Header.Set(common.HeaderProductClass, productClass2)
-	req2.Header.Set(common.HeaderCustomerType, customerType2)
+	req2.Header.Set(common.HeaderAccountType, accountType2)
 
 	res2 := ExecuteRequest(req2, router).Result()
 	_, err = io.ReadAll(res2.Body)
@@ -367,5 +367,5 @@ func TestMultipartConfigHandlerStoresProductClassAndCustomerType(t *testing.T) {
 	rootdoc2, err := server.GetRootDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Equal(t, productClass2, rootdoc2.ProductClass)
-	assert.Equal(t, customerType2, rootdoc2.CustomerType)
+	assert.Equal(t, accountType2, rootdoc2.AccountType)
 }

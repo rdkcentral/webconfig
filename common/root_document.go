@@ -39,11 +39,11 @@ type RootDocument struct {
 	QueryParams     string `json:"query_params"`
 	LockedTill      int    `json:"locked_till"`
 	ProductClass    string `json:"product_class"`
-	CustomerType    string `json:"customer_type"`
+	AccountType     string `json:"account_type"`
 }
 
-// (bitmap, firmware_version, model_name, partner_id, schema_version, version, query_params, product_class, customer_type), nil
-func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params, productClass, customerType string) *RootDocument {
+// (bitmap, firmware_version, model_name, partner_id, schema_version, version, query_params, product_class, account_type), nil
+func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params, productClass, accountType string) *RootDocument {
 	return &RootDocument{
 		Bitmap:          bitmap,
 		FirmwareVersion: firmwareVersion,
@@ -53,7 +53,7 @@ func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVe
 		Version:         version,
 		QueryParams:     query_params,
 		ProductClass:    productClass,
-		CustomerType:    customerType,
+		AccountType:     accountType,
 	}
 }
 
@@ -67,7 +67,7 @@ func (d *RootDocument) ColumnMap() map[string]interface{} {
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
 		"product_class":    d.ProductClass,
-		"customer_type":    d.CustomerType,
+		"account_type":     d.AccountType,
 	}
 	return dict
 }
@@ -89,7 +89,7 @@ func (d *RootDocument) NonEmptyColumnMap() map[string]interface{} {
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
 		"product_class":    d.ProductClass,
-		"customer_type":    d.CustomerType,
+		"account_type":     d.AccountType,
 	}
 
 	for k, v := range tempDict {
@@ -120,7 +120,7 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	if d.ProductClass != r.ProductClass {
 		return RootDocumentMetaChanged
 	}
-	if d.CustomerType != r.CustomerType {
+	if d.AccountType != r.AccountType {
 		return RootDocumentMetaChanged
 	}
 	if d.Version != r.Version {
@@ -151,7 +151,7 @@ func (d *RootDocument) Equals(r *RootDocument) bool {
 	if d.ProductClass != r.ProductClass {
 		return false
 	}
-	if d.CustomerType != r.CustomerType {
+	if d.AccountType != r.AccountType {
 		return false
 	}
 	return true
@@ -183,8 +183,8 @@ func (d *RootDocument) Update(r *RootDocument) {
 	if len(r.ProductClass) > 0 {
 		d.ProductClass = r.ProductClass
 	}
-	if len(r.CustomerType) > 0 {
-		d.CustomerType = r.CustomerType
+	if len(r.AccountType) > 0 {
+		d.AccountType = r.AccountType
 	}
 }
 
@@ -208,8 +208,8 @@ func (d *RootDocument) UpdateMetadata(r *RootDocument) {
 	if len(r.ProductClass) > 0 {
 		d.ProductClass = r.ProductClass
 	}
-	if len(r.CustomerType) > 0 {
-		d.CustomerType = r.CustomerType
+	if len(r.AccountType) > 0 {
+		d.AccountType = r.AccountType
 	}
 }
 

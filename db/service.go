@@ -99,13 +99,13 @@ func BuildGetDocument(c DatabaseClient, inHeader http.Header, route string, fiel
 		log.WithFields(tfields).Warn(err)
 	}
 
-	customerType, err := rHeader.Get(common.HeaderCustomerType)
+	accountType, err := rHeader.Get(common.HeaderAccountType)
 	if err != nil {
 		log.WithFields(tfields).Warn(err)
 	}
 
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, customerType)
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, accountType)
 
 	// ==== parse mac ====
 	mac, err := rHeader.Get(common.HeaderDeviceId)
@@ -658,10 +658,10 @@ func PreprocessRootDocument(c DatabaseClient, rHeader http.Header, mac, partnerI
 	modelName := rHeader.Get(common.HeaderModelName)
 	firmwareVersion := rHeader.Get(common.HeaderFirmwareVersion)
 	productClass := rHeader.Get(common.HeaderProductClass)
-	customerType := rHeader.Get(common.HeaderCustomerType)
+	accountType := rHeader.Get(common.HeaderAccountType)
 
 	// start with an empty rootDocument.Version, just in case there are errors in parsing the version from headers
-	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, customerType)
+	deviceRootDocument := common.NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, "", "", productClass, accountType)
 
 	// ==== read the cloudRootDocument from db ====
 	cloudRootDocument, err := c.GetRootDocument(mac)
