@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	log "github.com/sirupsen/logrus"
+	_ "modernc.org/sqlite"
 )
 
 func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.SubDocument, error) {
@@ -40,7 +40,7 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 
 	var ns1, ns2 sql.NullString
 	var b1 []byte
-	var nt1, nt2 sql.NullTime
+	var nt1, nt2 sql.NullInt64
 	var ni1, ni2 sql.NullInt64
 
 	if !rows.Next() {
@@ -62,13 +62,11 @@ func (c *SqliteClient) GetSubDocument(cpeMac string, groupId string) (*common.Su
 		s2 = &(ns2.String)
 	}
 	if nt1.Valid {
-		t1 := nt1.Time
-		tt := int(t1.UnixNano() / 1000000)
+		tt := int(nt1.Int64)
 		ts = &tt
 	}
 	if nt2.Valid {
-		t2 := nt2.Time
-		tt := int(t2.UnixNano() / 1000000)
+		tt := int(nt2.Int64)
 		expiry = &tt
 	}
 	if ni1.Valid {
@@ -319,7 +317,7 @@ func (c *SqliteClient) GetDocument(cpeMac string, xargs ...interface{}) (*common
 	for rows.Next() {
 		var ns0, ns1, ns2 sql.NullString
 		var b1 []byte
-		var nt1 sql.NullTime
+		var nt1 sql.NullInt64
 		var ni1, ni2 sql.NullInt64
 
 		err = rows.Scan(&ns0, &b1, &ni1, &nt1, &ns1, &ni2, &ns2)
@@ -342,8 +340,7 @@ func (c *SqliteClient) GetDocument(cpeMac string, xargs ...interface{}) (*common
 			s2 = &(ns2.String)
 		}
 		if nt1.Valid {
-			t1 := nt1.Time
-			tt := int(t1.UnixNano() / 1000000)
+			tt := int(nt1.Int64)
 			ts = &tt
 		}
 		if ni1.Valid {
