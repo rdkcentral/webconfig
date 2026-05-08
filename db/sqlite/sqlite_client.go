@@ -23,9 +23,9 @@ import (
 	"fmt"
 
 	"github.com/go-akka/configuration"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -67,7 +67,7 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 	supplementaryPrecookEnabled := conf.GetBoolean("webconfig.supplementary_precook_enabled")
 	supplementaryPrecookStateTTLDays := int(conf.GetInt32("webconfig.supplementary_precook_state_ttl_days", 7))
 
-	db, err := sql.Open("sqlite3", dbfile)
+	db, err := sql.Open("sqlite", dbfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
