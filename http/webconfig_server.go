@@ -1063,7 +1063,7 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 
 	for _, m := range messages {
 		if len(m.DeviceId) != 16 {
-			log.WithFields(tfields).Warn("invalid device_id " + m.DeviceId)
+			log.WithFields(tfields).Warn("invalid device_id")
 			continue
 		}
 		mac := m.DeviceId[4:]
@@ -1083,8 +1083,8 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		}
 		s.Input() <- outMessage
 
-		tfields["output_key"] = mac
-		tfields["output_body"] = m
+		tfields["output_key"] = "****"
+		tfields["output_body"] = "omitted"
 		log.WithFields(tfields).Info("send")
 	}
 }
