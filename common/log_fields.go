@@ -20,6 +20,7 @@ package common
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -45,32 +46,70 @@ var (
 	}
 )
 
+func isSensitiveLogKey(k string) bool {
+	key := strings.ToLower(k)
+	return strings.Contains(key, "passphrase") ||
+		strings.Contains(key, "password") ||
+		strings.Contains(key, "passwd") ||
+		strings.Contains(key, "token") ||
+		strings.Contains(key, "authorization") ||
+		strings.Contains(key, "cookie") ||
+		strings.Contains(key, "secret") ||
+		strings.Contains(key, "apikey") ||
+		strings.Contains(key, "api_key")
+}
+
+func sanitizeLogValue(k string, v interface{}) interface{} {
+	if isSensitiveLogKey(k) {
+		return "****"
+	}
+
+	switch ty := v.(type) {
+	case map[string]string:
+		redacted := map[string]string{}
+		for mk, mv := range ty {
+			if isSensitiveLogKey(mk) || k == "header" {
+				redacted[mk] = "****"
+			} else {
+				redacted[mk] = mv
+			}
+		}
+		return redacted
+	case map[string]interface{}:
+		redacted := map[string]interface{}{}
+		for mk, mv := range ty {
+			redacted[mk] = sanitizeLogValue(mk, mv)
+		}
+		return redacted
+	case []interface{}:
+		redacted := make([]interface{}, len(ty))
+		for i, iv := range ty {
+			redacted[i] = sanitizeLogValue(k, iv)
+		}
+		return redacted
+	default:
+		return ty
+	}
+}
+
 func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
 	fields := log.Fields{}
 	for k, v := range src {
 		switch ty := v.(type) {
-		case map[string]string:
-			if k == "header" {
-				redacted := map[string]string{}
-				for hk := range ty {
-					redacted[hk] = "****"
-				}
-				fields[k] = redacted
-			} else {
-				fields[k] = maps.Clone(ty)
-			}
-		case map[string]interface{}:
-			fields[k] = maps.Clone(ty)
 		case string:
 			if slices.Contains(nonEmptyFields, k) {
 				if len(ty) > 0 {
-					fields[k] = ty
+					fields[k] = sanitizeLogValue(k, ty)
 				}
 			} else {
-				fields[k] = ty
+				fields[k] = sanitizeLogValue(k, ty)
 			}
+		case map[string]string:
+			fields[k] = sanitizeLogValue(k, maps.Clone(ty))
+		case map[string]interface{}:
+			fields[k] = sanitizeLogValue(k, maps.Clone(ty))
 		default:
-			fields[k] = ty
+			fields[k] = sanitizeLogValue(k, ty)
 		}
 	}
 
