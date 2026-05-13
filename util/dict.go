@@ -19,6 +19,7 @@ package util
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -210,9 +211,21 @@ func (d Dict) Update(itf interface{}) {
 	}
 }
 
+func isSensitiveHeaderKey(key string) bool {
+	k := strings.ToLower(strings.TrimSpace(key))
+	if k == "authorization" || k == "proxy-authorization" || k == "cookie" || k == "set-cookie" {
+		return true
+	}
+	return strings.Contains(k, "token") || strings.Contains(k, "secret") || strings.Contains(k, "apikey") || strings.Contains(k, "api-key") || strings.Contains(k, "key")
+}
+
 func HeaderToMap(header http.Header) map[string]string {
 	m := make(map[string]string)
 	for k, v := range header {
+		if isSensitiveHeaderKey(k) {
+			m[k] = "****"
+			continue
+		}
 		m[k] = v[0]
 	}
 	return m
