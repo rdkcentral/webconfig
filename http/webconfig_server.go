@@ -1093,6 +1093,7 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	fields := xw.Audit()
 	fields["logger"] = "token"
 	tfields := common.FilterLogFields(fields)
+	delete(tfields, "header")
 	var headerMap map[string]string
 	var isObfuscated bool
 	if itf, ok := tfields["header"]; ok {
@@ -1113,7 +1114,8 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 		}
 
 		if codec == nil {
-			tfields["plaintoken"] = token
+			tfields["token_present"] = len(token) > 0
+			tfields["token_length"] = len(token)
 		} else {
 			var encToken string
 			if encryptedB64, err := codec.Encrypt(token); err == nil {
