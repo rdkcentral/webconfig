@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -55,11 +55,7 @@ func TestLoadingKeyFiles(t *testing.T) {
 }
 
 func TestTokenValidation(t *testing.T) {
-	sc, err := common.GetTestServerConfig()
-	if err != nil {
-		panic(err)
-	}
-	if !sc.GetBoolean("webconfig.jwt.enabled") {
+	if tokenManager == nil {
 		t.Skip("webconfig.jwt.enabled = false")
 	}
 
@@ -67,16 +63,26 @@ func TestTokenValidation(t *testing.T) {
 	token := tokenManager.Generate(strings.ToLower(cpeMac), 86400)
 
 	// default comcast
-	ok, parsedPartner, err := tokenManager.VerifyCpeToken(token, cpeMac)
+	ok, parsedPartner, trust, err := tokenManager.VerifyCpeToken(token, cpeMac)
 	assert.NilError(t, err)
 	assert.Assert(t, ok)
 	assert.Equal(t, parsedPartner, "comcast")
+	assert.Equal(t, trust, 1000)
 
 	// create a partner token
 	partner1 := "cox"
 	token1 := tokenManager.Generate(strings.ToLower(cpeMac), 86400, partner1)
-	ok, parsedPartner, err = tokenManager.VerifyCpeToken(token1, cpeMac)
+	ok, parsedPartner, trust, err = tokenManager.VerifyCpeToken(token1, cpeMac)
 	assert.NilError(t, err)
 	assert.Assert(t, ok)
 	assert.Equal(t, parsedPartner, partner1)
+	assert.Equal(t, trust, 1000)
+
+	// create a partner token with non-default trust
+	token2 := tokenManager.Generate(strings.ToLower(cpeMac), 86400, partner1, 500)
+	ok, parsedPartner, trust, err = tokenManager.VerifyCpeToken(token2, cpeMac)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
+	assert.Equal(t, parsedPartner, partner1)
+	assert.Equal(t, trust, 500)
 }

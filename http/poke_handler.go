@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -25,13 +25,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/gorilla/mux"
 )
 
 func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
+	// handler
 	params := mux.Vars(r)
 	mac := params["mac"]
 	mac = strings.ToUpper(mac)
@@ -62,6 +63,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fields := xw.Audit()
+	fields["API"] = util.GetAPIName(r.URL.RawQuery)
 
 	// extract "metrics_agent"
 	metricsAgent := "default"
@@ -107,10 +109,8 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				var rherr common.RemoteHttpError
 				if errors.As(err, &rherr) {
-					if rherr.StatusCode == http.StatusNotFound {
-						Error(w, http.StatusNotFound, nil)
-						return
-					}
+					Error(w, rherr.StatusCode, common.NewError(err))
+					return
 				}
 				Error(w, http.StatusInternalServerError, common.NewError(err))
 				return
@@ -156,16 +156,15 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transactionId, err := s.Poke(mac, token, pokeStr, fields)
+	transactionId, err := s.Poke(r.Header, mac, token, pokeStr, fields)
+
 	if err != nil {
 		var rherr common.RemoteHttpError
 		if errors.As(err, &rherr) {
 			// webpa error handling
-			status := http.StatusInternalServerError
+			status := rherr.StatusCode
 			if rherr.StatusCode == http.StatusNotFound {
 				status = 521
-			} else if rherr.StatusCode > http.StatusInternalServerError {
-				status = rherr.StatusCode
 			}
 
 			// parse the core message

@@ -14,11 +14,10 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
-	"crypto/rand"
 	"net/http"
 	"strconv"
 	"testing"
@@ -36,9 +35,7 @@ func TestMocaSubDocument(t *testing.T) {
 	subdocId := "moca"
 
 	// prepare the source data
-	slen := util.RandomInt(100) + 16
-	srcBytes := make([]byte, slen)
-	rand.Read(srcBytes)
+	srcBytes := common.RandomBytes(16, 116)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload
@@ -57,16 +54,16 @@ func TestMocaSubDocument(t *testing.T) {
 	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
 	assert.NilError(t, err)
 
-	assert.Assert(t, srcSubdoc.Equals(fetchedSubdoc))
+	ok, err := srcSubdoc.Equals(fetchedSubdoc)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
 }
 
 func TestPrivatessidSubDocument(t *testing.T) {
 	cpeMac := util.GenerateRandomCpeMac()
 	groupId := "privatessid"
 
-	slen := util.RandomInt(100) + 16
-	srcBytes := make([]byte, slen)
-	rand.Read(srcBytes)
+	srcBytes := common.RandomBytes(16, 116)
 	srcVersion := util.GetMurmur3Hash(srcBytes)
 	srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 	srcState := common.PendingDownload
@@ -82,7 +79,9 @@ func TestPrivatessidSubDocument(t *testing.T) {
 	fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
 
-	assert.Assert(t, srcDoc.Equals(fetchedDoc))
+	ok, err := srcDoc.Equals(fetchedDoc)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
 }
 
 func TestMultiSubDocuments(t *testing.T) {
@@ -114,8 +113,9 @@ func TestMultiSubDocuments(t *testing.T) {
 		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 		assert.NilError(t, err)
 
-		err = srcDoc.Equals(fetchedDoc)
+		ok, err := srcDoc.Equals(fetchedDoc)
 		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 
 	doc, err := tdbclient.GetDocument(cpeMac)
@@ -125,7 +125,9 @@ func TestMultiSubDocuments(t *testing.T) {
 	for k, v := range srcmap {
 		dv := doc.SubDocument(k)
 		assert.Assert(t, dv != nil)
-		assert.Assert(t, v.Equals(dv))
+		ok, err := v.Equals(dv)
+		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 
 	// ==== delete a document ====
@@ -178,8 +180,9 @@ func TestBlockedSubdocIds(t *testing.T) {
 		fetchedDoc, err := tdbclient.GetSubDocument(cpeMac, groupId)
 		assert.NilError(t, err)
 
-		err = srcDoc.Equals(fetchedDoc)
+		ok, err := srcDoc.Equals(fetchedDoc)
 		assert.NilError(t, err)
+		assert.Assert(t, ok)
 	}
 	// add version1 and bitmap1
 	version1 := "indigo violet"
@@ -198,7 +201,7 @@ func TestBlockedSubdocIds(t *testing.T) {
 
 	rHeader.Set(common.HeaderSupportedDocs, rdkSupportedDocsHeaderStr)
 
-	document, _, _, _, _, err := db.BuildGetDocument(tdbclient, rHeader, common.RouteHttp, fields)
+	document, _, _, _, _, _, err := db.BuildGetDocument(tdbclient, rHeader, common.RouteHttp, fields)
 	assert.NilError(t, err)
 	assert.Assert(t, document.Length() == 3)
 	versionMap := document.VersionMap()
@@ -223,7 +226,7 @@ func TestExpirySubDocument(t *testing.T) {
 	// prepare some subdocs
 	subdocIds := []string{"privatessid", "lan", "wan"}
 	for _, subdocId := range subdocIds {
-		srcBytes := util.RandomBytes(100, 150)
+		srcBytes := common.RandomBytes(100, 150)
 		srcVersion := util.GetMurmur3Hash(srcBytes)
 		srcUpdatedTime := int(time.Now().UnixNano() / 1000000)
 		srcState := common.PendingDownload
@@ -238,7 +241,7 @@ func TestExpirySubDocument(t *testing.T) {
 	assert.Assert(t, doc.Length() == len(subdocIds))
 
 	// add an expiry-type but not-yet-expired subdoc
-	srcBytes := util.RandomBytes(100, 150)
+	srcBytes := common.RandomBytes(100, 150)
 	now := time.Now()
 	nowTs := int(now.UnixNano() / 1000000)
 	futureT := now.AddDate(0, 0, 2)
@@ -257,7 +260,7 @@ func TestExpirySubDocument(t *testing.T) {
 	assert.Assert(t, doc.Length() == len(subdocIds)+1)
 
 	// set an expired subdoc
-	srcBytes = util.RandomBytes(100, 150)
+	srcBytes = common.RandomBytes(100, 150)
 	past := now.Add(time.Duration(-1) * time.Hour)
 	pastTs := int(past.UnixNano() / 1000000)
 	srcVersion = strconv.Itoa(nowTs)
@@ -273,4 +276,108 @@ func TestExpirySubDocument(t *testing.T) {
 	doc, err = tdbclient.GetDocument(cpeMac)
 	assert.NilError(t, err)
 	assert.Assert(t, doc.Length() == len(subdocIds)+1)
+}
+
+func TestGetSubDocumentWithReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "lan"
+	refId := util.GetMurmur3Hash([]byte(cpeMac + subdocId))
+
+	// Step 1: Create a reference subdocument with actual payload
+	actualPayload := common.RandomBytes(100, 200)
+	actualVersion := util.GetMurmur3Hash(actualPayload)
+	refSubdoc := common.NewRefSubDocument(actualPayload, &actualVersion)
+
+	err := tdbclient.SetRefSubDocument(refId, refSubdoc)
+	assert.NilError(t, err)
+
+	// Step 2: Create a subdocument with reference payload (4 zero bytes + refId)
+	referencePayload := append(make([]byte, 4), []byte(refId)...)
+	refVersion := util.GetMurmur3Hash(referencePayload)
+	refState := common.InDeployment
+	refUpdatedTime := int(time.Now().UnixMilli())
+
+	subdocWithRef := common.NewSubDocument(referencePayload, &refVersion, &refState, &refUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err = tdbclient.SetSubDocument(cpeMac, subdocId, subdocWithRef, fields)
+	assert.NilError(t, err)
+
+	// Step 3: Call GetSubDocument and verify it returns the actual payload, not the reference
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is the actual payload from refsubdocument, not the reference
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), actualPayload)
+
+	// Verify other fields remain unchanged
+	assert.Equal(t, *fetchedSubdoc.Version(), refVersion)
+	assert.Equal(t, *fetchedSubdoc.State(), refState)
+	assert.Equal(t, *fetchedSubdoc.UpdatedTime(), refUpdatedTime)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	err = tdbclient.DeleteRefSubDocument(refId)
+	assert.NilError(t, err)
+}
+
+func TestGetSubDocumentWithMissingReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "wan"
+	refId := util.GetMurmur3Hash([]byte(cpeMac + subdocId + "nonexistent"))
+
+	// Create a subdocument with reference payload pointing to non-existent refsubdocument
+	referencePayload := append(make([]byte, 4), []byte(refId)...)
+	refVersion := util.GetMurmur3Hash(referencePayload)
+	refState := common.InDeployment
+	refUpdatedTime := int(time.Now().UnixMilli())
+
+	subdocWithRef := common.NewSubDocument(referencePayload, &refVersion, &refState, &refUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err := tdbclient.SetSubDocument(cpeMac, subdocId, subdocWithRef, fields)
+	assert.NilError(t, err)
+
+	// Call GetSubDocument - should return the reference payload since refsubdocument doesn't exist
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is the reference payload (since refsubdocument was not found)
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), referencePayload)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+}
+
+func TestGetSubDocumentWithoutReference(t *testing.T) {
+	cpeMac := util.GenerateRandomCpeMac()
+	subdocId := "mesh"
+
+	// Create a regular subdocument without any reference
+	regularPayload := common.RandomBytes(100, 200)
+	regularVersion := util.GetMurmur3Hash(regularPayload)
+	regularState := common.Deployed
+	regularUpdatedTime := int(time.Now().UnixMilli())
+
+	subdoc := common.NewSubDocument(regularPayload, &regularVersion, &regularState, &regularUpdatedTime, nil, nil)
+	fields := log.Fields{}
+	err := tdbclient.SetSubDocument(cpeMac, subdocId, subdoc, fields)
+	assert.NilError(t, err)
+
+	// Call GetSubDocument - should return the regular payload unchanged
+	fetchedSubdoc, err := tdbclient.GetSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
+	assert.Assert(t, fetchedSubdoc != nil)
+
+	// Verify the payload is unchanged
+	assert.DeepEqual(t, fetchedSubdoc.Payload(), regularPayload)
+	assert.Equal(t, *fetchedSubdoc.Version(), regularVersion)
+	assert.Equal(t, *fetchedSubdoc.State(), regularState)
+	assert.Equal(t, *fetchedSubdoc.UpdatedTime(), regularUpdatedTime)
+
+	// Cleanup
+	err = tdbclient.DeleteSubDocument(cpeMac, subdocId)
+	assert.NilError(t, err)
 }

@@ -14,12 +14,12 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package db
 
 import (
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rdkcentral/webconfig/common"
 )
 
 type DatabaseClient interface {
@@ -30,6 +30,7 @@ type DatabaseClient interface {
 	GetSubDocument(string, string) (*common.SubDocument, error)
 	SetSubDocument(string, string, *common.SubDocument, ...interface{}) error
 	DeleteSubDocument(string, string) error
+	DeleteSubDocumentColumns(string, string, ...string) error
 
 	GetDocument(string, ...interface{}) (*common.Document, error)
 	SetDocument(string, *common.Document) error
@@ -59,4 +60,22 @@ type DatabaseClient interface {
 	FactoryReset(string) error
 	FirmwareUpdate(string, int, *common.RootDocument) error
 	AppendProfiles(string, []byte) ([]byte, error)
+
+	// reference subdocument
+	GetRefSubDocument(string) (*common.RefSubDocument, error)
+	SetRefSubDocument(string, *common.RefSubDocument) error
+	DeleteRefSubDocument(string) error
+
+	// enable state correction
+	StateCorrectionEnabled() bool
+	SetStateCorrectionEnabled(bool)
+
+	LockRootDocumentEnabled() bool
+	SetLockRootDocumentEnabled(bool)
+
+	// supplementary precook
+	SupplementaryPrecookEnabled() bool
+	SetSupplementaryPrecookEnabled(bool)
+	SupplementaryPrecookStateTTLDays() int
+	SetSupplementaryPrecookStateTTLDays(int)
 }

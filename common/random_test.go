@@ -15,37 +15,28 @@
 *
 * SPDX-License-Identifier: Apache-2.0
 */
-package util
+package common
 
 import (
-	"math/rand"
-	"time"
+	"testing"
+
+	"gotest.tools/assert"
 )
 
-func init() {
-	rand.Seed(time.Now().Unix())
-}
-
-func RandomDouble() float64 {
-	return rand.Float64()
-}
-
-func RandomInt(n int) int {
-	return rand.Intn(n)
-}
-
-func RandomBool() bool {
-	v := rand.Intn(1000)
-	return v%2 != 0
-}
-
-func RandomBytes(lowerBound, upperBound int) []byte {
-	delta := upperBound - lowerBound
-	n := lowerBound
-	if delta > 0 {
-		n = rand.Intn(delta) + lowerBound
+func TestRandomInt(t *testing.T) {
+	n := 10
+	for i := 0; i < 30; i++ {
+		x := RandomInt(n)
+		assert.Assert(t, x >= 0 && x < 10)
 	}
-	bbytes := make([]byte, n)
-	rand.Read(bbytes)
-	return bbytes
+}
+
+func TestRandomBytes(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		data1 := RandomBytes(7, 7)
+		assert.Equal(t, len(data1), 7)
+
+		data2 := RandomBytes(10, 20)
+		assert.Assert(t, len(data2) >= 10 && len(data2) < 20)
+	}
 }

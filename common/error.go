@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -22,11 +22,20 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
+)
+
+const (
+	defaultTracebackLevel = 3
 )
 
 var (
-	NotOK           = fmt.Errorf("!ok")
-	ProfileNotFound = fmt.Errorf("profile not found")
+	ErrNotOK              = fmt.Errorf("!ok")
+	ErrRootDocumentLocked = fmt.Errorf("root document is locked")
+	ErrInvalidQueryParams = fmt.Errorf("invalid query parameters")
+	ErrLowTrust           = fmt.Errorf("token trust is lower than threshold")
+	ErrPending            = fmt.Errorf("application_status pending")
 )
 
 type Http400Error struct {
@@ -121,12 +130,24 @@ func UnwrapAll(wrappedErr error) error {
 	return err
 }
 
-func GetCaller() string {
-	_, file, line, _ := runtime.Caller(1)
-	filename := filepath.Base(file)
-	fulldir := filepath.Dir(file)
-	dir := filepath.Base(fulldir)
-	return fmt.Sprintf("%v/%v[%v]", dir, filename, line)
+func GetCaller(args ...int) string {
+	items := []string{}
+
+	tracebackLevel := defaultTracebackLevel
+	if len(args) > 0 {
+		tracebackLevel = args[0]
+	}
+
+	for i := 0; i < tracebackLevel; i++ {
+		_, file, line, _ := runtime.Caller(i + 1)
+		filename := filepath.Base(file)
+		fulldir := filepath.Dir(file)
+		dir := filepath.Base(fulldir)
+		items = append(items, fmt.Sprintf("%v/%v[%v]", dir, filename, line))
+	}
+
+	slices.Reverse(items)
+	return strings.Join(items, " ")
 }
 
 type NoCapabilitiesError struct {

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -22,13 +22,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"gotest.tools/assert"
 )
 
 func TestParseWebconfigResponseMessage(t *testing.T) {
 	srcHeader := make(http.Header)
 	srcHeader.Add("Destination", "event:subdoc-report/portmapping/mac:044e5a22c9bf/status")
-	srcHeader.Add("Content-type", "application/json")
+	srcHeader.Add(common.HeaderContentType, common.HeaderApplicationJson)
 	srcHeader.Add("Content-length", "120")
 
 	srcData := Dict{
@@ -55,7 +56,7 @@ func TestParseWebconfigResponseMessageMultipleHeaders(t *testing.T) {
 	srcHeader.Add("X-Color", "color:red")
 	srcHeader.Add("Destination", "event:subdoc-report/portmapping/mac:044e5a22c9bf/status")
 	srcHeader.Add("X-Color", "color:orange")
-	srcHeader.Add("Content-type", "application/json")
+	srcHeader.Add(common.HeaderContentType, common.HeaderApplicationJson)
 	srcHeader.Add("X-Color", "color:yellow:green")
 	srcHeader.Add("Content-length", "120")
 	srcHeader.Add("X-Color", "color:blue:indigo:violet")

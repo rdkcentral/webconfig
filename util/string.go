@@ -14,18 +14,26 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
+)
+
+const (
+	Comma              = ','
+	RightSquareBracket = ']'
+	RightCurlBracket   = '}'
+	baseProfileStr     = `{"profiles":[`
 )
 
 var (
@@ -51,18 +59,6 @@ func GetAuditId() string {
 func GenerateRandomCpeMac() string {
 	u := uuid.New().String()
 	return strings.ToUpper(u[len(u)-12:])
-}
-
-func ValidateMac(mac string) bool {
-	if len(mac) != 12 {
-		return false
-	}
-	for _, r := range mac {
-		if r < 48 || r > 70 || (r > 57 && r < 65) {
-			return false
-		}
-	}
-	return true
 }
 
 func GetTelemetryQueryString(header http.Header, mac, queryParams, partnerId string) string {
@@ -103,6 +99,10 @@ func GetTelemetryQueryString(header http.Header, mac, queryParams, partnerId str
 	if len(queryParams) > 0 && len(ret) > 0 {
 		ret += "&" + queryParams
 	}
+
+	ret = url.QueryEscape(ret)
+	ret = strings.ReplaceAll(ret, "%3D", "=")
+	ret = strings.ReplaceAll(ret, "%26", "&")
 	return ret
 }
 
@@ -115,55 +115,6 @@ func GetMacDiff(wanMac, mac string) int {
 		macVal = int(x)
 	}
 	return wanMacVal - macVal
-}
-
-func ValidatePokeQuery(values url.Values) (string, error) {
-	// handle ?doc=xxx
-	if docQueryParamStrs, ok := values["doc"]; ok {
-		if len(docQueryParamStrs) > 1 {
-			err := fmt.Errorf("multiple doc parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		qparams := strings.Split(docQueryParamStrs[0], ",")
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple doc parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		queryStr := qparams[0]
-		if !Contains(common.SupportedPokeDocs, queryStr) {
-			err := fmt.Errorf("invalid query parameter: %v", queryStr)
-			return "", common.NewError(err)
-
-		}
-		return queryStr, nil
-	}
-
-	// handle ?route=xxx
-	if qparams, ok := values["route"]; ok {
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple route parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		qparams := strings.Split(qparams[0], ",")
-		if len(qparams) > 1 {
-			err := fmt.Errorf("multiple route parameter is not allowed")
-			return "", common.NewError(err)
-		}
-
-		queryStr := qparams[0]
-		if !Contains(common.SupportedPokeRoutes, queryStr) {
-			err := fmt.Errorf("invalid query parameter: %v", queryStr)
-			return "", common.NewError(err)
-
-		}
-		return queryStr, nil
-	}
-
-	// return default
-	return "primary", nil
 }
 
 func GetEstbMacAddress(mac string) string {
@@ -179,4 +130,49 @@ func IsValidUTF8(bbytes []byte) bool {
 	str1 := string(bbytes)
 	str2 := strings.ToValidUTF8(str1, "#")
 	return str1 == str2
+}
+
+func AppendProfiles(pbytes, sbytes []byte) ([]byte, error) {
+	var builder strings.Builder
+	if len(pbytes) < 3 {
+		builder.WriteString(baseProfileStr)
+	} else {
+		s := strings.TrimSpace(string(pbytes))
+		builder.WriteString(s[:len(s)-2])
+	}
+	if len(sbytes) > 2 {
+		if len(pbytes) > 20 {
+			builder.WriteRune(',')
+		}
+		builder.Write(sbytes[1 : len(sbytes)-1])
+	}
+	builder.WriteRune(RightSquareBracket)
+	builder.WriteRune(RightCurlBracket)
+	return []byte(builder.String()), nil
+}
+
+func CompactJson(sbytes []byte) ([]byte, error) {
+	var itf interface{}
+	if err := json.Unmarshal(sbytes, &itf); err != nil {
+		return nil, common.NewError(err)
+	}
+	jsbytes, err := json.Marshal(itf)
+	if err != nil {
+		return nil, common.NewError(err)
+	}
+	return jsbytes, nil
+}
+
+func GetAPIName(queryStr string) string {
+	n := "poke"
+	if strings.Contains(queryStr, "slow") {
+		n = "slowpoke"
+	} else if strings.Contains(queryStr, "root") && strings.Contains(queryStr, "telemetry") {
+		n = "poke_both"
+	} else if strings.Contains(queryStr, "telemetry") {
+		n = "poke_telemetry"
+	} else if strings.Contains(queryStr, "mqtt") {
+		n = "poke_mqtt"
+	}
+	return n
 }

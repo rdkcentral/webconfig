@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -38,9 +38,9 @@ func WriteMultipartBytes(mparts []Multipart) ([]byte, error) {
 	writer.SetBoundary(Boundary)
 	for _, m := range mparts {
 		header := textproto.MIMEHeader{
-			"Content-type": {"application/msgpack"},
-			"Namespace":    {m.Name},
-			"Etag":         {m.Version},
+			HeaderContentType: {HeaderApplicationMsgpack},
+			"Namespace":       {m.Name},
+			"Etag":            {m.Version},
 		}
 		p, err := writer.CreatePart(header)
 		if err != nil {

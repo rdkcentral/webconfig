@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
@@ -38,6 +38,22 @@ func TestCassandraClient(t *testing.T) {
 
 	tgtSubdocIds := tdbclient.EncryptedSubdocIds()
 	assert.Assert(t, len(tgtSubdocIds) == 4)
+
+	// state correction flag
+	enabled := true
+	tdbclient.SetStateCorrectionEnabled(enabled)
+	assert.Equal(t, tdbclient.StateCorrectionEnabled(), enabled)
+	enabled = false
+	tdbclient.SetStateCorrectionEnabled(enabled)
+	assert.Equal(t, tdbclient.StateCorrectionEnabled(), enabled)
+
+	// lock root_document flag
+	enabled = true
+	tdbclient.SetLockRootDocumentEnabled(enabled)
+	assert.Equal(t, tdbclient.LockRootDocumentEnabled(), enabled)
+	enabled = false
+	tdbclient.SetLockRootDocumentEnabled(enabled)
+	assert.Equal(t, tdbclient.LockRootDocumentEnabled(), enabled)
 }
 
 func TestGetConfig(t *testing.T) {

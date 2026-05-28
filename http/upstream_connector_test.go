@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
@@ -31,7 +32,7 @@ func TestUpstreamConnector(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 
 	// setup upstream mock server
-	mockedUpstreamResponse := util.RandomBytes(100, 150)
+	mockedUpstreamResponse := common.RandomBytes(100, 150)
 	upstreamMockServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)

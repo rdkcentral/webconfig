@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package sqlite
 
 import (
@@ -22,10 +22,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-akka/configuration"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
-	"github.com/go-akka/configuration"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -43,8 +43,12 @@ type SqliteClient struct {
 	db.BaseClient
 	*sql.DB
 	*common.AppMetrics
-	concurrentQueries chan bool
-	blockedSubdocIds  []string
+	concurrentQueries                chan bool
+	blockedSubdocIds                 []string
+	stateCorrectionEnabled           bool
+	lockRootDocumentEnabled          bool
+	supplementaryPrecookEnabled      bool
+	supplementaryPrecookStateTTLDays int
 }
 
 func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
@@ -58,15 +62,24 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 
 	blockedSubdocIds := conf.GetStringList("webconfig.blocked_subdoc_ids")
 
-	db, err := sql.Open("sqlite3", dbfile)
+	stateCorrectionEnabled := conf.GetBoolean("webconfig.state_correction_enabled")
+	lockRootDocumentEnabled := conf.GetBoolean("webconfig.lock_root_document_enabled")
+	supplementaryPrecookEnabled := conf.GetBoolean("webconfig.supplementary_precook_enabled")
+	supplementaryPrecookStateTTLDays := int(conf.GetInt32("webconfig.supplementary_precook_state_ttl_days", 7))
+
+	db, err := sql.Open("sqlite", dbfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
 
 	return &SqliteClient{
-		DB:                db,
-		concurrentQueries: make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
-		blockedSubdocIds:  blockedSubdocIds,
+		DB:                               db,
+		concurrentQueries:                make(chan bool, conf.GetInt32("webconfig.database.sqlite.concurrent_queries", defaultDbConcurrentQueries)),
+		blockedSubdocIds:                 blockedSubdocIds,
+		stateCorrectionEnabled:           stateCorrectionEnabled,
+		lockRootDocumentEnabled:          lockRootDocumentEnabled,
+		supplementaryPrecookEnabled:      supplementaryPrecookEnabled,
+		supplementaryPrecookStateTTLDays: supplementaryPrecookStateTTLDays,
 	}, nil
 }
 
@@ -136,6 +149,22 @@ func (c *SqliteClient) SetBlockedSubdocIds(x []string) {
 	c.blockedSubdocIds = x
 }
 
+func (c *SqliteClient) StateCorrectionEnabled() bool {
+	return c.stateCorrectionEnabled
+}
+
+func (c *SqliteClient) SetStateCorrectionEnabled(enabled bool) {
+	c.stateCorrectionEnabled = enabled
+}
+
+func (c *SqliteClient) LockRootDocumentEnabled() bool {
+	return c.lockRootDocumentEnabled
+}
+
+func (c *SqliteClient) SetLockRootDocumentEnabled(enabled bool) {
+	c.lockRootDocumentEnabled = enabled
+}
+
 func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, error) {
 	if tdbclient != nil {
 		return tdbclient, nil
@@ -150,6 +179,10 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 	if err = tdbclient.SetUp(); err != nil {
 		return nil, common.NewError(err)
 	}
+	// add any new columns that are missing from an existing DB file
+	if err = tdbclient.SyncSchema(); err != nil {
+		return nil, common.NewError(err)
+	}
 	if err = tdbclient.TearDown(); err != nil {
 		return nil, common.NewError(err)
 	}
@@ -158,4 +191,78 @@ func GetTestSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClie
 	}
 
 	return tdbclient, nil
+}
+
+func (c *SqliteClient) SupplementaryPrecookEnabled() bool {
+	return c.supplementaryPrecookEnabled
+}
+
+func (c *SqliteClient) SetSupplementaryPrecookEnabled(enabled bool) {
+	c.supplementaryPrecookEnabled = enabled
+}
+
+func (c *SqliteClient) SupplementaryPrecookStateTTLDays() int {
+	return c.supplementaryPrecookStateTTLDays
+}
+
+func (c *SqliteClient) SetSupplementaryPrecookStateTTLDays(days int) {
+	c.supplementaryPrecookStateTTLDays = days
+}
+
+// SyncSchema adds any columns that are defined in SqliteCreateTableStatements but
+// missing from the existing tables. It is safe to call on both new and existing DB
+// files, and is idempotent — it is a no-op when the schema is already current.
+func (c *SqliteClient) SyncSchema() error {
+	c.concurrentQueries <- true
+	defer func() { <-c.concurrentQueries }()
+
+	for _, stmt := range SqliteCreateTableStatements {
+		tableName, colDefs, err := parseCreateTable(stmt)
+		if err != nil {
+			return common.NewError(err)
+		}
+
+		existing, err := c.pragmaTableInfo(tableName)
+		if err != nil {
+			return common.NewError(err)
+		}
+
+		for colName, colType := range colDefs {
+			if _, ok := existing[colName]; ok {
+				continue
+			}
+			var alterSQL string
+			if colType == "" {
+				alterSQL = fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", tableName, colName)
+			} else {
+				alterSQL = fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", tableName, colName, colType)
+			}
+			if _, err := c.Exec(alterSQL); err != nil {
+				return common.NewError(fmt.Errorf("SyncSchema %s.%s: %w", tableName, colName, err))
+			}
+		}
+	}
+	return nil
+}
+
+// pragmaTableInfo returns a map of column name → type for an existing table.
+// Returns an empty map (not an error) if the table does not exist.
+func (c *SqliteClient) pragmaTableInfo(tableName string) (map[string]string, error) {
+	rows, err := c.Query(fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols := make(map[string]string)
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return nil, err
+		}
+		cols[name] = colType
+	}
+	return cols, rows.Err()
 }

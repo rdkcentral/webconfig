@@ -14,10 +14,11 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,7 +26,95 @@ import (
 )
 
 func TestDocument(t *testing.T) {
-	// TODO a place holder for now
-	ts := int(time.Now().UnixNano() / 1000000)
-	assert.Assert(t, ts > 0)
+	document := NewDocument(nil)
+	assert.Equal(t, len(document.RootVersion()), 0)
+
+	bitmap := 123
+	version := "foo"
+	schemaVersion := "33554433-1.3,33554434-1.3"
+	modelName := "bar"
+	partnerId := "cox"
+	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
+	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
+	document = NewDocument(rootdoc)
+
+	subdocIds := []string{"red", "orange", "yellow", "green"}
+	mparts := []Multipart{}
+	versionMap := make(map[string]string)
+	for _, subdocId := range subdocIds {
+		bbytes := RandomBytes(10, 20)
+		version := strconv.Itoa(int(time.Now().Unix()))
+		mpart := Multipart{
+			Bytes:   bbytes,
+			Version: version,
+			Name:    subdocId,
+			State:   Deployed,
+		}
+		mparts = append(mparts, mpart)
+		versionMap[subdocId] = version
+	}
+
+	document.SetSubDocuments(mparts)
+	assert.Equal(t, len(document.Items()), len(subdocIds))
+
+	filteredDocument := document.FilterForGet(versionMap)
+	assert.Assert(t, filteredDocument != nil)
+	assert.Equal(t, len(filteredDocument.Items()), 0)
+
+	filteredDocument = document.FilterForGet(nil)
+	assert.Assert(t, filteredDocument != nil)
+	assert.Equal(t, len(filteredDocument.Items()), 4)
+}
+
+// write a test for FilterByBitmap
+func TestFilterByBitmap(t *testing.T) {
+	document := NewDocument(nil)
+	assert.Equal(t, len(document.RootVersion()), 0)
+
+	bitmap := 32479
+	version := "foo"
+	schemaVersion := "33554433-1.3,33554434-1.3"
+	modelName := "bar"
+	partnerId := "cox"
+	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
+	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
+	document = NewDocument(rootdoc)
+
+	subdocIds := []string{
+		"portforwarding",
+		"lan",
+		"wan",
+		"macbinding",
+		"remotedebugger",
+	}
+	mparts := []Multipart{}
+	versionMap := make(map[string]string)
+	for _, subdocId := range subdocIds {
+		bbytes := RandomBytes(10, 20)
+		version := strconv.Itoa(int(time.Now().Unix()))
+		mpart := Multipart{
+			Bytes:   bbytes,
+			Version: version,
+			Name:    subdocId,
+			State:   Deployed,
+		}
+		mparts = append(mparts, mpart)
+		versionMap[subdocId] = version
+	}
+
+	document.SetSubDocuments(mparts)
+	assert.Equal(t, len(document.Items()), len(subdocIds))
+
+	filteredDocument := document.FilterByBitmap()
+	assert.Assert(t, filteredDocument != nil)
+	assert.Equal(t, len(filteredDocument.Items()), 4)
+
+	exemptedSubdocIds := []string{}
+	filteredDocument = document.FilterByBitmap(exemptedSubdocIds...)
+	assert.Assert(t, filteredDocument != nil)
+	assert.Equal(t, len(filteredDocument.Items()), 4)
+
+	filteredDocument = document.FilterByBitmap("remotedebugger")
+	assert.Assert(t, filteredDocument != nil)
+	assert.Equal(t, len(filteredDocument.Items()), 5)
 }

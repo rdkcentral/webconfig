@@ -14,30 +14,36 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/IBM/sarama"
+	"github.com/go-akka/configuration"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
-	owcommon "github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
 	"github.com/rdkcentral/webconfig/db/sqlite"
 	"github.com/rdkcentral/webconfig/security"
+	"github.com/rdkcentral/webconfig/tracing"
 	"github.com/rdkcentral/webconfig/util"
-	"github.com/go-akka/configuration"
-	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // TODO enum, probably no need
@@ -48,15 +54,17 @@ const (
 )
 
 const (
-	MetricsEnabledDefault            = true
-	FactoryResetEnabledDefault       = false
-	serverApiTokenAuthEnabledDefault = false
-	deviceApiTokenAuthEnabledDefault = true
-	tokenApiEnabledDefault           = false
-	activeDriverDefault              = "cassandra"
-	defaultJwksEnabled               = false
-	defaultTraceparentParentID       = "0000000000000001"
-	defaultTracestateVendorID        = "webconfig"
+	MetricsEnabledDefault                = true
+	FactoryResetEnabledDefault           = false
+	serverApiTokenAuthEnabledDefault     = false
+	deviceApiTokenAuthEnabledDefault     = true
+	tokenApiEnabledDefault               = false
+	activeDriverDefault                  = "cassandra"
+	defaultJwksEnabled                   = false
+	defaultTraceparentParentID           = "0000000000000001"
+	defaultTracestateVendorID            = "webconfig"
+	defaultSupplementaryAppendingEnabled = true
+	authPrefixLength                     = 60
 )
 
 var (
@@ -73,6 +81,7 @@ var (
 		"privatessid",
 		"homessid",
 	}
+	codec *security.AesCodec
 )
 
 type WebconfigServer struct {
@@ -85,21 +94,33 @@ type WebconfigServer struct {
 	*XconfConnector
 	*MqttConnector
 	*UpstreamConnector
-	tlsConfig                 *tls.Config
-	notLoggedHeaders          []string
-	metricsEnabled            bool
-	factoryResetEnabled       bool
-	serverApiTokenAuthEnabled bool
-	deviceApiTokenAuthEnabled bool
-	tokenApiEnabled           bool
-	kafkaEnabled              bool
-	upstreamEnabled           bool
-	appName                   string
-	validateMacEnabled        bool
-	validPartners             []string
-	jwksEnabled               bool
-	traceparentParentID       string
-	tracestateVendorID        string
+	sarama.AsyncProducer
+	*tracing.XpcTracer
+	tlsConfig                     *tls.Config
+	notLoggedHeaders              []string
+	metricsEnabled                bool
+	factoryResetEnabled           bool
+	serverApiTokenAuthEnabled     bool
+	deviceApiTokenAuthEnabled     bool
+	tokenApiEnabled               bool
+	kafkaEnabled                  bool
+	upstreamEnabled               bool
+	appName                       string
+	validateMacEnabled            bool
+	validPartners                 []string
+	jwksEnabled                   bool
+	traceparentParentID           string
+	tracestateVendorID            string
+	supplementaryAppendingEnabled bool
+	kafkaProducerEnabled          bool
+	kafkaProducerTopic            string
+	upstreamProfilesEnabled       bool
+	queryParamsValidationEnabled  bool
+	minTrust                      int
+	validSubdocIdMap              map[string]int
+	filterOutputByBitmapEnabled   bool
+	defaultEmptyProfileEnabled    bool
+	bitmapFilterExemptSubdocIds   []string
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -150,10 +171,6 @@ func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 		err = fmt.Errorf("Unsupported database.active_driver %v is configured", activeDriver)
 		panic(err)
 	}
-	err = tdbclient.SetUp()
-	if err != nil {
-		panic(err)
-	}
 	return tdbclient
 }
 
@@ -188,12 +205,14 @@ func GetDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer {
 	conf := sc.Config
 	var dbclient db.DatabaseClient
+	var tokenManager *security.TokenManager
 
 	// setup up database client
 	if testOnly {
 		dbclient = GetTestDatabaseClient(sc)
 	} else {
 		dbclient = GetDatabaseClient(sc)
+		tokenManager = security.NewTokenManager(conf)
 	}
 
 	// setup jwks manager
@@ -240,39 +259,100 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		validPartners = append(validPartners, strings.ToLower(p))
 	}
 
-	traceparentParentID := conf.GetString("webconfig.traceparent_parent_id", defaultTraceparentParentID)
-	tracestateVendorID := conf.GetString("webconfig.tracestate_vendor_id", defaultTracestateVendorID)
+	xpcTracer := tracing.NewXpcTracer(conf)
 
-	return &WebconfigServer{
+	supplementaryAppendingEnabled := conf.GetBoolean("webconfig.supplementary_appending_enabled", defaultSupplementaryAppendingEnabled)
+
+	// kafka producer
+	var kafkaProducer sarama.AsyncProducer
+	kafkaProducerEnabled := conf.GetBoolean("webconfig.kafka_producer.enabled")
+	var kafkaProducerTopic string
+	if kafkaProducerEnabled {
+		brokersStr := conf.GetString("webconfig.kafka_producer.brokers")
+		if len(brokersStr) == 0 {
+			panic(fmt.Errorf("webconfig.kafka_producer.brokers is empty"))
+		}
+		brokers := strings.Split(brokersStr, ",")
+		kafkaProducerTopic = conf.GetString("webconfig.kafka_producer.topic")
+
+		saramaConfig := sarama.NewConfig()
+		saramaConfig.Producer.Return.Errors = true
+
+		// Load TLS configuration for producer
+		tlsConfig, err := common.LoadKafkaTLSConfig(conf, "webconfig.kafka_producer")
+		if err != nil {
+			panic(fmt.Errorf("failed to load TLS configuration for Kafka producer: %v", err))
+		}
+		if tlsConfig != nil {
+			saramaConfig.Net.TLS.Enable = true
+			saramaConfig.Net.TLS.Config = tlsConfig
+		}
+
+		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	upstreamProfilesEnabled := conf.GetBoolean("webconfig.upstream_profiles_enabled")
+	queryParamsValidationEnabled := conf.GetBoolean("webconfig.query_params_validation_enabled")
+	minTrust := int(conf.GetInt32("webconfig.min_trust"))
+	validSubdocIds := conf.GetStringList("webconfig.valid_subdoc_ids")
+	validSubdocIdMap := maps.Clone(common.SubdocBitIndexMap)
+	for _, x := range validSubdocIds {
+		validSubdocIdMap[x] = 1
+	}
+
+	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
+	defaultEmptyProfileEnabled := conf.GetBoolean("webconfig.default_empty_profile_enabled")
+	bitmapFilterExemptSubdocIds := conf.GetStringList("webconfig.bitmap_filter_exempt_subdoc_ids")
+
+	ws := &WebconfigServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%v:%v", listenHost, port),
 			ReadTimeout:  time.Duration(conf.GetInt32("webconfig.server.read_timeout_in_secs", 3)) * time.Second,
 			WriteTimeout: time.Duration(conf.GetInt32("webconfig.server.write_timeout_in_secs", 3)) * time.Second,
 		},
-		DatabaseClient:            dbclient,
-		TokenManager:              security.NewTokenManager(conf),
-		JwksManager:               jwksManager,
-		ServerConfig:              sc,
-		WebpaConnector:            NewWebpaConnector(conf, tlsConfig),
-		XconfConnector:            NewXconfConnector(conf, tlsConfig),
-		MqttConnector:             NewMqttConnector(conf, tlsConfig),
-		UpstreamConnector:         NewUpstreamConnector(conf, tlsConfig),
-		tlsConfig:                 tlsConfig,
-		notLoggedHeaders:          notLoggedHeaders,
-		metricsEnabled:            metricsEnabled,
-		factoryResetEnabled:       factoryResetEnabled,
-		serverApiTokenAuthEnabled: serverApiTokenAuthEnabled,
-		deviceApiTokenAuthEnabled: deviceApiTokenAuthEnabled,
-		tokenApiEnabled:           tokenApiEnabled,
-		kafkaEnabled:              kafkaEnabled,
-		upstreamEnabled:           upstreamEnabled,
-		appName:                   appName,
-		validateMacEnabled:        validateMacEnabled,
-		validPartners:             validPartners,
-		jwksEnabled:               jwksEnabled,
-		traceparentParentID:       traceparentParentID,
-		tracestateVendorID:        tracestateVendorID,
+		DatabaseClient:                dbclient,
+		TokenManager:                  tokenManager,
+		JwksManager:                   jwksManager,
+		ServerConfig:                  sc,
+		WebpaConnector:                NewWebpaConnector(conf, tlsConfig),
+		XconfConnector:                NewXconfConnector(conf, tlsConfig),
+		MqttConnector:                 NewMqttConnector(conf, tlsConfig),
+		UpstreamConnector:             NewUpstreamConnector(conf, tlsConfig),
+		AsyncProducer:                 kafkaProducer,
+		tlsConfig:                     tlsConfig,
+		notLoggedHeaders:              notLoggedHeaders,
+		metricsEnabled:                metricsEnabled,
+		factoryResetEnabled:           factoryResetEnabled,
+		serverApiTokenAuthEnabled:     serverApiTokenAuthEnabled,
+		deviceApiTokenAuthEnabled:     deviceApiTokenAuthEnabled,
+		tokenApiEnabled:               tokenApiEnabled,
+		kafkaEnabled:                  kafkaEnabled,
+		upstreamEnabled:               upstreamEnabled,
+		appName:                       appName,
+		validateMacEnabled:            validateMacEnabled,
+		validPartners:                 validPartners,
+		jwksEnabled:                   jwksEnabled,
+		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
+		kafkaProducerEnabled:          kafkaProducerEnabled,
+		kafkaProducerTopic:            kafkaProducerTopic,
+		upstreamProfilesEnabled:       upstreamProfilesEnabled,
+		queryParamsValidationEnabled:  queryParamsValidationEnabled,
+		minTrust:                      minTrust,
+		validSubdocIdMap:              validSubdocIdMap,
+		XpcTracer:                     xpcTracer,
+		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
+		defaultEmptyProfileEnabled:    defaultEmptyProfileEnabled,
+		bitmapFilterExemptSubdocIds:   bitmapFilterExemptSubdocIds,
 	}
+
+	return ws
+}
+
+func (s *WebconfigServer) Stop() {
+	s.StopXpcTracer()
 }
 
 func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
@@ -296,7 +376,7 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
-				if rbytes, err := ioutil.ReadAll(r.Body); err == nil {
+				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
 			}
@@ -323,32 +403,56 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 
 		isValid := false
 		token := xw.Token()
-		if len(token) > 0 {
-			params := mux.Vars(r)
-			mac, ok := params["mac"]
-			if !ok || len(mac) != 12 {
-				Error(xw, http.StatusForbidden, nil)
+		fields := xw.Audit()
+
+		params := mux.Vars(r)
+		mac, ok := params["mac"]
+		if !ok {
+			Error(xw, http.StatusForbidden, nil)
+			return
+		}
+		mac = strings.ToUpper(mac)
+		if s.ValidateMacEnabled() {
+			if !util.ValidateMac(mac) {
+				err := *common.NewHttp400Error("invalid mac")
+				Error(w, http.StatusBadRequest, common.NewError(err))
 				return
 			}
+		}
 
-			if ok, partnerId, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+		authorization := r.Header.Get("Authorization")
+		var tokenErr error
+		if len(token) > 0 {
+			if ok, partnerId, trust, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
+				fields["src_partner"] = partnerId
+				fields["trust"] = trust
+
 				if err := s.ValidatePartner(partnerId); err != nil {
-					fields := xw.Audit()
-					fields["src_partner"] = partnerId
+					// isValid = false
 					partnerId = "unknown"
+					tokenErr = common.NewError(err)
+				}
+				if trust < s.MinTrust() {
+					isValid = false
+					tokenErr = common.NewError(common.ErrLowTrust)
 				}
 				xw.SetPartnerId(partnerId)
 			} else {
-				xw.LogDebug(r, "token", fmt.Sprintf("CpeMiddleware() VerifyCpeToken()=false, err=%v", err))
+				tokenErr = common.NewError(err)
 			}
 		} else {
-			xw.LogDebug(r, "token", "CpeMiddleware() error no token")
+			tokenErr = common.NewError(errors.New("CpeMiddleware() error no token"))
+		}
+
+		if tokenErr != nil {
+			fields["error"] = tokenErr
 		}
 
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
+			s.LogToken(xw, authorization, token, tokenErr)
 			Error(xw, http.StatusForbidden, nil)
 		}
 	}
@@ -414,7 +518,7 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			if ok, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, _, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
 			}
 		}
@@ -556,6 +660,86 @@ func (s *WebconfigServer) SetTracestateVendorID(x string) {
 	s.tracestateVendorID = x
 }
 
+func (s *WebconfigServer) SupplementaryAppendingEnabled() bool {
+	return s.supplementaryAppendingEnabled
+}
+
+func (s *WebconfigServer) SetSupplementaryAppendingEnabled(enabled bool) {
+	s.supplementaryAppendingEnabled = enabled
+}
+
+func (s *WebconfigServer) KafkaProducerEnabled() bool {
+	return s.kafkaProducerEnabled
+}
+
+func (s *WebconfigServer) SetKafkaProducerEnabled(enabled bool) {
+	s.kafkaProducerEnabled = enabled
+}
+
+func (s *WebconfigServer) KafkaProducerTopic() string {
+	return s.kafkaProducerTopic
+}
+
+func (s *WebconfigServer) SetKafkaProducerTopic(x string) {
+	s.kafkaProducerTopic = x
+}
+
+func (s *WebconfigServer) UpstreamProfilesEnabled() bool {
+	return s.upstreamProfilesEnabled
+}
+
+func (s *WebconfigServer) SetUpstreamProfilesEnabled(enabled bool) {
+	s.upstreamProfilesEnabled = enabled
+}
+
+func (s *WebconfigServer) QueryParamsValidationEnabled() bool {
+	return s.queryParamsValidationEnabled
+}
+
+func (s *WebconfigServer) SetQueryParamsValidationEnabled(enabled bool) {
+	s.queryParamsValidationEnabled = enabled
+}
+
+func (s *WebconfigServer) MinTrust() int {
+	return s.minTrust
+}
+
+func (s *WebconfigServer) SetMinTrust(trust int) {
+	s.minTrust = trust
+}
+
+func (s *WebconfigServer) ValidSubdocIdMap() map[string]int {
+	return s.validSubdocIdMap
+}
+
+func (s *WebconfigServer) SetValidSubdocIdMap(x map[string]int) {
+	s.validSubdocIdMap = x
+}
+
+func (s *WebconfigServer) FilterOutputByBitmapEnabled() bool {
+	return s.filterOutputByBitmapEnabled
+}
+
+func (s *WebconfigServer) SetFilterOutputByBitmapEnabled(enabled bool) {
+	s.filterOutputByBitmapEnabled = enabled
+}
+
+func (s *WebconfigServer) DefaultEmptyProfileEnabled() bool {
+	return s.defaultEmptyProfileEnabled
+}
+
+func (s *WebconfigServer) SetDefaultEmptyProfileEnabled(enabled bool) {
+	s.defaultEmptyProfileEnabled = enabled
+}
+
+func (s *WebconfigServer) BitmapFilterExemptSubdocIds() []string {
+	return s.bitmapFilterExemptSubdocIds
+}
+
+func (s *WebconfigServer) SetBitmapFilterExemptSubdocIds(x []string) {
+	s.bitmapFilterExemptSubdocIds = x
+}
+
 func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 	// if no valid partners are configured, all partners are accepted/validated
 	if len(s.validPartners) == 0 {
@@ -568,12 +752,12 @@ func (s *WebconfigServer) ValidatePartner(parsedPartner string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid partner")
+	return fmt.Errorf("invalid partner %s", partner)
 }
 
-func (c *WebconfigServer) Poke(cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
+func (c *WebconfigServer) Poke(rHeader http.Header, cpeMac string, token string, pokeStr string, fields log.Fields) (string, error) {
 	body := fmt.Sprintf(common.PokeBodyTemplate, pokeStr)
-	transactionId, err := c.Patch(cpeMac, token, []byte(body), fields)
+	transactionId, err := c.Patch(rHeader, cpeMac, token, []byte(body), fields)
 	if err != nil {
 		return "", common.NewError(err)
 	}
@@ -601,7 +785,7 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		token = elements[1]
 	}
 
-	var xmTraceId, traceId, outTraceparent, outTracestate string
+	var xmTraceId string
 
 	// extract moneytrace from the header
 	tracePart := strings.Split(r.Header.Get("X-Moneytrace"), ";")[0]
@@ -611,37 +795,36 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// extract traceparent from the header
-	traceparent := r.Header.Get(owcommon.HeaderTraceparent)
-	if len(traceparent) == 55 {
-		traceId = traceparent[3:35]
-		outTraceparent = traceparent[:36] + s.TraceparentParentID() + traceparent[52:55]
-	}
-
-	// extrac tracestate from the header
-	tracestate := r.Header.Get(common.HeaderTracestate)
-	if len(tracestate) > 0 {
-		outTracestate = fmt.Sprintf("%v,%v=%v", tracestate, s.TracestateVendorID(), s.TraceparentParentID())
-	}
-
 	// extract auditid from the header
 	auditId := r.Header.Get("X-Auditid")
 	if len(auditId) == 0 {
 		auditId = util.GetAuditId()
 	}
+
+	// traceparent handling for E2E tracing
+	xpcTrace := tracing.NewXpcTrace(s.XpcTracer, r)
+	traceId := xpcTrace.TraceID
+	if len(traceId) == 0 {
+		traceId = xmTraceId
+	}
+
 	headerMap := util.HeaderToMap(header)
 	fields := log.Fields{
-		"path":            r.URL.String(),
-		"method":          r.Method,
-		"audit_id":        auditId,
-		"remote_ip":       remoteIp,
-		"host_name":       host,
-		"header":          headerMap,
-		"logger":          "request",
-		"trace_id":        traceId,
-		"app_name":        s.AppName(),
-		"out_traceparent": outTraceparent,
-		"out_tracestate":  outTracestate,
+		"path":             r.URL.String(),
+		"method":           r.Method,
+		"audit_id":         auditId,
+		"remote_ip":        remoteIp,
+		"host_name":        host,
+		"header":           headerMap,
+		"logger":           "request",
+		"trace_id":         traceId,
+		"app_name":         s.AppName(),
+		"traceparent":      xpcTrace.ReqTraceparent,
+		"tracestate":       xpcTrace.ReqTracestate,
+		"out_traceparent":  xpcTrace.OutTraceparent,
+		"out_tracestate":   xpcTrace.OutTracestate,
+		"req_moracide_tag": xpcTrace.ReqMoracideTag,
+		"xpc_trace":        xpcTrace,
 	}
 
 	userAgent := r.UserAgent()
@@ -668,7 +851,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	case "cpe":
 		mac := params["gid"]
 		mac = strings.ToUpper(mac)
-		fields["cpemac"] = mac
 		fields["cpe_mac"] = mac
 	case "configset":
 		csid := params["gid"]
@@ -677,7 +859,6 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 	if mac, ok := params["mac"]; ok {
 		mac = strings.ToUpper(mac)
-		fields["cpemac"] = mac
 		fields["cpe_mac"] = mac
 	}
 
@@ -685,10 +866,10 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
-			bbytes, err := ioutil.ReadAll(r.Body)
+			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
-				log.WithFields(fields).Error("request starts")
+				log.WithFields(fields).Error("Request started")
 				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
@@ -697,9 +878,10 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request starts")
+		log.WithFields(tfields).Info("Request started")
 	}
 
+	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
 	return xwriter
 }
 
@@ -722,9 +904,22 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 				fields["response"] = mpdict
 			}
 		} else {
-			res_itf, res_text := GetResponseLogObjs(rbytes)
-			fields["response"] = res_itf
-			fields["response_text"] = res_text
+			var logged bool
+			if itf, ok := fields["telemetry_version"]; ok {
+				if version, ok := itf.(string); ok {
+					if len(version) > 0 {
+						logged = true
+						fields["response"] = map[string]string{
+							"telemetry": version,
+						}
+					}
+				}
+			}
+			if !logged {
+				res_itf, res_text := GetResponseLogObjs(rbytes)
+				fields["response"] = res_itf
+				fields["response_text"] = res_text
+			}
 		}
 
 		var doc_map util.Dict
@@ -755,6 +950,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 					err1 := common.NewError(err)
 					fields["response"] = ObfuscatedMap
 					fields["response_text"] = err1.Error()
+				} else {
+					fields["response"] = itf
 				}
 			} else {
 				fields["response"] = ObfuscatedMap
@@ -767,13 +964,15 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	fields["duration"] = duration
 	fields["logger"] = "request"
 
+	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
+
 	var userAgent string
 	if itf, ok := fields["user_agent"]; ok {
 		userAgent = itf.(string)
 	}
 	if userAgent != "mget" {
 		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("request ends")
+		log.WithFields(tfields).Info("Request finished")
 	}
 }
 
@@ -832,4 +1031,171 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 		return BadJsonResponseMap, string(rbytes)
 	}
 	return itf, ""
+}
+
+func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields) {
+	tfields := common.CopyCoreLogFields(fields)
+
+	bbytes, err := json.Marshal(m)
+	if err != nil {
+		tfields["logger"] = "error"
+		log.WithFields(tfields).Error(common.NewError(err))
+		return
+	}
+	outMessage := &sarama.ProducerMessage{
+		Topic: s.KafkaProducerTopic(),
+		Key:   sarama.ByteEncoder(kbytes),
+		Value: sarama.ByteEncoder(bbytes),
+	}
+	s.Input() <- outMessage
+
+	tfields["logger"] = "kafkaproducer"
+	tfields["output_topic"] = outMessage.Topic
+	tfields["output_key"] = string(kbytes)
+	tfields["output_body"] = m
+	log.WithFields(tfields).Info("send")
+}
+
+func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {
+	tfields := common.CopyCoreLogFields(fields)
+	tfields["logger"] = "kafkaproducer"
+	tfields["output_topic"] = s.KafkaProducerTopic()
+
+	for _, m := range messages {
+		if len(m.DeviceId) != 16 {
+			log.WithFields(tfields).Warn("invalid device_id")
+			continue
+		}
+		mac := m.DeviceId[4:]
+		transactionUuid := s.AppName() + "_____" + uuid.New().String()
+		m.TransactionUuid = &transactionUuid
+
+		bbytes, err := json.Marshal(m)
+		if err != nil {
+			tfields["logger"] = "error"
+			log.WithFields(tfields).Error(common.NewError(err))
+			return
+		}
+		outMessage := &sarama.ProducerMessage{
+			Topic: s.KafkaProducerTopic(),
+			Key:   sarama.ByteEncoder(strings.ToLower(mac)),
+			Value: sarama.ByteEncoder(bbytes),
+		}
+		s.Input() <- outMessage
+
+		tfields["output_key"] = "****"
+		tfields["output_body"] = "omitted"
+		log.WithFields(tfields).Info("send")
+	}
+}
+
+func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token string, tokenErr error) {
+	fields := xw.Audit()
+	fields["logger"] = "token"
+	tfields := common.FilterLogFields(fields)
+	delete(tfields, "header")
+	var headerMap map[string]string
+	var isObfuscated bool
+	if itf, ok := tfields["header"]; ok {
+		headerMap = itf.(map[string]string)
+		if len(headerMap) > 0 {
+			ss := authorization
+			if len(ss) > authPrefixLength {
+				ss = authorization[:authPrefixLength] + "****"
+				isObfuscated = true
+			}
+			headerMap["Authorization"] = ss
+		}
+	}
+
+	if isObfuscated {
+		if codec == nil {
+			codec, _ = security.NewAesCodec(s.Config)
+		}
+
+		if codec == nil {
+			tfields["token_present"] = len(token) > 0
+			tfields["token_length"] = len(token)
+		} else {
+			var encToken string
+			if encryptedB64, err := codec.Encrypt(token); err == nil {
+				encToken = encryptedB64
+			}
+			tfields["enctoken"] = encToken
+		}
+	}
+
+	log.WithFields(tfields).Debug(tokenErr)
+}
+
+func (s *WebconfigServer) HandleKafkaProducerResults() {
+	if s.AsyncProducer == nil {
+		return
+	}
+
+	for {
+		select {
+		case success := <-s.Successes():
+			if success == nil {
+				continue
+			}
+			fields := make(log.Fields)
+			fields["logger"] = "kafkaproducer"
+			fields["output_topic"] = success.Topic
+			fields["output_partition"] = success.Partition
+			fields["output_offset"] = success.Offset
+			log.WithFields(fields).Debug("sent")
+		case pErr := <-s.Errors():
+			if pErr == nil || pErr.Msg == nil {
+				continue
+			}
+			if m := s.Metrics(); m != nil {
+				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
+			}
+			fields := make(log.Fields)
+			fields["logger"] = "kafkaproducer"
+			fields["output_topic"] = pErr.Msg.Topic
+			fields["output_partition"] = pErr.Msg.Partition
+			kbytes, err := pErr.Msg.Key.Encode()
+			if err != nil {
+				log.WithFields(fields).Error(common.NewError(err))
+			} else {
+				fields["output_key"] = string(kbytes)
+			}
+
+			vbytes, err := pErr.Msg.Value.Encode()
+			if err != nil {
+				log.WithFields(fields).Error(common.NewError(err))
+			} else {
+				var itf interface{}
+				err1 := json.Unmarshal(vbytes, &itf)
+				if err1 != nil {
+					log.WithFields(fields).Error(common.NewError(err1))
+					fields["output_body_text"] = base64.StdEncoding.EncodeToString(vbytes)
+				} else {
+					fields["output_body"] = itf
+				}
+			}
+
+			log.WithFields(fields).Error(pErr.Err)
+		}
+	}
+}
+
+func (s *WebconfigServer) StopXpcTracer() {
+	sdkTraceProvider, ok := s.XpcTracer.OtelTracerProvider().(*sdktrace.TracerProvider)
+	if ok && sdkTraceProvider != nil {
+		sdkTraceProvider.Shutdown(context.TODO())
+	}
+}
+
+func (s *WebconfigServer) SpanMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.XpcTracer.OtelEnabled {
+			ctx, otelSpan := tracing.NewOtelSpan(s.XpcTracer, r)
+			r = r.WithContext(ctx)
+			defer tracing.EndOtelSpan(s.XpcTracer, otelSpan)
+		}
+		next.ServeHTTP(w, r)
+	})
 }

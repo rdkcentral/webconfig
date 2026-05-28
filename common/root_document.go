@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 const (
@@ -36,10 +37,13 @@ type RootDocument struct {
 	SchemaVersion   string `json:"schema_version"`
 	Version         string `json:"version"`
 	QueryParams     string `json:"query_params"`
+	LockedTill      int    `json:"locked_till"`
+	ProductClass    string `json:"product_class"`
+	AccountType     string `json:"account_type"`
 }
 
-// (bitmap, firmware_version, model_name, partner_id, schema_version, version), nil
-func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params string) *RootDocument {
+// (bitmap, firmware_version, model_name, partner_id, schema_version, version, query_params, product_class, account_type), nil
+func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVersion, version, query_params, productClass, accountType string) *RootDocument {
 	return &RootDocument{
 		Bitmap:          bitmap,
 		FirmwareVersion: firmwareVersion,
@@ -48,6 +52,8 @@ func NewRootDocument(bitmap int, firmwareVersion, modelName, partnerId, schemaVe
 		SchemaVersion:   schemaVersion,
 		Version:         version,
 		QueryParams:     query_params,
+		ProductClass:    productClass,
+		AccountType:     accountType,
 	}
 }
 
@@ -60,6 +66,8 @@ func (d *RootDocument) ColumnMap() map[string]interface{} {
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
+		"product_class":    d.ProductClass,
+		"account_type":     d.AccountType,
 	}
 	return dict
 }
@@ -69,6 +77,9 @@ func (d *RootDocument) NonEmptyColumnMap() map[string]interface{} {
 	if d.Bitmap > 0 {
 		dict["bitmap"] = d.Bitmap
 	}
+	if d.LockedTill > 0 {
+		dict["locked_till"] = int64(d.LockedTill)
+	}
 
 	tempDict := map[string]string{
 		"firmware_version": d.FirmwareVersion,
@@ -77,6 +88,8 @@ func (d *RootDocument) NonEmptyColumnMap() map[string]interface{} {
 		"schema_version":   d.SchemaVersion,
 		"version":          d.Version,
 		"query_params":     d.QueryParams,
+		"product_class":    d.ProductClass,
+		"account_type":     d.AccountType,
 	}
 
 	for k, v := range tempDict {
@@ -104,6 +117,12 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	if d.SchemaVersion != r.SchemaVersion {
 		return RootDocumentMetaChanged
 	}
+	if d.ProductClass != r.ProductClass {
+		return RootDocumentMetaChanged
+	}
+	if d.AccountType != r.AccountType {
+		return RootDocumentMetaChanged
+	}
 	if d.Version != r.Version {
 		return RootDocumentVersionOnlyChanged
 	}
@@ -113,23 +132,29 @@ func (d *RootDocument) Compare(r *RootDocument) int {
 	return RootDocumentEquals
 }
 
-func (d *RootDocument) IsDifferent(r *RootDocument) bool {
+func (d *RootDocument) Equals(r *RootDocument) bool {
 	if d.Bitmap != r.Bitmap {
-		return true
+		return false
 	}
 	if d.FirmwareVersion != r.FirmwareVersion {
-		return true
+		return false
 	}
 	if d.ModelName != r.ModelName {
-		return true
+		return false
 	}
 	if d.PartnerId != r.PartnerId {
-		return true
+		return false
 	}
 	if d.SchemaVersion != r.SchemaVersion {
-		return true
+		return false
 	}
-	return false
+	if d.ProductClass != r.ProductClass {
+		return false
+	}
+	if d.AccountType != r.AccountType {
+		return false
+	}
+	return true
 }
 
 // update in place
@@ -155,6 +180,37 @@ func (d *RootDocument) Update(r *RootDocument) {
 	if len(r.QueryParams) > 0 {
 		d.QueryParams = r.QueryParams
 	}
+	if len(r.ProductClass) > 0 {
+		d.ProductClass = r.ProductClass
+	}
+	if len(r.AccountType) > 0 {
+		d.AccountType = r.AccountType
+	}
+}
+
+func (d *RootDocument) UpdateMetadata(r *RootDocument) {
+	// Version and QueryParams are cloud data, so not changed
+	if r.Bitmap > 0 {
+		d.Bitmap = r.Bitmap
+	}
+	if len(r.FirmwareVersion) > 0 {
+		d.FirmwareVersion = r.FirmwareVersion
+	}
+	if len(r.ModelName) > 0 {
+		d.ModelName = r.ModelName
+	}
+	if len(r.PartnerId) > 0 {
+		d.PartnerId = r.PartnerId
+	}
+	if len(r.SchemaVersion) > 0 {
+		d.SchemaVersion = r.SchemaVersion
+	}
+	if len(r.ProductClass) > 0 {
+		d.ProductClass = r.ProductClass
+	}
+	if len(r.AccountType) > 0 {
+		d.AccountType = r.AccountType
+	}
 }
 
 func (d *RootDocument) String() string {
@@ -169,4 +225,8 @@ func (d *RootDocument) String() string {
 func (d *RootDocument) Clone() *RootDocument {
 	obj := *d
 	return &obj
+}
+
+func (d *RootDocument) Locked() bool {
+	return d.LockedTill > 0 && int(time.Now().UnixMilli()) < d.LockedTill
 }

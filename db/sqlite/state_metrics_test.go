@@ -65,8 +65,9 @@ func TestStateMetrics(t *testing.T) {
 	// read a SubDocument from db and verify identical
 	doc1, err := tdbclient.GetSubDocument(cpeMac, groupId)
 	assert.NilError(t, err)
-	err = sourceDoc.Equals(doc1)
+	ok, err := sourceDoc.Equals(doc1)
 	assert.NilError(t, err)
+	assert.Assert(t, ok)
 
 	// ==== update an doc with the same cpeMac and a changed state ====
 	state2 := common.InDeployment

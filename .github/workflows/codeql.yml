@@ -1,0 +1,30 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: go   # ✅ ONLY GO
+
+      - run: go build ./...
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          upload: false  # ← ADD THIS LINE

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -49,7 +49,7 @@ func ParseMultipartAsList(header http.Header, bbytes []byte) ([]common.Multipart
 		return mparts, nil
 	}
 
-	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
+	mediaType, params, err := mime.ParseMediaType(header.Get(common.HeaderContentType))
 	if err != nil {
 		return nil, common.NewError(err)
 	}

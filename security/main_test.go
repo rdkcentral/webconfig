@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -39,7 +39,9 @@ func TestMain(m *testing.M) {
 
 	NewTestCodec(sc.Config)
 
-	tokenManager = NewTokenManager(sc.Config)
+	if sc.Config.GetBoolean("webconfig.jwt.enabled", false) || os.Getenv("TOKEN_TEST") == "1" {
+		tokenManager = NewTokenManager(sc.Config)
+	}
 
 	log.SetOutput(io.Discard)
 	returnCode := m.Run()

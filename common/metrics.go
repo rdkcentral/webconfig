@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -74,6 +74,7 @@ type AppMetrics struct {
 	indeploymentDecCount        *prometheus.CounterVec
 	failureIncCount             *prometheus.CounterVec
 	failureDecCount             *prometheus.CounterVec
+	kafkaProducerErrCount       *prometheus.CounterVec
 	watchedCpes                 []string
 	logrusLevel                 log.Level
 }
@@ -298,6 +299,13 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 			},
 			stateMetricsLabels,
 		),
+		kafkaProducerErrCount: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: appName + "_kafka_producer_err_count",
+				Help: "A counter for the number of errors by kafka producer.",
+			},
+			[]string{"topic", "partition"},
+		),
 		watchedCpes: watchedCpes,
 		logrusLevel: logrusLevel,
 	}
@@ -326,6 +334,7 @@ func NewMetrics(conf *configuration.Config, args ...func(string) string) *AppMet
 		appMetrics.indeploymentDecCount,
 		appMetrics.failureIncCount,
 		appMetrics.failureDecCount,
+		appMetrics.kafkaProducerErrCount,
 	)
 	return appMetrics
 }
@@ -532,6 +541,14 @@ func (m *AppMetrics) CountKafkaEvents(eventName string, status string, partition
 		"partition": strconv.Itoa(int(partition)),
 	}
 	m.eventCounter.With(labels).Inc()
+}
+
+func (m *AppMetrics) ObserveKafkaProducerErr(topic string, partition int32) {
+	labels := prometheus.Labels{
+		"topic":     topic,
+		"partition": strconv.Itoa(int(partition)),
+	}
+	m.kafkaProducerErrCount.With(labels).Inc()
 }
 
 func (m *AppMetrics) GetStateCounter(labels prometheus.Labels) (*StateCounter, error) {

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -97,4 +97,45 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	validPartners = []string{"name3", "name4", "name5"}
 	server.SetValidPartners(validPartners)
 	assert.DeepEqual(t, server.ValidPartners(), validPartners)
+
+	// get profiles from upstream
+	enabled = true
+	server.SetUpstreamProfilesEnabled(enabled)
+	assert.Equal(t, server.UpstreamProfilesEnabled(), enabled)
+	enabled = false
+	server.SetUpstreamProfilesEnabled(enabled)
+	assert.Equal(t, server.UpstreamProfilesEnabled(), enabled)
+
+	// enforce strict query parameters validation
+	enabled = true
+	server.SetQueryParamsValidationEnabled(enabled)
+	assert.Equal(t, server.QueryParamsValidationEnabled(), enabled)
+	enabled = false
+	server.SetQueryParamsValidationEnabled(enabled)
+	assert.Equal(t, server.QueryParamsValidationEnabled(), enabled)
+
+	//configure trust level
+	trust := 1000
+	server.SetMinTrust(trust)
+	assert.Equal(t, server.MinTrust(), trust)
+	trust = 500
+	server.SetMinTrust(trust)
+	assert.Equal(t, server.MinTrust(), trust)
+
+	x := true
+	server.SetFilterOutputByBitmapEnabled(x)
+	assert.Assert(t, server.FilterOutputByBitmapEnabled())
+	x = false
+	server.SetFilterOutputByBitmapEnabled(x)
+	assert.Assert(t, !server.FilterOutputByBitmapEnabled())
+
+	validSubdocIdMap := map[string]int{
+		"red":    1,
+		"orange": 2,
+		"yellow": 3,
+		"green":  4,
+	}
+	server.SetValidSubdocIdMap(validSubdocIdMap)
+	assert.DeepEqual(t, validSubdocIdMap, server.ValidSubdocIdMap())
+
 }

@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
@@ -28,7 +28,7 @@ import (
 )
 
 // deviceRootDocument is use to stored the data from device headers in the GET call
-// we stored it to build "new" headers during the upstream call
+// We stored it to build "new" headers during the upstream call
 // *RootDocument is used to stored data read from db and used to build the "old" headers
 type Document struct {
 	docmap       map[string]SubDocument
@@ -105,6 +105,9 @@ func (d *Document) GetRootDocument() *RootDocument {
 }
 
 func (d *Document) RootVersion() string {
+	if d.rootDocument == nil {
+		return ""
+	}
 	return d.rootDocument.Version
 }
 
@@ -117,7 +120,7 @@ func (d *Document) FilterForMqttSend() *Document {
 	for subdocId, subDocument := range d.docmap {
 		if subDocument.State() != nil {
 			state := *subDocument.State()
-			if state == PendingDownload || state == Failure {
+			if state > Deployed {
 				newdoc.SetSubDocument(subdocId, &subDocument)
 			}
 		}
@@ -148,6 +151,10 @@ func (d *Document) FilterForGet(versionMap map[string]string) *Document {
 }
 
 func (d *Document) Bytes() ([]byte, error) {
+	if len(d.docmap) == 0 {
+		return nil, nil
+	}
+
 	// build the http stream
 	mparts := []Multipart{}
 	for subdocId, subdoc := range d.docmap {
@@ -187,7 +194,7 @@ func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 	}
 
 	header := make(http.Header)
-	header.Set("Content-type", MultipartContentType)
+	header.Set(HeaderContentType, MultipartContentType)
 	header.Set("Etag", rootVersion)
 
 	var traceId string
@@ -211,4 +218,25 @@ func (d *Document) HttpBytes(fields log.Fields) ([]byte, error) {
 	}
 
 	return BuildPayloadAsHttp(http.StatusOK, header, bbytes), nil
+}
+
+func (d *Document) FilterByBitmap(alwaysTrueSubdocIds ...string) *Document {
+	rootdoc := d.GetRootDocument()
+	if rootdoc == nil {
+		return d
+	}
+
+	newdoc := NewDocument(rootdoc)
+	supportedMap := GetSupportedMap(rootdoc.Bitmap)
+	for _, sid := range alwaysTrueSubdocIds {
+		supportedMap[sid] = true
+	}
+
+	for subdocId, subDocument := range d.docmap {
+		if supportedMap[subdocId] {
+			newdoc.SetSubDocument(subdocId, &subDocument)
+		}
+	}
+
+	return newdoc
 }

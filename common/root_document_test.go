@@ -14,12 +14,13 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 )
@@ -31,18 +32,18 @@ func TestRootDocumentCompare(t *testing.T) {
 	modelName := "bar"
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
 	rootdoc2 := rootdoc1.Clone()
 	enum := rootdoc1.Compare(rootdoc2)
 	assert.Equal(t, enum, RootDocumentEquals)
 
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "")
+	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "", "", "")
 	enum = rootdoc1.Compare(rootdoc3)
 	assert.Equal(t, enum, RootDocumentMetaChanged)
 
 	version4 := "3456"
-	rootdoc4 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version4, "")
+	rootdoc4 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version4, "", "", "")
 	enum = rootdoc1.Compare(rootdoc4)
 	assert.Equal(t, enum, RootDocumentVersionOnlyChanged)
 }
@@ -54,7 +55,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName1 := "TG4482"
 	partnerId1 := ""
 	firmwareVersion1 := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc1 := NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "")
+	rootdoc1 := NewRootDocument(bitmap1, firmwareVersion1, modelName1, partnerId1, schemaVersion1, version1, "", "", "")
 
 	bitmap2 := 123
 	version2 := "bar"
@@ -62,7 +63,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName2 := "TG4482"
 	partnerId2 := "cox"
 	firmwareVersion2 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc2 := NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "")
+	rootdoc2 := NewRootDocument(bitmap2, firmwareVersion2, modelName2, partnerId2, schemaVersion2, version2, "", "", "")
 
 	bitmap3 := 123
 	version3 := "bar"
@@ -70,7 +71,7 @@ func TestRootDocumentUpdate(t *testing.T) {
 	modelName3 := "TG4482"
 	partnerId3 := "cox"
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "")
+	rootdoc3 := NewRootDocument(bitmap3, firmwareVersion3, modelName3, partnerId3, schemaVersion3, version3, "", "", "")
 
 	rootdoc1.Update(rootdoc2)
 	assert.Equal(t, *rootdoc1, *rootdoc3)
@@ -80,20 +81,36 @@ func TestRootDocumentUpdate(t *testing.T) {
 	assert.Assert(t, !strings.Contains(line, "map["))
 }
 
-func TestRootDocumentIsDifferent(t *testing.T) {
+func TestRootDocumentEquals(t *testing.T) {
 	bitmap := 123
 	version := "foo"
 	schemaVersion := "33554433-1.3,33554434-1.3"
 	modelName := "bar"
 	partnerId := "cox"
 	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
-	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "")
+	rootdoc1 := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
 	rootdoc2 := rootdoc1.Clone()
-	isDiff := rootdoc1.IsDifferent(rootdoc2)
-	assert.Assert(t, !isDiff)
+	ok := rootdoc1.Equals(rootdoc2)
+	assert.Assert(t, ok)
 
 	firmwareVersion3 := "TG4482PC2_4.14p7s3_PROD_sey"
-	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "")
-	isDiff = rootdoc1.IsDifferent(rootdoc3)
-	assert.Assert(t, isDiff)
+	rootdoc3 := NewRootDocument(bitmap, firmwareVersion3, modelName, partnerId, schemaVersion, version, "", "", "")
+	ok = rootdoc1.Equals(rootdoc3)
+	assert.Assert(t, !ok)
+}
+
+func TestRootDocumentLocked(t *testing.T) {
+	bitmap := 123
+	version := "foo"
+	schemaVersion := "33554433-1.3,33554434-1.3"
+	modelName := "bar"
+	partnerId := "cox"
+	firmwareVersion := "TG4482PC2_4.12p7s3_PROD_sey"
+	rootdoc := NewRootDocument(bitmap, firmwareVersion, modelName, partnerId, schemaVersion, version, "", "", "")
+	assert.Assert(t, !rootdoc.Locked())
+	epoch := int(time.Now().UnixMilli())
+	rootdoc.LockedTill = epoch + 1000
+	assert.Assert(t, rootdoc.Locked())
+	time.Sleep(time.Duration(1) * time.Second)
+	assert.Assert(t, !rootdoc.Locked())
 }

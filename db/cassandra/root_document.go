@@ -14,15 +14,16 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package cassandra
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // shared.go:	err := c.Query(stmt, cpeMac).MapScan(dict)
@@ -32,10 +33,16 @@ func (c *CassandraClient) GetRootDocument(cpeMac string) (*common.RootDocument, 
 	defer func() { <-c.concurrentQueries }()
 
 	var rd common.RootDocument
-	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,query_params FROM root_document WHERE cpe_mac=?"
-	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version, &rd.QueryParams)
+	var tobj time.Time
+	stmt := "SELECT bitmap,firmware_version,model_name,partner_id,schema_version,version,query_params,locked_till,product_class,account_type FROM root_document WHERE cpe_mac=?"
+	err := c.Query(stmt, cpeMac).Scan(&rd.Bitmap, &rd.FirmwareVersion, &rd.ModelName, &rd.PartnerId, &rd.SchemaVersion, &rd.Version, &rd.QueryParams, &tobj, &rd.ProductClass, &rd.AccountType)
 	if err != nil {
 		return nil, common.NewError(err)
+	}
+	if tobj.IsZero() {
+		rd.LockedTill = 0
+	} else {
+		rd.LockedTill = int(tobj.UnixMilli())
 	}
 	return &rd, nil
 }

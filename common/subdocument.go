@@ -102,12 +102,28 @@ func (d *SubDocument) SetVersion(version *string) {
 	d.version = version
 }
 
+// convenient function
+func (d *SubDocument) GetVersion() string {
+	if d.version != nil {
+		return *d.version
+	}
+	return ""
+}
+
 func (d *SubDocument) State() *int {
 	return d.state
 }
 
 func (d *SubDocument) SetState(state *int) {
 	d.state = state
+}
+
+// convenient function
+func (d *SubDocument) GetState() int {
+	if d.state != nil {
+		return *d.state
+	}
+	return 0
 }
 
 func (d *SubDocument) UpdatedTime() *int {
@@ -142,59 +158,59 @@ func (d *SubDocument) SetExpiry(expiry *int) {
 	d.expiry = expiry
 }
 
-func (d *SubDocument) Equals(tdoc *SubDocument) error {
+func (d *SubDocument) Equals(tdoc *SubDocument) (bool, error) {
 	if d.HasPayload() && tdoc.HasPayload() {
 		if !bytes.Equal(d.Payload(), tdoc.Payload()) {
-			err := fmt.Errorf("d.Payload() != tdoc.Payload(), len(d.Payload())=%v, len(tdoc.Payload())=%v", len(d.payload), len(tdoc.payload))
-			return NewError(err)
+			err := fmt.Errorf("d.Payload() != tdoc.Payload(), d.Payload()=%v, tdoc.Payload()=%v", d.payload, tdoc.payload)
+			return false, NewError(err)
 		}
 	} else {
 		if d.HasPayload() != tdoc.HasPayload() {
 			err := fmt.Errorf("d.HasPayload() != tdoc.HasPayload()")
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.Version() != nil && tdoc.Version() != nil {
 		if *d.Version() != *tdoc.Version() {
 			err := fmt.Errorf("*d.Version()[%v] != *tdoc.Version()[%v]", *d.Version(), *tdoc.Version())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		if d.Version() != tdoc.Version() {
 			err := fmt.Errorf("d.Version()[%v] != tdoc.Version()[%v]", d.Version(), tdoc.Version())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.UpdatedTime() != nil && tdoc.UpdatedTime() != nil {
 		if *d.UpdatedTime() != *tdoc.UpdatedTime() {
 			err := fmt.Errorf("*d.UpdatedTime()[%v] != *tdoc.UpdatedTime()[%v]", *d.UpdatedTime(), *tdoc.UpdatedTime())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		if d.UpdatedTime() != tdoc.UpdatedTime() {
 			err := fmt.Errorf("d.UpdatedTime()[%v] != tdoc.UpdatedTime()[%v]", d.UpdatedTime(), tdoc.UpdatedTime())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.State() != nil && tdoc.State() != nil {
 		if *d.State() != *tdoc.State() {
 			err := fmt.Errorf("*d.State()[%v] != *tdoc.State()[%v]", *d.State(), *tdoc.State())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		if d.State() != tdoc.State() {
 			err := fmt.Errorf("d.State()[%v] != tdoc.State()[%v]", d.State(), tdoc.State())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.ErrorCode() != nil && tdoc.ErrorCode() != nil {
 		if *d.ErrorCode() != *tdoc.ErrorCode() {
 			err := fmt.Errorf("*d.ErrorCode()[%v] != *tdoc.ErrorCode()[%v]", *d.ErrorCode(), *tdoc.ErrorCode())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		var dErrorCode, tdocErrorCode int
@@ -206,14 +222,14 @@ func (d *SubDocument) Equals(tdoc *SubDocument) error {
 		}
 		if dErrorCode != tdocErrorCode {
 			err := fmt.Errorf("d.ErrorCode()[%v] != tdoc.ErrorCode()[%v]", d.ErrorCode(), tdoc.ErrorCode())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.ErrorDetails() != nil && tdoc.ErrorDetails() != nil {
 		if *d.ErrorDetails() != *tdoc.ErrorDetails() {
 			err := fmt.Errorf("*d.ErrorDetails()[%v] != *tdoc.ErrorDetails()[%v]", *d.ErrorDetails(), *tdoc.ErrorDetails())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		var dErrorDetails, tdocErrorDetails string
@@ -225,23 +241,23 @@ func (d *SubDocument) Equals(tdoc *SubDocument) error {
 		}
 		if dErrorDetails != tdocErrorDetails {
 			err := fmt.Errorf("d.ErrorDetails()[%v] != tdoc.ErrorDetails()[%v]", d.ErrorDetails(), tdoc.ErrorDetails())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
 	if d.Expiry() != nil && tdoc.Expiry() != nil {
 		if *d.Expiry() != *tdoc.Expiry() {
 			err := fmt.Errorf("*d.Expiry()[%v] != *tdoc.Expiry()[%v]", *d.Expiry(), *tdoc.Expiry())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	} else {
 		if d.Expiry() != tdoc.Expiry() {
 			err := fmt.Errorf("d.Expiry()[%v] != tdoc.Expiry()[%v]", d.Expiry(), tdoc.Expiry())
-			return NewError(err)
+			return false, NewError(err)
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 func (d *SubDocument) NeedsUpdateForHttp304() bool {

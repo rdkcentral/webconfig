@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -23,32 +23,34 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	mqttHostDefault = "https://hcbroker.staging.us-west-2.plume.comcast.net"
-	mqttUrlTemplate = "%s/v2/mqtt/pub/x/to/%s/webconfig"
+	defaultMqttHost        = "http://localhost:12347"
+	defaultMqttUrlTemplate = "%s/%s"
 )
 
 type MqttConnector struct {
 	*HttpClient
 	host        string
 	serviceName string
+	urlTemplate string
 }
 
 func NewMqttConnector(conf *configuration.Config, tlsConfig *tls.Config) *MqttConnector {
 	serviceName := "mqtt"
-	confKey := fmt.Sprintf("webconfig.%v.host", serviceName)
-	host := conf.GetString(confKey, mqttHostDefault)
+	host := conf.GetString("webconfig.mqtt.host", defaultMqttHost)
+	urlTemplate := conf.GetString("webconfig.mqtt.url_template", defaultMqttUrlTemplate)
 
 	return &MqttConnector{
 		HttpClient:  NewHttpClient(conf, serviceName, tlsConfig),
 		host:        host,
 		serviceName: serviceName,
+		urlTemplate: urlTemplate,
 	}
 }
 
@@ -60,12 +62,20 @@ func (c *MqttConnector) SetMqttHost(host string) {
 	c.host = host
 }
 
+func (c *MqttConnector) MqttUrlTemplate() string {
+	return c.urlTemplate
+}
+
+func (c *MqttConnector) SetMqttUrlTemplate(x string) {
+	c.urlTemplate = x
+}
+
 func (c *MqttConnector) ServiceName() string {
 	return c.serviceName
 }
 
 func (c *MqttConnector) PostMqtt(cpeMac string, bbytes []byte, fields log.Fields) ([]byte, error) {
-	url := fmt.Sprintf(mqttUrlTemplate, c.MqttHost(), cpeMac)
+	url := fmt.Sprintf(c.MqttUrlTemplate(), c.MqttHost(), cpeMac)
 
 	var traceId, xmTraceId, outTraceparent, outTracestate string
 	if itf, ok := fields["xmoney_trace_id"]; ok {

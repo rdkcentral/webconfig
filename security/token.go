@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -22,15 +22,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 )
 
 const (
@@ -42,13 +42,13 @@ type ThemisClaims struct {
 	Mac          string   `json:"mac"`
 	PartnerId    string   `json:"partner-id"`
 	Serial       string   `json:"serial"`
-	Trust        string   `json:"trust"`
+	Trust        int      `json:"trust"`
 	Uuid         string   `json:"uuid"`
 	Capabilities []string `json:"capabilities"`
 	jwt.RegisteredClaims
 }
 
-type VerifyFunc func(map[string]*rsa.PublicKey, []string, []string, ...string) (bool, string, error)
+type VerifyFunc func(map[string]*rsa.PublicKey, []string, []string, ...string) (bool, string, int, error)
 
 type TokenManager struct {
 	encodeKey       *rsa.PrivateKey
@@ -61,11 +61,6 @@ type TokenManager struct {
 }
 
 func NewTokenManager(conf *configuration.Config) *TokenManager {
-	jwtEnabled := conf.GetBoolean("webconfig.jwt.enabled", false)
-	if !jwtEnabled {
-		return nil
-	}
-
 	panicExitEnabled := conf.GetBoolean("webconfig.panic_exit_enabled", false)
 
 	// prepare args for TokenManager
@@ -110,7 +105,7 @@ func NewTokenManager(conf *configuration.Config) *TokenManager {
 }
 
 func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
-	kbytes, err := ioutil.ReadFile(keyfile)
+	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -122,7 +117,7 @@ func loadDecodeKey(keyfile string) (*rsa.PublicKey, error) {
 }
 
 func loadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
-	kbytes, err := ioutil.ReadFile(keyfile)
+	kbytes, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, common.NewError(err)
 	}
@@ -134,19 +129,25 @@ func loadEncodeKey(keyfile string) (*rsa.PrivateKey, error) {
 }
 
 // TODO this is not an officially supported function.
-func (m *TokenManager) Generate(mac string, ttl int64, vargs ...string) string {
+func (m *TokenManager) Generate(mac string, ttl int64, itfs ...interface{}) string {
 	// %% NOTE mac should be lowercase to be consistent with reference doc
 	// static themis fields copied from examples in the webconfig confluence
 	kid := "webconfig_key"
 	serial := "ABCNDGE"
-	trust := "1000"
+	trust := 1000
 	capUuid := "1234567891234"
 	capabilities := []string{"x1:issuer:test:.*:all"}
-
 	partner := "comcast"
-	if len(vargs) > 0 {
-		partner = vargs[0]
+
+	for _, itf := range itfs {
+		switch ty := itf.(type) {
+		case string:
+			partner = ty
+		case int:
+			trust = ty
+		}
 	}
+
 	utcnow := time.Now()
 
 	claims := ThemisClaims{
@@ -213,30 +214,30 @@ func ParseKidFromTokenHeader(tokenString string) (string, error) {
 
 	rawKid, ok := headers["kid"]
 	if !ok {
-		return kid, common.NewError(common.NotOK)
+		return kid, common.NewError(common.ErrNotOK)
 	}
 	kid, ok = rawKid.(string)
 	if !ok {
-		return kid, common.NewError(common.NotOK)
+		return kid, common.NewError(common.ErrNotOK)
 	}
 
 	return kid, nil
 }
 
 func (m *TokenManager) VerifyApiToken(token string) (bool, error) {
-	ok, _, err := m.verifyFn(m.decodeKeys, m.apiKids, m.apiCapabilities, token)
+	ok, _, _, err := m.verifyFn(m.decodeKeys, m.apiKids, m.apiCapabilities, token)
 	if err != nil {
 		return ok, common.NewError(err)
 	}
 	return ok, err
 }
 
-func (m *TokenManager) VerifyCpeToken(token string, mac string) (bool, string, error) {
-	ok, partner, err := m.verifyFn(m.decodeKeys, m.cpeKids, m.cpeCapabilities, token, mac)
+func (m *TokenManager) VerifyCpeToken(token string, mac string) (bool, string, int, error) {
+	ok, partner, trust, err := m.verifyFn(m.decodeKeys, m.cpeKids, m.cpeCapabilities, token, mac)
 	if err != nil {
-		return ok, "", common.NewError(err)
+		return ok, "", trust, common.NewError(err)
 	}
-	return ok, partner, nil
+	return ok, partner, trust, nil
 }
 
 func (m *TokenManager) SetVerifyFunc(fn VerifyFunc) {
@@ -293,9 +294,10 @@ func (m *TokenManager) ParseCpeToken(tokenStr string) (map[string]string, error)
 	return data, nil
 }
 
-func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requiredCapabilities []string, vargs ...string) (bool, string, error) {
+func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requiredCapabilities []string, vargs ...string) (bool, string, int, error) {
 	tokenString := vargs[0]
 	var kid string
+	var trust int
 
 	parser := &jwt.Parser{}
 
@@ -305,11 +307,11 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 		// check kid
 		rawkid, ok := token.Header["kid"]
 		if !ok {
-			return false, "", common.NewError(fmt.Errorf("missing kid in token"))
+			return false, "", trust, common.NewError(fmt.Errorf("missing kid in token"))
 		}
 		kid, ok = rawkid.(string)
 		if !ok {
-			return false, "", common.NewError(fmt.Errorf("error in reading kid from header"))
+			return false, "", trust, common.NewError(fmt.Errorf("error in reading kid from header"))
 		}
 
 		ok = false
@@ -320,7 +322,7 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 			}
 		}
 		if !ok {
-			return false, "", common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, validKids))
+			return false, "", trust, common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, validKids))
 		}
 
 		// check capabilities, if requiredCapabilities is nonempty
@@ -343,21 +345,21 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 				}
 			}
 			if !isCapable {
-				return false, "", common.NewError(fmt.Errorf("token without proper capabilities"))
+				return false, "", trust, common.NewError(fmt.Errorf("token without proper capabilities"))
 			}
 		}
 	} else {
-		return false, "", common.NewError(err)
+		return false, "", trust, common.NewError(err)
 	}
 
 	decodeKey, ok := decodeKeys[kid]
 	if !ok {
-		return false, "", common.NewError(fmt.Errorf("key object missing, kid=%v", kid))
+		return false, "", trust, common.NewError(fmt.Errorf("key object missing, kid=%v", kid))
 	}
 
 	claims := jwt.MapClaims{}
 	if _, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) { return decodeKey, nil }); err != nil {
-		return false, "", common.NewError(err)
+		return false, "", trust, common.NewError(err)
 	}
 
 	if len(vargs) > 1 {
@@ -369,12 +371,12 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 				if strings.ToLower(mac) == strings.ToLower(macstr) {
 					isMatched = true
 				} else {
-					return false, "", common.NewError(fmt.Errorf("mac in token(%v) does not match mac in claims(%v)", mac, macstr))
+					return false, "", trust, common.NewError(fmt.Errorf("mac in token(%v) does not match mac in claims(%v)", mac, macstr))
 				}
 			}
 		}
 		if !isMatched {
-			return false, "", common.NewError(fmt.Errorf("mac in token(%v) does not match claims=%v", mac, claims))
+			return false, "", trust, common.NewError(fmt.Errorf("mac in token(%v) does not match claims=%v", mac, claims))
 		}
 	}
 
@@ -384,5 +386,9 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 		partner = itf.(string)
 	}
 
-	return true, partner, nil
+	if itf, ok := claims["trust"]; ok {
+		trust = util.ToInt(itf)
+	}
+
+	return true, partner, trust, nil
 }

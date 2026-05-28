@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package kafka
 
 import (
@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
+	"github.com/go-akka/configuration"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	wchttp "github.com/rdkcentral/webconfig/http"
-	"github.com/go-akka/configuration"
 )
 
 type KafkaConsumerGroup struct {
@@ -101,6 +101,16 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 		if err != nil {
 			return nil, common.NewError(err)
 		}
+	}
+
+	// Load TLS configuration
+	tlsConfig, err := common.LoadKafkaTLSConfig(conf, prefix)
+	if err != nil {
+		return nil, common.NewError(fmt.Errorf("failed to load TLS configuration for %s: %v", prefix, err))
+	}
+	if tlsConfig != nil {
+		sconfig.Net.TLS.Enable = true
+		sconfig.Net.TLS.Config = tlsConfig
 	}
 
 	consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, clusterName, offsetEnum, topicPartitionsMap)
