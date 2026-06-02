@@ -1135,7 +1135,7 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 
 	conf := sc.Config
 	ss := "webconfig.upstream_profiles_enabled = true"
-	conf = conf.AddConfig(ss, nil)
+	conf = conf.AddConfig(ss, conf)
 	tsc := *sc
 	tsc.Config = conf
 
@@ -1197,13 +1197,10 @@ func TestSupplementaryUpstreamProfilesNotFoundNotDefaultEmptyProfile(t *testing.
 func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) {
 	log.SetOutput(io.Discard)
 
-	conf := sc.Config
-	ss := "webconfig.upstream_profiles_enabled=true\nwebconfig.default_empty_profile_enabled=true"
-	conf = conf.AddConfig(ss, nil)
 	tsc := *sc
-	tsc.Config = conf
-
 	server := NewWebconfigServer(&tsc, true)
+	server.SetUpstreamProfilesEnabled(true)
+	server.SetDefaultEmptyProfileEnabled(true)
 	router := server.GetRouter(true)
 
 	// ==== step 1 setup mock xconf server ====
@@ -1261,13 +1258,9 @@ func TestSupplementaryUpstreamProfilesNotFoundDefaultEmptyProfile(t *testing.T) 
 func TestSupplementaryDefaultEmptyProfile(t *testing.T) {
 	log.SetOutput(io.Discard)
 
-	conf := sc.Config
-	ss := "webconfig.default_empty_profile_enabled=true"
-	conf = conf.AddConfig(ss, nil)
 	tsc := *sc
-	tsc.Config = conf
-
 	server := NewWebconfigServer(&tsc, true)
+	server.SetDefaultEmptyProfileEnabled(true)
 	router := server.GetRouter(true)
 
 	// ==== step 1 setup mock xconf server ====

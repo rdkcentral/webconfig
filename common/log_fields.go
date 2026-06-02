@@ -46,9 +46,13 @@ var (
 	}
 )
 
+// isSensitiveLogKey checks if a log field key contains sensitive information
+// Filters: authentication (tokens, passwords), device IDs (MAC, serial), headers, schema version
 func isSensitiveLogKey(k string) bool {
 	key := strings.ToLower(k)
-	return strings.Contains(key, "passphrase") ||
+
+	// Authentication tokens and credentials
+	if strings.Contains(key, "passphrase") ||
 		strings.Contains(key, "password") ||
 		strings.Contains(key, "passwd") ||
 		strings.Contains(key, "token") ||
@@ -56,7 +60,29 @@ func isSensitiveLogKey(k string) bool {
 		strings.Contains(key, "cookie") ||
 		strings.Contains(key, "secret") ||
 		strings.Contains(key, "apikey") ||
-		strings.Contains(key, "api_key")
+		strings.Contains(key, "api_key") ||
+		strings.Contains(key, "bearer") {
+		return true
+	}
+
+	// HTTP headers (fields ending with _headers or _header)
+	if strings.HasSuffix(key, "_headers") || strings.HasSuffix(key, "_header") {
+		return true
+	}
+
+	// Device identifiers
+	if key == "mac" || key == "cpemac" ||
+		key == "serial" || key == "serial_number" ||
+		key == "device_id" {
+		return true
+	}
+
+	// Schema version (can contain device fingerprints)
+	if key == "schema_version" {
+		return true
+	}
+
+	return false
 }
 
 func sanitizeLogValue(k string, v interface{}) interface{} {

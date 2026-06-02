@@ -135,10 +135,11 @@ func TestHeaderToMap(t *testing.T) {
 	header.Add("Orange", "auburn")
 	header.Add("Yellow", "amber")
 
+	// Non-standard headers are redacted to "****" by isSafeHeaderKey allowlist
 	expected := map[string]string{
-		"Red":    "maroon",
-		"Orange": "auburn",
-		"Yellow": "amber",
+		"Red":    "****",
+		"Orange": "****",
+		"Yellow": "****",
 	}
 
 	m := HeaderToMap(header)

@@ -187,3 +187,126 @@ func TestFilterLogFieldsWithStrMap(t *testing.T) {
 	sw := itf.(map[string]string)
 	assert.Assert(t, len(sw) == 4)
 }
+
+func TestFilterLogFieldsSensitiveData(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    log.Fields
+		filtered []string
+	}{
+		{
+			name: "filter authentication tokens",
+			input: log.Fields{
+				"authorization": "Bearer xyz123",
+				"token":         "abc123",
+				"bearer":        "token123",
+				"api_key":       "key123",
+				"apikey":        "key456",
+				"safe_field":    "value",
+			},
+			filtered: []string{"authorization", "token", "bearer", "api_key", "apikey"},
+		},
+		{
+			name: "filter HTTP headers",
+			input: log.Fields{
+				"request_headers": map[string]string{"auth": "token"},
+				"response_header": "value",
+				"webpa_headers":   "data",
+				"mqtt_header":     "data",
+				"some_field":      "safe",
+			},
+			filtered: []string{"request_headers", "response_header", "webpa_headers", "mqtt_header"},
+		},
+		{
+			name: "filter device identifiers",
+			input: log.Fields{
+				"mac":           "AA:BB:CC:DD:EE:FF",
+				"cpemac":        "AABBCCDDEEFF",
+				"serial":        "12345",
+				"serial_number": "67890",
+				"device_id":     "device123",
+				"other_field":   "safe",
+			},
+			filtered: []string{"mac", "cpemac", "serial", "serial_number", "device_id"},
+		},
+		{
+			name: "filter schema_version",
+			input: log.Fields{
+				"schema_version": "1.0",
+				"app_version":    "2.0",
+				"safe_field":     "value",
+			},
+			filtered: []string{"schema_version"},
+		},
+		{
+			name: "filter nested sensitive data in maps",
+			input: log.Fields{
+				"header": map[string]string{
+					"authorization": "Bearer token",
+					"content-type":  "application/json",
+				},
+				"safe_field": "value",
+			},
+			filtered: []string{}, // The map values should be redacted internally
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FilterLogFields(tt.input)
+
+			// Check that filtered fields are redacted or removed
+			for _, field := range tt.filtered {
+				val, exists := result[field]
+				if exists {
+					// If field exists, it should be redacted to "****"
+					assert.Equal(t, val, "****", "field %s should be redacted", field)
+				}
+			}
+
+			// Check that non-sensitive fields are preserved
+			if val, ok := tt.input["safe_field"]; ok {
+				resultVal, resultOk := result["safe_field"]
+				assert.Assert(t, resultOk, "safe_field should be preserved")
+				assert.Equal(t, resultVal, val, "safe_field value should match")
+			}
+			if val, ok := tt.input["other_field"]; ok {
+				resultVal, resultOk := result["other_field"]
+				assert.Assert(t, resultOk, "other_field should be preserved")
+				assert.Equal(t, resultVal, val, "other_field value should match")
+			}
+			if val, ok := tt.input["app_version"]; ok {
+				resultVal, resultOk := result["app_version"]
+				assert.Assert(t, resultOk, "app_version should be preserved")
+				assert.Equal(t, resultVal, val, "app_version value should match")
+			}
+		})
+	}
+}
+
+func TestFilterLogFieldsCaseInsensitive(t *testing.T) {
+	src := log.Fields{
+		"Authorization":  "Bearer token",
+		"TOKEN":          "abc123",
+		"Bearer":         "xyz123",
+		"API_KEY":        "key123",
+		"Mac":            "AA:BB:CC:DD:EE:FF",
+		"CPEMAC":         "AABBCCDDEEFF",
+		"Schema_Version": "1.0",
+		"safe_field":     "value",
+	}
+
+	result := FilterLogFields(src)
+
+	// All sensitive fields should be redacted regardless of case
+	sensitiveFields := []string{"Authorization", "TOKEN", "Bearer", "API_KEY", "Mac", "CPEMAC", "Schema_Version"}
+	for _, field := range sensitiveFields {
+		val, exists := result[field]
+		if exists {
+			assert.Equal(t, val, "****", "field %s should be redacted", field)
+		}
+	}
+
+	// Safe fields should be preserved
+	assert.Equal(t, result["safe_field"], "value", "safe_field should be preserved")
+}

@@ -62,6 +62,7 @@ type HttpClient struct {
 	statusHandlerFuncMap map[int]StatusHandlerFunc
 	userAgent            string
 	moracideTagPrefix    string
+	allowInternalURLs    bool
 }
 
 func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tls.Config) *HttpClient {
@@ -83,6 +84,8 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", serviceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
 	userAgent := conf.GetString("webconfig.http_client.user_agent")
+
+	allowInternalURLs := conf.GetBoolean("webconfig.http_client.allow_internal_urls", false)
 
 	moracideTagPrefix := strings.ToLower(conf.GetString("webconfig.tracing.moracide_tag_prefix", tracing.DefaultMoracideTagPrefix))
 
@@ -109,10 +112,73 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 		statusHandlerFuncMap: map[int]StatusHandlerFunc{},
 		userAgent:            userAgent,
 		moracideTagPrefix:    moracideTagPrefix,
+		allowInternalURLs:    allowInternalURLs,
 	}
 }
 
+// validateURL checks if a URL is safe to request, preventing SSRF attacks
+// Returns error if URL is invalid, uses non-HTTP(S) protocol, or targets internal/private networks
+func (c *HttpClient) validateURL(urlStr string) error {
+	if urlStr == "" {
+		return fmt.Errorf("empty URL not allowed")
+	}
+
+	parsedURL, err := neturl.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+
+	// Only allow HTTP and HTTPS protocols
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("protocol %s not allowed, only HTTP/HTTPS permitted", parsedURL.Scheme)
+	}
+
+	// If internal URLs are allowed via config, skip IP validation
+	if c.allowInternalURLs {
+		return nil
+	}
+
+	// Extract hostname
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("URL missing hostname")
+	}
+
+	// Check for localhost/loopback by name
+	lowerHost := strings.ToLower(hostname)
+	if lowerHost == "localhost" {
+		return fmt.Errorf("localhost access not allowed")
+	}
+
+	// Parse as IP address
+	ip := net.ParseIP(hostname)
+	if ip != nil {
+		// Check for loopback addresses
+		if ip.IsLoopback() {
+			return fmt.Errorf("loopback IP address not allowed")
+		}
+
+		// Check for private IP ranges (RFC1918)
+		if ip.IsPrivate() {
+			return fmt.Errorf("private IP address not allowed")
+		}
+
+		// Check for link-local addresses
+		if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("link-local IP address not allowed")
+		}
+	}
+
+	return nil
+}
+
 func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []byte, auditFields log.Fields, loggerName string, retry int) ([]byte, http.Header, bool, error) {
+	// Validate URL to prevent SSRF attacks
+	if err := c.validateURL(url); err != nil {
+		return nil, nil, false, common.NewError(fmt.Errorf("URL validation failed: %w", err))
+	}
+
 	fields := common.FilterLogFields(auditFields, "status")
 
 	var respMoracideTagsFound bool

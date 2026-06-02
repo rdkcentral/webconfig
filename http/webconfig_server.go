@@ -869,7 +869,8 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
-				log.WithFields(fields).Error("Request started")
+				tfields := common.FilterLogFields(fields)
+				log.WithFields(tfields).Error("Request started")
 				return xwriter
 			}
 			xwriter.SetBodyBytes(bbytes)
@@ -985,7 +986,8 @@ func LogError(w http.ResponseWriter, err error) {
 		fields = make(log.Fields)
 	}
 
-	log.WithFields(fields).Error("internal error")
+	tfields := common.FilterLogFields(fields)
+	log.WithFields(tfields).Error("internal error")
 }
 
 func (xw *XResponseWriter) logMessage(logger string, message string, level int) {
@@ -1144,7 +1146,8 @@ func (s *WebconfigServer) HandleKafkaProducerResults() {
 			fields["output_topic"] = success.Topic
 			fields["output_partition"] = success.Partition
 			fields["output_offset"] = success.Offset
-			log.WithFields(fields).Debug("sent")
+			tfields := common.FilterLogFields(fields)
+			log.WithFields(tfields).Debug("sent")
 		case pErr := <-s.Errors():
 			if pErr == nil || pErr.Msg == nil {
 				continue
@@ -1158,26 +1161,30 @@ func (s *WebconfigServer) HandleKafkaProducerResults() {
 			fields["output_partition"] = pErr.Msg.Partition
 			kbytes, err := pErr.Msg.Key.Encode()
 			if err != nil {
-				log.WithFields(fields).Error(common.NewError(err))
+				tfields := common.FilterLogFields(fields)
+				log.WithFields(tfields).Error(common.NewError(err))
 			} else {
 				fields["output_key"] = string(kbytes)
 			}
 
 			vbytes, err := pErr.Msg.Value.Encode()
 			if err != nil {
-				log.WithFields(fields).Error(common.NewError(err))
+				tfields := common.FilterLogFields(fields)
+				log.WithFields(tfields).Error(common.NewError(err))
 			} else {
 				var itf interface{}
 				err1 := json.Unmarshal(vbytes, &itf)
 				if err1 != nil {
-					log.WithFields(fields).Error(common.NewError(err1))
+					tfields := common.FilterLogFields(fields)
+					log.WithFields(tfields).Error(common.NewError(err1))
 					fields["output_body_text"] = base64.StdEncoding.EncodeToString(vbytes)
 				} else {
 					fields["output_body"] = itf
 				}
 			}
 
-			log.WithFields(fields).Error(pErr.Err)
+			tfields := common.FilterLogFields(fields)
+			log.WithFields(tfields).Error(pErr.Err)
 		}
 	}
 }
