@@ -211,34 +211,19 @@ func (d Dict) Update(itf interface{}) {
 	}
 }
 
-func isSafeHeaderKey(key string) bool {
+func isSensitiveHeaderKey(key string) bool {
 	k := strings.ToLower(strings.TrimSpace(key))
-	switch k {
-	case "accept",
-		"accept-encoding",
-		"accept-language",
-		"cache-control",
-		"connection",
-		"content-length",
-		"content-type",
-		"host",
-		"pragma",
-		"user-agent":
+	if k == "authorization" || k == "proxy-authorization" || k == "cookie" || k == "set-cookie" {
 		return true
-	default:
-		return false
 	}
+	return strings.Contains(k, "token") || strings.Contains(k, "secret") || strings.Contains(k, "apikey") || strings.Contains(k, "api-key") || strings.Contains(k, "key")
 }
 
 func HeaderToMap(header http.Header) map[string]string {
 	m := make(map[string]string)
 	for k, v := range header {
-		if !isSafeHeaderKey(k) {
+		if isSensitiveHeaderKey(k) {
 			m[k] = "****"
-			continue
-		}
-		if len(v) == 0 {
-			m[k] = ""
 			continue
 		}
 		m[k] = v[0]
