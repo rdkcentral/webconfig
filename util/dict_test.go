@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -143,4 +143,16 @@ func TestHeaderToMap(t *testing.T) {
 
 	m := HeaderToMap(header)
 	assert.DeepEqual(t, m, expected)
+}
+
+func TestHeaderToMapEmptyValueSlice(t *testing.T) {
+	// A header key present with no values should not panic and should map to "".
+	header := http.Header{
+		"Content-Type": {"application/json"},
+		"X-Empty":      {},
+	}
+
+	m := HeaderToMap(header)
+	assert.Equal(t, m["Content-Type"], "application/json")
+	assert.Equal(t, m["X-Empty"], "")
 }
