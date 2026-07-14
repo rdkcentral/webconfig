@@ -50,15 +50,7 @@ func FilterLogFields(src log.Fields, excludes ...string) log.Fields {
 	for k, v := range src {
 		switch ty := v.(type) {
 		case map[string]string:
-			if k == "header" {
-				redacted := map[string]string{}
-				for hk := range ty {
-					redacted[hk] = "****"
-				}
-				fields[k] = redacted
-			} else {
-				fields[k] = maps.Clone(ty)
-			}
+			fields[k] = maps.Clone(ty)
 		case map[string]interface{}:
 			fields[k] = maps.Clone(ty)
 		case string:
