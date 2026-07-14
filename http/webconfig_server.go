@@ -1113,7 +1113,8 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 		}
 
 		if codec == nil {
-			tfields["plaintoken"] = token
+			tfields["token_present"] = len(token) > 0
+			tfields["token_length"] = len(token)
 		} else {
 			var encToken string
 			if encryptedB64, err := codec.Encrypt(token); err == nil {
