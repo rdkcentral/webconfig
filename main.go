@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -126,31 +127,25 @@ func main() {
 		},
 	)
 
-	g.Go(
-		func() error {
-			<-gCtx.Done()
-			fmt.Printf("HTTP server shutdown NOW !!\n")
-			if server.KafkaProducerEnabled() {
-				if err := server.AsyncProducer.Close(); err != nil {
-					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
-				}
-			}
-			return server.Shutdown(context.Background())
-		},
-	)
-
 	// setup kafka consumer, if config kafka.enabled=false, then kcgroup=nil, err=nil
 	kcgroups, err := kafka.NewKafkaConsumerGroups(sc, server, metrics)
 	if err != nil {
 		panic(err)
 	}
 
+	// consumeWg tracks active consume loops so shutdown can wait for them to
+	// finish before closing the AsyncProducer (prevents "send on closed channel").
+	var consumeWg sync.WaitGroup
+
 	for _, kcgroup := range kcgroups {
 		consumer := *(kcgroup.Consumer())
 		topics := kcgroup.Topics()
+		consumewg := &consumeWg
+		consumewg.Add(1)
 
 		g.Go(
 			func() error {
+				defer consumewg.Done()
 				for {
 					if err := kcgroup.Consume(gCtx, topics, &consumer); err != nil {
 						fmt.Printf("kcgroup.Consumer: err=%v\n", err)
@@ -164,15 +159,32 @@ func main() {
 		// it is more or less optional, without this reading from the chan,
 		// the consumer runs anyway.
 		<-consumer.Ready
-
-		g.Go(
-			func() error {
-				<-gCtx.Done()
-				fmt.Printf("SARAMA shutdown NOW !!\n")
-				return kcgroup.Close()
-			},
-		)
 	}
+
+	// Single shutdown goroutine with ordered cleanup:
+	// 1. close consumer groups (signals ConsumeClaim goroutines to stop)
+	// 2. wait for all consume loops to drain (ensures no goroutine is mid-send)
+	// 3. close AsyncProducer (safe now that no one sends to its Input channel)
+	// 4. shut down HTTP server
+	g.Go(
+		func() error {
+			<-gCtx.Done()
+			fmt.Printf("SARAMA shutdown NOW !!\n")
+			for _, kcgroup := range kcgroups {
+				if err := kcgroup.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "kcgroup.Close() err=%v\n", err)
+				}
+			}
+			consumeWg.Wait()
+			fmt.Printf("HTTP server shutdown NOW !!\n")
+			if server.KafkaProducerEnabled() {
+				if err := server.AsyncProducer.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
+				}
+			}
+			return server.Shutdown(context.Background())
+		},
+	)
 
 	if err := g.Wait(); err != nil {
 		fmt.Printf("exit reason: %s \n", err)

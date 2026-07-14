@@ -1047,6 +1047,15 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 		Key:   sarama.ByteEncoder(kbytes),
 		Value: sarama.ByteEncoder(bbytes),
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tfields["logger"] = "kafkaproducer"
+			tfields["error"] = r
+			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+		}
+	}()
+
 	s.Input() <- outMessage
 
 	tfields["logger"] = "kafkaproducer"
@@ -1081,7 +1090,21 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 			Key:   sarama.ByteEncoder(strings.ToLower(mac)),
 			Value: sarama.ByteEncoder(bbytes),
 		}
-		s.Input() <- outMessage
+
+		sent := func() (ok bool) {
+			defer func() {
+				if r := recover(); r != nil {
+					tfields["error"] = r
+					log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+					ok = false
+				}
+			}()
+			s.Input() <- outMessage
+			return true
+		}()
+		if !sent {
+			return
+		}
 
 		tfields["output_key"] = mac
 		tfields["output_body"] = m
