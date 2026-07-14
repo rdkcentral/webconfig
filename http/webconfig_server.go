@@ -1093,7 +1093,6 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	fields := xw.Audit()
 	fields["logger"] = "token"
 	tfields := common.FilterLogFields(fields)
-	delete(tfields, "header")
 	var headerMap map[string]string
 	var isObfuscated bool
 	if itf, ok := tfields["header"]; ok {
