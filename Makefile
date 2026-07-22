@@ -31,22 +31,22 @@ all: build
 testall: test testsqlite testyuga
 
 testenv:  ## Run all tests sourcing env.sh for TEST_CONFIG_FILE
-	bash -c "source env.sh && go test ./... -cover -count=1"
+	bash -c "source env.sh && go test ./... -cover -count=1 -p=1"
 
 build:  ## Build a version
 	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
 
 test:
-	go test ./... -cover -count=1
+	go test ./... -cover -count=1 -p=1
 
 testsqlite:
-	export TESTDB_DRIVER='sqlite' ; go test ./... -cover -count=1
+	export TESTDB_DRIVER='sqlite' ; go test ./... -cover -count=1 -p=1
 
 testyuga:
-	export TESTDB_DRIVER='yugabyte' ; go test ./... -cover -count=1
+	export TESTDB_DRIVER='yugabyte' ; go test ./... -cover -count=1 -p=1
 
 cover:
-	go test ./... -count=1 -coverprofile=coverage.out
+	go test ./... -count=1 -coverprofile=coverage.out -p=1
 
 html:
 	go tool cover -html=coverage.out

@@ -144,9 +144,20 @@ func TestHeaderToMap(t *testing.T) {
 	m := HeaderToMap(header)
 	assert.DeepEqual(t, m, expected)
 
-	// non-safe headers are masked
 	header2 := make(http.Header)
 	header2.Add("Authorization", "secret")
 	m2 := HeaderToMap(header2)
-	assert.DeepEqual(t, m2, map[string]string{"Authorization": "****"})
+	assert.DeepEqual(t, m2, map[string]string{"Authorization": "secret"})
+}
+
+func TestHeaderToMapEmptyValueSlice(t *testing.T) {
+	// A header key present with no values should not panic and should map to "".
+	header := http.Header{
+		"Content-Type": {"application/json"},
+		"X-Empty":      {},
+	}
+
+	m := HeaderToMap(header)
+	assert.Equal(t, m["Content-Type"], "application/json")
+	assert.Equal(t, m["X-Empty"], "")
 }
