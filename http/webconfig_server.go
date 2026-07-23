@@ -1083,7 +1083,7 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 
 	for _, m := range messages {
 		if len(m.DeviceId) != 16 {
-			log.WithFields(tfields).Warn("invalid device_id")
+			log.WithFields(tfields).Warn("invalid device_id " + m.DeviceId)
 			continue
 		}
 		mac := m.DeviceId[4:]
@@ -1103,8 +1103,8 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		}
 		s.Input() <- outMessage
 
-		tfields["output_key"] = "****"
-		tfields["output_body"] = "omitted"
+		tfields["output_key"] = mac
+		tfields["output_body"] = m
 		log.WithFields(tfields).Info("send")
 	}
 }
@@ -1113,7 +1113,6 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	fields := xw.Audit()
 	fields["logger"] = "token"
 	tfields := common.FilterLogFields(fields)
-	delete(tfields, "header")
 	var headerMap map[string]string
 	var isObfuscated bool
 	if itf, ok := tfields["header"]; ok {
