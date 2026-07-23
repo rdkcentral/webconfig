@@ -121,7 +121,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	// factory reset handling
 	ifNoneMatch := rHeader.Get(common.HeaderIfNoneMatch)
-	if ifNoneMatch == "NONE" || ifNoneMatch == "NONE-REBOOT" {
+	if s.FactoryResetEnabled() && (ifNoneMatch == "NONE" || ifNoneMatch == "NONE-REBOOT") {
 		status, respHeader, rbytes, err := BuildFactoryResetResponse(s, rHeader, fields)
 		if err != nil {
 			return status, respHeader, rbytes, common.NewError(err)
@@ -376,6 +376,16 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	rootDocument, err := db.PreprocessRootDocument(c, rHeader, mac, partnerId, fields)
 	if err != nil {
 		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+	}
+
+	// eval if the root_document is locked
+	if rootDocument.Locked() {
+		if c.LockRootDocumentEnabled() {
+			return http.StatusConflict, respHeader, nil, common.NewError(common.ErrRootDocumentLocked)
+		}
+		tfields := common.FilterLogFields(fields)
+		tfields["logger"] = "rootdoc"
+		log.WithFields(tfields).Warn("dryrun409")
 	}
 
 	document, err := c.GetDocument(mac, fields)

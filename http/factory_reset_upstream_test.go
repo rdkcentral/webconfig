@@ -89,6 +89,7 @@ func TestFactoryResetWithoutData(t *testing.T) {
 
 func TestFactoryResetWithoutUpstream(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
+	server.SetFactoryResetEnabled(true)
 	router := server.GetRouter(true)
 
 	cpeMac := util.GenerateRandomCpeMac()
@@ -185,6 +186,7 @@ func TestFactoryResetWithoutUpstream(t *testing.T) {
 
 func TestFactoryResetWithUpstream(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
+	server.SetFactoryResetEnabled(true)
 	router := server.GetRouter(true)
 
 	cpeMac := util.GenerateRandomCpeMac()
@@ -327,6 +329,7 @@ func TestFactoryResetWithUpstream(t *testing.T) {
 
 func TestFactoryResetUpstreamAddData(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
+	server.SetFactoryResetEnabled(true)
 	router := server.GetRouter(true)
 	server.SetUpstreamEnabled(true)
 

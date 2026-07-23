@@ -51,6 +51,7 @@ func isSensitiveLogKey(k string) bool {
 	return strings.Contains(key, "passphrase") ||
 		strings.Contains(key, "password") ||
 		strings.Contains(key, "passwd") ||
+		strings.Contains(key, "pass_") ||
 		strings.Contains(key, "token") ||
 		strings.Contains(key, "authorization") ||
 		strings.Contains(key, "cookie") ||

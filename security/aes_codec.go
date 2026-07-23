@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 /*
  * Some code in Encrypt/Decrypt is:
  * Copyright 2012 The Go Authors. All rights reserved.
@@ -28,13 +28,14 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/rdkcentral/webconfig/common"
 	"github.com/go-akka/configuration"
+	"github.com/rdkcentral/webconfig/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -148,7 +149,7 @@ func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
 	// unpadding
 	index := len(ciphertext) - 1
 
-	for {
+	for index >= 0 {
 		if ciphertext[index] == '\x00' || ciphertext[index] == '\x80' {
 			index--
 		} else {
@@ -161,6 +162,16 @@ func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
 	}
 
 	decrypted := ciphertext[20 : index+1]
+
+	// verify the integrity digest that Encrypt prepended
+	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array
+	ivCopy := make([]byte, len(iv))
+	copy(ivCopy, iv)
+	expected := Digest(ivCopy, string(decrypted))
+	if subtle.ConstantTimeCompare(expected, ciphertext[:20]) != 1 {
+		return "", fmt.Errorf("decrypt error: integrity check failed")
+	}
+
 	return string(decrypted), nil
 }
 
@@ -263,7 +274,7 @@ func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
 	// unpadding
 	index := len(ciphertext) - 1
 
-	for {
+	for index >= 0 {
 		if ciphertext[index] == '\x00' || ciphertext[index] == '\x80' {
 			index--
 		} else {
@@ -276,6 +287,16 @@ func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
 	}
 
 	decrypted := ciphertext[20 : index+1]
+
+	// verify the integrity digest that EncryptBytes prepended
+	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array
+	ivCopy := make([]byte, len(iv))
+	copy(ivCopy, iv)
+	expected := DigestBytes(ivCopy, decrypted)
+	if subtle.ConstantTimeCompare(expected, ciphertext[:20]) != 1 {
+		return nil, fmt.Errorf("decrypt error: integrity check failed")
+	}
+
 	return decrypted, nil
 }
 
