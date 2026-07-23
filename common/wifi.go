@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package common
 
 // NOTE the codes here are temporary to help debugging some issues.
@@ -81,26 +81,17 @@ func (w *EmbeddedPrivateWifi) GetSimpleWifi(version string) *SimpleWifi {
 		sw.Enabled6g = &w.Ssid6g.Enable
 	}
 	if w.Security2g != nil {
-		ss := w.Security2g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass2g = &ss
 		sw.Mode2g = &w.Security2g.Mode
 	}
 	if w.Security5g != nil {
-		ss := w.Security5g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass5g = &ss
 		sw.Mode5g = &w.Security5g.Mode
 	}
 	if w.Security6g != nil {
-		ss := w.Security6g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass6g = &ss
 		sw.Mode6g = &w.Security6g.Mode
 	}
@@ -137,26 +128,17 @@ func (w *EmbeddedHomeWifi) GetSimpleWifi(version string) *SimpleWifi {
 	}
 
 	if w.Security2g != nil {
-		ss := w.Security2g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass2g = &ss
 		sw.Mode2g = &w.Security2g.Mode
 	}
 	if w.Security5g != nil {
-		ss := w.Security5g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass5g = &ss
 		sw.Mode5g = &w.Security5g.Mode
 	}
 	if w.Security6g != nil {
-		ss := w.Security6g.Passphrase
-		if len(ss) > 4 {
-			ss = ss[:4] + "****"
-		}
+		ss := "****"
 		sw.Pass6g = &ss
 		sw.Mode6g = &w.Security6g.Mode
 	}

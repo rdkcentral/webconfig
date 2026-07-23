@@ -20,6 +20,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -53,10 +54,16 @@ const (
 	LevelDebug
 )
 
+// maxBytesAppliedKey is an unexported context key used to mark that
+// http.MaxBytesReader has already been applied to the request body. This
+// prevents double-wrapping when both TestingMiddleware and logRequestStarts
+// are in the same handler chain (test path).
+type maxBytesAppliedKey struct{}
+
 const (
 	MetricsEnabledDefault                = true
 	FactoryResetEnabledDefault           = false
-	serverApiTokenAuthEnabledDefault     = false
+	serverApiTokenAuthEnabledDefault     = true
 	deviceApiTokenAuthEnabledDefault     = true
 	tokenApiEnabledDefault               = false
 	activeDriverDefault                  = "cassandra"
@@ -65,6 +72,7 @@ const (
 	defaultTracestateVendorID            = "webconfig"
 	defaultSupplementaryAppendingEnabled = true
 	authPrefixLength                     = 60
+	defaultMaxRequestBodyBytes           = 1048576
 )
 
 var (
@@ -121,6 +129,7 @@ type WebconfigServer struct {
 	filterOutputByBitmapEnabled   bool
 	defaultEmptyProfileEnabled    bool
 	bitmapFilterExemptSubdocIds   []string
+	maxRequestBodyBytes           int64
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -139,10 +148,31 @@ func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
 		return nil, common.NewError(err)
 	}
 
-	return &tls.Config{
-		InsecureSkipVerify: true,
+	insecureSkipVerify := conf.GetBoolean("webconfig.http_client.tls_insecure_skip_verify")
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecureSkipVerify,
 		Certificates:       []tls.Certificate{cert},
-	}, nil
+	}
+
+	caCertFile := conf.GetString("webconfig.http_client.ca_cert_file")
+	if len(caCertFile) > 0 {
+		caCert, err := os.ReadFile(caCertFile)
+		if err != nil {
+			return nil, common.NewError(fmt.Errorf("failed to read TLS CA certificate from %s: %v", caCertFile, err))
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, common.NewError(fmt.Errorf("failed to parse TLS CA certificate from %s", caCertFile))
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	if insecureSkipVerify {
+		log.Warn("HTTP client TLS certificate verification is disabled (webconfig.http_client.tls_insecure_skip_verify=true). This is insecure and should only be used for testing.")
+	}
+
+	return tlsConfig, nil
 }
 
 func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
@@ -240,7 +270,13 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	tlsConfig, _ := NewTlsConfig(conf)
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.server_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.server_api_token_auth.enabled is not set in config; defaulting to true (server API token auth enforced). See MIGRATION.md.")
+	}
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.device_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.device_api_token_auth.enabled is not set in config; defaulting to true (device API token auth enforced). See MIGRATION.md.")
+	}
 	tokenApiEnabled := conf.GetBoolean("webconfig.token_api_enabled", tokenApiEnabledDefault)
 
 	var listenHost string
@@ -306,6 +342,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
 	defaultEmptyProfileEnabled := conf.GetBoolean("webconfig.default_empty_profile_enabled")
 	bitmapFilterExemptSubdocIds := conf.GetStringList("webconfig.bitmap_filter_exempt_subdoc_ids")
+	maxRequestBodyBytes := int64(conf.GetInt32("webconfig.server.max_request_body_in_bytes", defaultMaxRequestBodyBytes))
 
 	ws := &WebconfigServer{
 		Server: &http.Server{
@@ -346,6 +383,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
 		defaultEmptyProfileEnabled:    defaultEmptyProfileEnabled,
 		bitmapFilterExemptSubdocIds:   bitmapFilterExemptSubdocIds,
+		maxRequestBodyBytes:           maxRequestBodyBytes,
 	}
 
 	return ws
@@ -376,6 +414,10 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
+				if r.Context().Value(maxBytesAppliedKey{}) == nil {
+					r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+					r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+				}
 				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
@@ -866,6 +908,10 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
+			if r.Context().Value(maxBytesAppliedKey{}) == nil {
+				r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+				r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+			}
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
@@ -876,10 +922,8 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if userAgent != "mget" {
-		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("Request started")
-	}
+	tfields := common.FilterLogFields(fields)
+	log.WithFields(tfields).Info("Request started")
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
 	return xwriter
@@ -966,14 +1010,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 
 	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
 
-	var userAgent string
-	if itf, ok := fields["user_agent"]; ok {
-		userAgent = itf.(string)
-	}
-	if userAgent != "mget" {
-		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("Request finished")
-	}
+	tfields := common.FilterLogFields(fields)
+	log.WithFields(tfields).Info("Request finished")
 }
 
 func LogError(w http.ResponseWriter, err error) {
