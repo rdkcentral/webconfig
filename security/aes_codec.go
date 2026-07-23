@@ -163,8 +163,15 @@ func (c *AesCodec) Decrypt(encryptedB64 string) (string, error) {
 
 	decrypted := ciphertext[20 : index+1]
 
-	// verify the integrity digest that Encrypt prepended
-	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array
+	// Integrity check — plaintext-MAC scheme:
+	// Encrypt prepends a 20-byte SHA-1 digest of (iv || plaintext) before
+	// CBC-encrypting the whole payload. We verify that digest here after
+	// decryption. This is NOT Encrypt-then-MAC (the MAC is over plaintext,
+	// not ciphertext), but subtle.ConstantTimeCompare prevents timing leakage
+	// in the comparison itself, mitigating the most practical side-channel
+	// risk in this scheme.
+	//
+	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array.
 	ivCopy := make([]byte, len(iv))
 	copy(ivCopy, iv)
 	expected := Digest(ivCopy, string(decrypted))
@@ -288,8 +295,15 @@ func (c *AesCodec) DecryptBytes(encbytes []byte) ([]byte, error) {
 
 	decrypted := ciphertext[20 : index+1]
 
-	// verify the integrity digest that EncryptBytes prepended
-	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array
+	// Integrity check — plaintext-MAC scheme:
+	// EncryptBytes prepends a 20-byte SHA-1 digest of (iv || plaintext) before
+	// CBC-encrypting the whole payload. We verify that digest here after
+	// decryption. This is NOT Encrypt-then-MAC (the MAC is over plaintext,
+	// not ciphertext), but subtle.ConstantTimeCompare prevents timing leakage
+	// in the comparison itself, mitigating the most practical side-channel
+	// risk in this scheme.
+	//
+	// copy iv to prevent bytes.NewBuffer aliasing the shared backing array.
 	ivCopy := make([]byte, len(iv))
 	copy(ivCopy, iv)
 	expected := DigestBytes(ivCopy, decrypted)

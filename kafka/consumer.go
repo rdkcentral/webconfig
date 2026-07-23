@@ -91,8 +91,12 @@ func (c *Consumer) handleNotification(kafkaKey string, bbytes []byte, fields log
 	}
 
 	// bind the body-claimed device identity to the broker-assigned message key
+	// an empty key means the broker sent no routing identity; reject to prevent spoofing
 	keyMac := strings.ToUpper(strings.TrimPrefix(kafkaKey, "mac:"))
-	if len(keyMac) > 0 && keyMac != cpeMac {
+	if len(keyMac) == 0 {
+		return nil, nil, common.NewError(fmt.Errorf("device_id %v missing kafka key", cpeMac))
+	}
+	if keyMac != cpeMac {
 		return nil, nil, common.NewError(fmt.Errorf("device_id %v does not match kafka key %v", cpeMac, keyMac))
 	}
 
@@ -122,9 +126,13 @@ func (c *Consumer) handleGetMessage(kafkaKey string, inbytes []byte, fields log.
 	rHeader.Set(common.HeaderDeviceId, cpeMac)
 
 	// bind the body-claimed device identity to the broker-assigned message key
+	// an empty key means the broker sent no routing identity; reject to prevent spoofing
 	keyMac := strings.ToUpper(strings.TrimPrefix(kafkaKey, "mac:"))
-	if len(keyMac) > 0 && keyMac != cpeMac {
-		return nil, common.NewError(fmt.Errorf("Device-Id %v does not match kafka key %v", cpeMac, keyMac))
+	if len(keyMac) == 0 {
+		return nil, common.NewError(fmt.Errorf("device_id %v missing kafka key", cpeMac))
+	}
+	if keyMac != cpeMac {
+		return nil, common.NewError(fmt.Errorf("device_id %v does not match kafka key %v", cpeMac, keyMac))
 	}
 
 	fields["cpemac"] = cpeMac

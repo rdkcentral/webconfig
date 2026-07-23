@@ -69,7 +69,7 @@ func sanitizeLogValue(k string, v interface{}) interface{} {
 	case map[string]string:
 		redacted := map[string]string{}
 		for mk, mv := range ty {
-			if isSensitiveLogKey(mk) || k == "header" {
+			if isSensitiveLogKey(mk) {
 				redacted[mk] = "****"
 			} else {
 				redacted[mk] = mv

@@ -54,6 +54,12 @@ const (
 	LevelDebug
 )
 
+// maxBytesAppliedKey is an unexported context key used to mark that
+// http.MaxBytesReader has already been applied to the request body. This
+// prevents double-wrapping when both TestingMiddleware and logRequestStarts
+// are in the same handler chain (test path).
+type maxBytesAppliedKey struct{}
+
 const (
 	MetricsEnabledDefault                = true
 	FactoryResetEnabledDefault           = false
@@ -264,7 +270,13 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	tlsConfig, _ := NewTlsConfig(conf)
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.server_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.server_api_token_auth.enabled is not set in config; defaulting to true (server API token auth enforced). See MIGRATION.md.")
+	}
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.device_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.device_api_token_auth.enabled is not set in config; defaulting to true (device API token auth enforced). See MIGRATION.md.")
+	}
 	tokenApiEnabled := conf.GetBoolean("webconfig.token_api_enabled", tokenApiEnabledDefault)
 
 	var listenHost string
@@ -402,7 +414,10 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
-				r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+				if r.Context().Value(maxBytesAppliedKey{}) == nil {
+					r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+					r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+				}
 				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
@@ -893,7 +908,10 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+			if r.Context().Value(maxBytesAppliedKey{}) == nil {
+				r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+				r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+			}
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err

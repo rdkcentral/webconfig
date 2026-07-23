@@ -36,6 +36,9 @@ testenv:  ## Run all tests sourcing env.sh for TEST_CONFIG_FILE
 build:  ## Build a version
 	go build -v -ldflags="-X ${REPO}/common.BinaryBranch=${BRANCH} -X ${REPO}/common.BinaryVersion=${Version} -X ${REPO}/common.BinaryBuildTime=${BUILDTIME}" -o bin/${PROJ}-${GOOS}-${GOARCH} main.go
 
+# -p=1 forces serial package-level execution to prevent concurrent database
+# fixture access from causing false test failures across packages that share
+# state (e.g., the embedded SQLite client or shared Cassandra keyspace).
 test:
 	go test ./... -cover -count=1 -p=1
 
