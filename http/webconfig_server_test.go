@@ -23,6 +23,13 @@ import (
 	"gotest.tools/assert"
 )
 
+func TestApiTokenAuthSecureDefaults(t *testing.T) {
+	// Admin write endpoints (document, rootdocument, poke, reference) MUST
+	// be guarded by ApiMiddleware out of the box. Regression guard for f003.
+	assert.Assert(t, serverApiTokenAuthEnabledDefault, "server API token auth must default to enabled")
+	assert.Assert(t, deviceApiTokenAuthEnabledDefault, "device API token auth must default to enabled")
+}
+
 func TestWebconfigServerSetterGetter(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 

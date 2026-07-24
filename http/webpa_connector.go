@@ -218,7 +218,8 @@ func (c *WebpaConnector) Patch(rHeader http.Header, cpeMac string, token string,
 			if rherr.StatusCode == 524 {
 				if c.asyncPokeEnabled {
 					c.queue <- struct{}{}
-					go c.AsyncDoWithRetries(method, url, header, bbytes, fields, asyncWebpaServiceName)
+					asyncFields := common.FilterLogFields(fields)
+					go c.AsyncDoWithRetries(method, url, header, bbytes, asyncFields, asyncWebpaServiceName)
 				} else {
 					_, err := c.SyncDoWithRetries(method, url, header, bbytes, fields, webpaServiceName)
 					if err != nil {
