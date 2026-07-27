@@ -148,8 +148,17 @@ func main() {
 				defer consumewg.Done()
 				for {
 					if err := kcgroup.Consume(gCtx, topics, &consumer); err != nil {
-						fmt.Printf("kcgroup.Consumer: err=%v\n", err)
-						return err
+						select {
+						case <-gCtx.Done():
+							fmt.Printf("kcgroup.Consumer: topics=|%v|, shutdown gracefully\n", topics)
+							return nil
+						default:
+							fmt.Printf("kcgroup.Consumer: topics=|%v|, err=%v, retrying in 2s\n", topics, err)
+							time.Sleep(2 * time.Second)
+							if gCtx.Err() != nil {
+								return nil
+							}
+						}
 					}
 					consumer.Ready = make(chan bool)
 				}
