@@ -103,6 +103,15 @@ func otelNoopTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, erro
 	return noop.NewTracerProvider(), nil
 }
 
+func otelResource(xpcTracer *XpcTracer) *resource.Resource {
+	return resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceNameKey.String(xpcTracer.appName),
+		semconv.ServiceNamespaceKey.String(xpcTracer.appEnv),
+		semconv.ServiceVersionKey.String(xpcTracer.appVersion),
+	)
+}
+
 func otelStdoutTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, error) {
 	option := stdouttrace.WithPrettyPrint()
 	exporter, err := stdouttrace.New(option)
@@ -113,13 +122,7 @@ func otelStdoutTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, er
 		sdktrace.WithBatcher(exporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			sdktrace.WithBatchTimeout(time.Second)),
-		sdktrace.WithResource(
-			resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(xpcTracer.appName),
-				semconv.ServiceNamespaceKey.String(xpcTracer.appEnv),
-			),
-		),
+		sdktrace.WithResource(otelResource(xpcTracer)),
 	)
 	return tp, nil
 }
@@ -139,13 +142,7 @@ func otelHttpTraceProvider(xpcTracer *XpcTracer) (oteltrace.TracerProvider, erro
 
 	return sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(
-			resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(xpcTracer.appName),
-				semconv.ServiceNamespaceKey.String(xpcTracer.appEnv),
-			),
-		),
+		sdktrace.WithResource(otelResource(xpcTracer)),
 	), nil
 }
 
