@@ -131,18 +131,23 @@ func TestDictDefaults(t *testing.T) {
 
 func TestHeaderToMap(t *testing.T) {
 	header := make(http.Header)
-	header.Add("Red", "maroon")
-	header.Add("Orange", "auburn")
-	header.Add("Yellow", "amber")
+	header.Add("Content-Type", "application/json")
+	header.Add("Accept", "text/html")
+	header.Add("User-Agent", "go-test")
 
 	expected := map[string]string{
-		"Red":    "maroon",
-		"Orange": "auburn",
-		"Yellow": "amber",
+		"Content-Type": "application/json",
+		"Accept":       "text/html",
+		"User-Agent":   "go-test",
 	}
 
 	m := HeaderToMap(header)
 	assert.DeepEqual(t, m, expected)
+
+	header2 := make(http.Header)
+	header2.Add("Authorization", "secret")
+	m2 := HeaderToMap(header2)
+	assert.DeepEqual(t, m2, map[string]string{"Authorization": "secret"})
 }
 
 func TestHeaderToMapEmptyValueSlice(t *testing.T) {

@@ -24,3 +24,4 @@ bin/*
 openspec/
 .github/
 .claude/
+AGENTS.md
