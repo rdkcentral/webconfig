@@ -117,7 +117,7 @@ func main() {
 	// setup contexts groups
 	g, gCtx := errgroup.WithContext(mainCtx)
 
-	if server.MetricsEnabled() && server.KafkaProducerEnabled() {
+	if server.KafkaProducerEnabled() {
 		go server.HandleKafkaProducerResults(gCtx)
 	}
 
