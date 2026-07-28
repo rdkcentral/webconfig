@@ -154,8 +154,9 @@ func main() {
 							return nil
 						default:
 							fmt.Printf("kcgroup.Consumer: topics=|%v|, err=%v, retrying in 2s\n", topics, err)
-							time.Sleep(2 * time.Second)
-							if gCtx.Err() != nil {
+							select {
+							case <-time.After(2 * time.Second):
+							case <-gCtx.Done():
 								return nil
 							}
 						}
@@ -164,10 +165,14 @@ func main() {
 				}
 			},
 		)
-		// This is to setup notify AFTER the sarama is running
-		// it is more or less optional, without this reading from the chan,
-		// the consumer runs anyway.
-		<-consumer.Ready
+		// Wait for the first session to be established before starting the next
+		// consumer group. Context-aware: if Kafka is unreachable on startup and
+		// the context is cancelled (e.g. SIGTERM), we stop waiting rather than
+		// deadlocking until Setup() is eventually called.
+		select {
+		case <-consumer.Ready:
+		case <-gCtx.Done():
+		}
 	}
 
 	// Single shutdown goroutine with ordered cleanup:
