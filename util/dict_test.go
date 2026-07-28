@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package util
 
 import (
@@ -131,16 +131,33 @@ func TestDictDefaults(t *testing.T) {
 
 func TestHeaderToMap(t *testing.T) {
 	header := make(http.Header)
-	header.Add("Red", "maroon")
-	header.Add("Orange", "auburn")
-	header.Add("Yellow", "amber")
+	header.Add("Content-Type", "application/json")
+	header.Add("Accept", "text/html")
+	header.Add("User-Agent", "go-test")
 
 	expected := map[string]string{
-		"Red":    "maroon",
-		"Orange": "auburn",
-		"Yellow": "amber",
+		"Content-Type": "application/json",
+		"Accept":       "text/html",
+		"User-Agent":   "go-test",
 	}
 
 	m := HeaderToMap(header)
 	assert.DeepEqual(t, m, expected)
+
+	header2 := make(http.Header)
+	header2.Add("Authorization", "secret")
+	m2 := HeaderToMap(header2)
+	assert.DeepEqual(t, m2, map[string]string{"Authorization": "secret"})
+}
+
+func TestHeaderToMapEmptyValueSlice(t *testing.T) {
+	// A header key present with no values should not panic and should map to "".
+	header := http.Header{
+		"Content-Type": {"application/json"},
+		"X-Empty":      {},
+	}
+
+	m := HeaderToMap(header)
+	assert.Equal(t, m["Content-Type"], "application/json")
+	assert.Equal(t, m["X-Empty"], "")
 }

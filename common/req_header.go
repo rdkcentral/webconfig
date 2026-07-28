@@ -35,7 +35,7 @@ func NewReqHeader(header http.Header) *ReqHeader {
 func (h *ReqHeader) Get(k string) (string, error) {
 	v := h.Header.Get(k)
 	if !IsPrintable([]byte(v)) {
-		return "", fmt.Errorf("header %v invalid value %v discarded", k, v)
+		return "", fmt.Errorf("header %v contains non-printable characters and was discarded", k)
 	}
 	return v, nil
 }

@@ -206,10 +206,19 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 	keyFile := dbconf.GetString("tls.key_file")
 	caCertFile := dbconf.GetString("tls.ca_cert_file")
 
-	// Create TLS config for Cassandra connection with compatible cipher suite
-	// Cassandra 3.11.x requires specific cipher suites that are disabled by default in newer Go crypto
+	// Create TLS config for Cassandra connection.
+	// Prefer modern ECDHE+AEAD suites for forward secrecy; keep TLS_RSA_WITH_AES_128_CBC_SHA
+	// last as a fallback for legacy Cassandra 3.11.x nodes that only negotiate that suite.
 	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
 		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+			// Legacy fallback for Cassandra 3.11.x — do not remove
 			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 		},
 		InsecureSkipVerify: insecureSkipVerify,

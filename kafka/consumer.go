@@ -77,7 +77,7 @@ func (c *Consumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common.EventMessage, []string, error) {
+func (c *Consumer) handleNotification(kafkaKey string, bbytes []byte, fields log.Fields) (*common.EventMessage, []string, error) {
 	var m common.EventMessage
 	err := json.Unmarshal(bbytes, &m)
 	if err != nil {
@@ -88,6 +88,16 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 	cpeMac, err := m.Validate(true)
 	if err != nil {
 		return nil, nil, common.NewError(err)
+	}
+
+	// bind the body-claimed device identity to the broker-assigned message key
+	// an empty key means the broker sent no routing identity; reject to prevent spoofing
+	keyMac := strings.ToUpper(strings.TrimPrefix(kafkaKey, "mac:"))
+	if len(keyMac) == 0 {
+		return nil, nil, common.NewError(fmt.Errorf("device_id %v missing kafka key", cpeMac))
+	}
+	if keyMac != cpeMac {
+		return nil, nil, common.NewError(fmt.Errorf("device_id %v does not match kafka key %v", cpeMac, keyMac))
 	}
 
 	if m.ErrorDetails != nil && *m.ErrorDetails == "max_retry_reached" {
@@ -105,7 +115,7 @@ func (c *Consumer) handleNotification(bbytes []byte, fields log.Fields) (*common
 }
 
 // NOTE we choose to return an EventMessage object just to pass along the metricsAgent
-func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.EventMessage, error) {
+func (c *Consumer) handleGetMessage(kafkaKey string, inbytes []byte, fields log.Fields) (*common.EventMessage, error) {
 	rHeader, _ := util.ParseHttp(inbytes)
 	params := rHeader.Get(common.HeaderDocName)
 	cpeMac := rHeader.Get(common.HeaderDeviceId)
@@ -115,7 +125,16 @@ func (c *Consumer) handleGetMessage(inbytes []byte, fields log.Fields) (*common.
 	cpeMac = strings.ToUpper(cpeMac)
 	rHeader.Set(common.HeaderDeviceId, cpeMac)
 
-	// TODO parse themis token and extract mac
+	// bind the body-claimed device identity to the broker-assigned message key
+	// an empty key means the broker sent no routing identity; reject to prevent spoofing
+	keyMac := strings.ToUpper(strings.TrimPrefix(kafkaKey, "mac:"))
+	if len(keyMac) == 0 {
+		return nil, common.NewError(fmt.Errorf("device_id %v missing kafka key", cpeMac))
+	}
+	if keyMac != cpeMac {
+		return nil, common.NewError(fmt.Errorf("device_id %v does not match kafka key %v", cpeMac, keyMac))
+	}
+
 	fields["cpemac"] = cpeMac
 	fields["cpe_mac"] = cpeMac
 	if len(params) > 0 {
@@ -210,15 +229,15 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			eventName, rptHeaderValue := getEventName(message)
 			switch eventName {
 			case "mqtt-get":
-				m, err = c.handleGetMessage(message.Value, fields)
+				m, err = c.handleGetMessage(kafkaKey, message.Value, fields)
 				logMessage = "Request Finished"
 			case "mqtt-state":
 				header, bbytes := util.ParseHttp(message.Value)
 				fields["destination"] = header.Get("Destination")
-				m, updatedSubdocIds, err = c.handleNotification(bbytes, fields)
+				m, updatedSubdocIds, err = c.handleNotification(kafkaKey, bbytes, fields)
 				logMessage = "ok"
 			case "webpa-state":
-				m, updatedSubdocIds, err = c.handleNotification(message.Value, fields)
+				m, updatedSubdocIds, err = c.handleNotification(kafkaKey, message.Value, fields)
 				logMessage = "ok"
 			}
 
