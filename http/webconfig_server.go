@@ -1123,6 +1123,9 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 
 	defer func() {
 		if r := recover(); r != nil {
+			if fmt.Sprint(r) != "send on closed channel" {
+				panic(r)
+			}
 			if m := s.Metrics(); m != nil {
 				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
 			}
@@ -1170,6 +1173,9 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		sent := func() (ok bool) {
 			defer func() {
 				if r := recover(); r != nil {
+					if fmt.Sprint(r) != "send on closed channel" {
+						panic(r)
+					}
 					tfields["error"] = r
 					log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
 					ok = false
@@ -1235,7 +1241,10 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case success := <-s.Successes():
+		case success, ok := <-s.Successes():
+			if !ok {
+				return
+			}
 			if success == nil {
 				continue
 			}
@@ -1245,7 +1254,10 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 			fields["output_partition"] = success.Partition
 			fields["output_offset"] = success.Offset
 			log.WithFields(fields).Debug("sent")
-		case pErr := <-s.Errors():
+		case pErr, ok := <-s.Errors():
+			if !ok {
+				return
+			}
 			if pErr == nil || pErr.Msg == nil {
 				continue
 			}
