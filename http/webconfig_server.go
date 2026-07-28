@@ -287,7 +287,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
-	appName := conf.GetString("webconfig.app_name")
+	appName := conf.GetString("webconfig.app_name", "webconfig")
 	validateMacEnabled := conf.GetBoolean("webconfig.validate_device_id_as_mac_address", tokenApiEnabledDefault)
 	configValidPartners := conf.GetStringList("webconfig.valid_partners")
 	validPartners := []string{}
@@ -313,6 +313,41 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 		saramaConfig := sarama.NewConfig()
 		saramaConfig.Producer.Return.Errors = true
+
+		// Resilience tuning — survive Kafka broker restarts without restarting the app.
+		//
+		// Metadata.Retry.Max: lib default 3  → now 10 (configurable)
+		//   Extends retry window to 10×2s = 20s, covering the cluster stabilisation
+		//   window during leader election after a broker restart.
+		saramaConfig.Metadata.Retry.Max = int(conf.GetInt32("webconfig.kafka_producer.metadata.retry_max", 10))
+
+		// Metadata.Retry.Backoff: lib default 250ms → now 2s (configurable)
+		//   Prevents rapid-fire retries against a restarting broker; paced to give
+		//   the cluster time to stabilise between attempts.
+		saramaConfig.Metadata.Retry.Backoff = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.retry_backoff_sec", 2)) * time.Second
+
+		// Metadata.RefreshFrequency: lib default 10min → now 5min (configurable)
+		//   Proactive background refresh. Catches stale partition leaders (caused by
+		//   broker restarts) up to 5min sooner than the library default.
+		saramaConfig.Metadata.RefreshFrequency = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.refresh_frequency_sec", 300)) * time.Second
+
+		// Producer.Retry.Max: lib default 3  → now 10 (configurable)
+		//   Internal send retries before a message is put on the Errors() channel.
+		//   Mirrors Metadata.Retry.Max — gives the producer the same tolerance for
+		//   transient broker unavailability as the consumer has for metadata fetches.
+		saramaConfig.Producer.Retry.Max = int(conf.GetInt32("webconfig.kafka_producer.producer.retry_max", 10))
+
+		// Producer.Retry.Backoff: lib default 100ms → now 2s (configurable)
+		//   Matches Metadata.Retry.Backoff cadence; avoids hammering a restarting broker.
+		saramaConfig.Producer.Retry.Backoff = time.Duration(conf.GetInt32("webconfig.kafka_producer.producer.retry_backoff_sec", 2)) * time.Second
+
+		// Net.DialTimeout / ReadTimeout / WriteTimeout: lib default 30s → now 10s (configurable)
+		//   Tighter timeouts let the retry loop engage within 10s per attempt instead
+		//   of blocking for 30s. Fail-fast on broken broker connections.
+		producerNetTimeout := time.Duration(conf.GetInt32("webconfig.kafka_producer.net.timeout_sec", 10)) * time.Second
+		saramaConfig.Net.DialTimeout = producerNetTimeout
+		saramaConfig.Net.ReadTimeout = producerNetTimeout
+		saramaConfig.Net.WriteTimeout = producerNetTimeout
 
 		// Load TLS configuration for producer
 		tlsConfig, err := common.LoadKafkaTLSConfig(conf, "webconfig.kafka_producer")
@@ -1085,6 +1120,18 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 		Key:   sarama.ByteEncoder(kbytes),
 		Value: sarama.ByteEncoder(bbytes),
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if m := s.Metrics(); m != nil {
+				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
+			}
+			tfields["logger"] = "kafkaproducer"
+			tfields["error"] = r
+			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+		}
+	}()
+
 	s.Input() <- outMessage
 
 	tfields["logger"] = "kafkaproducer"
@@ -1119,7 +1166,21 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 			Key:   sarama.ByteEncoder(strings.ToLower(mac)),
 			Value: sarama.ByteEncoder(bbytes),
 		}
-		s.Input() <- outMessage
+
+		sent := func() (ok bool) {
+			defer func() {
+				if r := recover(); r != nil {
+					tfields["error"] = r
+					log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+					ok = false
+				}
+			}()
+			s.Input() <- outMessage
+			return true
+		}()
+		if !sent {
+			return
+		}
 
 		tfields["output_key"] = mac
 		tfields["output_body"] = m
@@ -1165,13 +1226,15 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	log.WithFields(tfields).Debug(tokenErr)
 }
 
-func (s *WebconfigServer) HandleKafkaProducerResults() {
+func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 	if s.AsyncProducer == nil {
 		return
 	}
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case success := <-s.Successes():
 			if success == nil {
 				continue
