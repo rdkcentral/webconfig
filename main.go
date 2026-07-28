@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -107,9 +108,6 @@ func main() {
 		router.Handle("/metrics", promhttp.Handler())
 		metrics = common.NewMetrics(sc.Config)
 		server.SetMetrics(metrics)
-		if server.KafkaProducerEnabled() {
-			go server.HandleKafkaProducerResults()
-		}
 		handler := metrics.WebMetrics(router)
 		server.Handler = handler
 	} else {
@@ -119,23 +117,14 @@ func main() {
 	// setup contexts groups
 	g, gCtx := errgroup.WithContext(mainCtx)
 
+	if server.KafkaProducerEnabled() {
+		go server.HandleKafkaProducerResults(gCtx)
+	}
+
 	// setup http server
 	g.Go(
 		func() error {
 			return server.ListenAndServe()
-		},
-	)
-
-	g.Go(
-		func() error {
-			<-gCtx.Done()
-			fmt.Printf("HTTP server shutdown NOW !!\n")
-			if server.KafkaProducerEnabled() {
-				if err := server.AsyncProducer.Close(); err != nil {
-					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
-				}
-			}
-			return server.Shutdown(context.Background())
 		},
 	)
 
@@ -145,34 +134,72 @@ func main() {
 		panic(err)
 	}
 
+	// consumeWg tracks active consume loops so shutdown can wait for them to
+	// finish before closing the AsyncProducer (prevents "send on closed channel").
+	var consumeWg sync.WaitGroup
+
 	for _, kcgroup := range kcgroups {
-		consumer := *(kcgroup.Consumer())
+		consumer := kcgroup.Consumer()
 		topics := kcgroup.Topics()
+		consumeWg.Add(1)
 
 		g.Go(
 			func() error {
+				defer consumeWg.Done()
 				for {
-					if err := kcgroup.Consume(gCtx, topics, &consumer); err != nil {
-						fmt.Printf("kcgroup.Consumer: err=%v\n", err)
-						return err
+					if err := kcgroup.Consume(gCtx, topics, consumer); err != nil {
+						select {
+						case <-gCtx.Done():
+							fmt.Printf("kcgroup.Consumer: topics=|%v|, shutdown gracefully\n", topics)
+							return nil
+						default:
+							fmt.Printf("kcgroup.Consumer: topics=|%v|, err=%v, retrying in 2s\n", topics, err)
+							select {
+							case <-time.After(2 * time.Second):
+							case <-gCtx.Done():
+								return nil
+							}
+						}
 					}
 					consumer.Ready = make(chan bool)
 				}
 			},
 		)
-		// This is to setup notify AFTER the sarama is running
-		// it is more or less optional, without this reading from the chan,
-		// the consumer runs anyway.
-		<-consumer.Ready
-
-		g.Go(
-			func() error {
-				<-gCtx.Done()
-				fmt.Printf("SARAMA shutdown NOW !!\n")
-				return kcgroup.Close()
-			},
-		)
+		// Wait for the first session to be established before starting the next
+		// consumer group. Context-aware: if Kafka is unreachable on startup and
+		// the context is cancelled (e.g. SIGTERM), we stop waiting rather than
+		// deadlocking until Setup() is eventually called.
+		select {
+		case <-consumer.Ready:
+		case <-gCtx.Done():
+		}
 	}
+
+	// Single shutdown goroutine with ordered cleanup:
+	// 1. close consumer groups (signals ConsumeClaim goroutines to stop)
+	// 2. wait for all consume loops to drain (ensures no goroutine is mid-send)
+	// 3. close AsyncProducer (safe now that no one sends to its Input channel)
+	// 4. shut down HTTP server
+	g.Go(
+		func() error {
+			<-gCtx.Done()
+			fmt.Printf("shutdown: initiating consumer group shutdown\n")
+			for _, kcgroup := range kcgroups {
+				if err := kcgroup.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "kcgroup.Close() err=%v\n", err)
+				}
+			}
+			consumeWg.Wait()
+			fmt.Printf("shutdown: all consumer loops drained\n")
+			if server.KafkaProducerEnabled() {
+				if err := server.AsyncProducer.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
+				}
+			}
+			fmt.Printf("shutdown: stopping HTTP server\n")
+			return server.Shutdown(context.Background())
+		},
+	)
 
 	if err := g.Wait(); err != nil {
 		fmt.Printf("exit reason: %s \n", err)

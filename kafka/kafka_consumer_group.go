@@ -29,6 +29,14 @@ import (
 	wchttp "github.com/rdkcentral/webconfig/http"
 )
 
+const (
+	// Resilience defaults — configurable via webconfig.kafka.* keys.
+	defaultMetadataRetryMax        = 10
+	defaultMetadataRetryBackoffSec = 2
+	defaultNetTimeoutSec           = 10
+	defaultSessionTimeoutSec       = 30
+)
+
 type KafkaConsumerGroup struct {
 	sarama.ConsumerGroup
 	db.DatabaseClient
@@ -102,6 +110,48 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 			return nil, common.NewError(err)
 		}
 	}
+
+	// Resilience tuning — survive Kafka broker restarts without restarting the app.
+	//
+	// Metadata.Retry.Max: lib default 3  → now 10 (configurable)
+	//   Extends retry window to 10×2s = 20s, covering the cluster stabilisation
+	//   window during leader election after a broker restart.
+	sconfig.Metadata.Retry.Max = int(conf.GetInt32(prefix+".metadata.retry_max", defaultMetadataRetryMax))
+
+	// Metadata.Retry.Backoff: lib default 250ms → now 2s (configurable)
+	//   Prevents rapid-fire retries against a restarting broker; paced to give
+	//   the cluster time to stabilise between attempts.
+	sconfig.Metadata.Retry.Backoff = time.Duration(conf.GetInt32(prefix+".metadata.retry_backoff_sec", defaultMetadataRetryBackoffSec)) * time.Second
+
+	// Metadata.RefreshFrequency: lib default 10min → now 5min (configurable)
+	//   Proactive background refresh. Catches stale partition leaders (caused by
+	//   broker restarts) up to 5min sooner than the library default.
+	sconfig.Metadata.RefreshFrequency = time.Duration(conf.GetInt32(prefix+".metadata.refresh_frequency_sec", 300)) * time.Second
+
+	// Consumer.Group.Session.Timeout: lib default 10s → now 30s (configurable)
+	//   Time before the broker evicts a consumer whose heartbeats have stopped.
+	//   30s gives the consumer group time to survive a restarting group coordinator
+	//   without triggering an unnecessary rebalance.
+	//
+	// Consumer.Group.Heartbeat.Interval: lib default 3s → now Session.Timeout/6 = 5s
+	//   The Kafka protocol ceiling is Session.Timeout/3 (10s). Using /6 keeps the
+	//   interval at half the ceiling, providing headroom for transient network jitter
+	//   during broker restarts without risking false session expiry.
+	sessionTimeout := time.Duration(conf.GetInt32(prefix+".consumer.session_timeout_sec", defaultSessionTimeoutSec)) * time.Second
+	sconfig.Consumer.Group.Session.Timeout = sessionTimeout
+	sconfig.Consumer.Group.Heartbeat.Interval = sessionTimeout / 6
+
+	// Consumer.Retry.Backoff: lib default 2s (configurable)
+	//   How long a partition reader waits before retrying a failed fetch.
+	sconfig.Consumer.Retry.Backoff = time.Duration(conf.GetInt32(prefix+".consumer.retry_backoff_sec", 2)) * time.Second
+
+	// Net.DialTimeout / ReadTimeout / WriteTimeout: lib default 30s → now 10s (configurable)
+	//   Tighter timeouts let the retry loop engage within 10s per attempt instead
+	//   of blocking for 30s. Fail-fast on broken broker connections.
+	netTimeout := time.Duration(conf.GetInt32(prefix+".net.timeout_sec", defaultNetTimeoutSec)) * time.Second
+	sconfig.Net.DialTimeout = netTimeout
+	sconfig.Net.ReadTimeout = netTimeout
+	sconfig.Net.WriteTimeout = netTimeout
 
 	// Load TLS configuration
 	tlsConfig, err := common.LoadKafkaTLSConfig(conf, prefix)
