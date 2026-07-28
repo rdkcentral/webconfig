@@ -123,10 +123,10 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 	//   the cluster time to stabilise between attempts.
 	sconfig.Metadata.Retry.Backoff = time.Duration(conf.GetInt32(prefix+".metadata.retry_backoff_sec", defaultMetadataRetryBackoffSec)) * time.Second
 
-	// Metadata.RefreshFrequency: lib default 10min → now 5min (hardcoded)
+	// Metadata.RefreshFrequency: lib default 10min → now 5min (configurable)
 	//   Proactive background refresh. Catches stale partition leaders (caused by
 	//   broker restarts) up to 5min sooner than the library default.
-	sconfig.Metadata.RefreshFrequency = 5 * time.Minute
+	sconfig.Metadata.RefreshFrequency = time.Duration(conf.GetInt32(prefix+".metadata.refresh_frequency_sec", 300)) * time.Second
 
 	// Consumer.Group.Session.Timeout: lib default 10s → now 30s (configurable)
 	//   Time before the broker evicts a consumer whose heartbeats have stopped.
@@ -141,9 +141,9 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 	sconfig.Consumer.Group.Session.Timeout = sessionTimeout
 	sconfig.Consumer.Group.Heartbeat.Interval = sessionTimeout / 6
 
-	// Consumer.Retry.Backoff: lib default 2s → 2s (unchanged, set explicitly for clarity)
+	// Consumer.Retry.Backoff: lib default 2s (configurable)
 	//   How long a partition reader waits before retrying a failed fetch.
-	sconfig.Consumer.Retry.Backoff = 2 * time.Second
+	sconfig.Consumer.Retry.Backoff = time.Duration(conf.GetInt32(prefix+".consumer.retry_backoff_sec", 2)) * time.Second
 
 	// Net.DialTimeout / ReadTimeout / WriteTimeout: lib default 30s → now 10s (configurable)
 	//   Tighter timeouts let the retry loop engage within 10s per attempt instead

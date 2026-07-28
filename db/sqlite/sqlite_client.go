@@ -57,7 +57,7 @@ func NewSqliteClient(conf *configuration.Config, testOnly bool) (*SqliteClient, 
 	var dbfile string
 	if testOnly {
 		dbfile = conf.GetString("webconfig.database.sqlite.unittest_db_file", defaultSqliteTestDbFile)
-		if x := os.Getenv("TESTDB_SQLITE_FILE"); len(x) > 0 {
+		if x := os.Getenv("WEBCONFIG_TESTDB_SQLITE_FILE"); len(x) > 0 {
 			dbfile = x
 		}
 	} else {

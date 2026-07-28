@@ -108,9 +108,6 @@ func main() {
 		router.Handle("/metrics", promhttp.Handler())
 		metrics = common.NewMetrics(sc.Config)
 		server.SetMetrics(metrics)
-		if server.KafkaProducerEnabled() {
-			go server.HandleKafkaProducerResults()
-		}
 		handler := metrics.WebMetrics(router)
 		server.Handler = handler
 	} else {
@@ -119,6 +116,10 @@ func main() {
 
 	// setup contexts groups
 	g, gCtx := errgroup.WithContext(mainCtx)
+
+	if server.MetricsEnabled() && server.KafkaProducerEnabled() {
+		go server.HandleKafkaProducerResults(gCtx)
+	}
 
 	// setup http server
 	g.Go(
@@ -138,16 +139,15 @@ func main() {
 	var consumeWg sync.WaitGroup
 
 	for _, kcgroup := range kcgroups {
-		consumer := *(kcgroup.Consumer())
+		consumer := kcgroup.Consumer()
 		topics := kcgroup.Topics()
-		consumewg := &consumeWg
-		consumewg.Add(1)
+		consumeWg.Add(1)
 
 		g.Go(
 			func() error {
-				defer consumewg.Done()
+				defer consumeWg.Done()
 				for {
-					if err := kcgroup.Consume(gCtx, topics, &consumer); err != nil {
+					if err := kcgroup.Consume(gCtx, topics, consumer); err != nil {
 						select {
 						case <-gCtx.Done():
 							fmt.Printf("kcgroup.Consumer: topics=|%v|, shutdown gracefully\n", topics)
@@ -178,19 +178,20 @@ func main() {
 	g.Go(
 		func() error {
 			<-gCtx.Done()
-			fmt.Printf("SARAMA shutdown NOW !!\n")
+			fmt.Printf("shutdown: initiating consumer group shutdown\n")
 			for _, kcgroup := range kcgroups {
 				if err := kcgroup.Close(); err != nil {
 					fmt.Fprintf(os.Stderr, "kcgroup.Close() err=%v\n", err)
 				}
 			}
 			consumeWg.Wait()
-			fmt.Printf("HTTP server shutdown NOW !!\n")
+			fmt.Printf("shutdown: all consumer loops drained\n")
 			if server.KafkaProducerEnabled() {
 				if err := server.AsyncProducer.Close(); err != nil {
 					fmt.Fprintf(os.Stderr, "%v AsyncProducer.Close() err=%v\n", time.Now().Format(common.LoggingTimeFormat), err)
 				}
 			}
+			fmt.Printf("shutdown: stopping HTTP server\n")
 			return server.Shutdown(context.Background())
 		},
 	)

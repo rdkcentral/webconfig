@@ -287,7 +287,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
-	appName := conf.GetString("webconfig.app_name")
+	appName := conf.GetString("webconfig.app_name", "webconfig")
 	validateMacEnabled := conf.GetBoolean("webconfig.validate_device_id_as_mac_address", tokenApiEnabledDefault)
 	configValidPartners := conf.GetStringList("webconfig.valid_partners")
 	validPartners := []string{}
@@ -326,10 +326,10 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		//   the cluster time to stabilise between attempts.
 		saramaConfig.Metadata.Retry.Backoff = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.retry_backoff_sec", 2)) * time.Second
 
-		// Metadata.RefreshFrequency: lib default 10min → now 5min (hardcoded)
+		// Metadata.RefreshFrequency: lib default 10min → now 5min (configurable)
 		//   Proactive background refresh. Catches stale partition leaders (caused by
 		//   broker restarts) up to 5min sooner than the library default.
-		saramaConfig.Metadata.RefreshFrequency = 5 * time.Minute
+		saramaConfig.Metadata.RefreshFrequency = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.refresh_frequency_sec", 300)) * time.Second
 
 		// Producer.Retry.Max: lib default 3  → now 10 (configurable)
 		//   Internal send retries before a message is put on the Errors() channel.
@@ -1123,6 +1123,9 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 
 	defer func() {
 		if r := recover(); r != nil {
+			if m := s.Metrics(); m != nil {
+				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
+			}
 			tfields["logger"] = "kafkaproducer"
 			tfields["error"] = r
 			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
@@ -1223,13 +1226,15 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	log.WithFields(tfields).Debug(tokenErr)
 }
 
-func (s *WebconfigServer) HandleKafkaProducerResults() {
+func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 	if s.AsyncProducer == nil {
 		return
 	}
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case success := <-s.Successes():
 			if success == nil {
 				continue
