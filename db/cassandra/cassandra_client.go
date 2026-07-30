@@ -36,13 +36,19 @@ import (
 )
 
 const (
-	ProtocolVersion               = 4
-	DefaultKeyspace               = "webconfig"
-	DefaultTestKeyspace           = "test_webconfig"
-	DisableInitialHostLookup      = false
-	DefaultSleepTimeInMillisecond = 10
-	DefaultConnections            = 2
-	DefaultPageSize               = 50
+	ProtocolVersion                   = 4
+	DefaultKeyspace                   = "webconfig"
+	DefaultTestKeyspace               = "test_webconfig"
+	DisableInitialHostLookup          = false
+	DefaultSleepTimeInMillisecond     = 10
+	DefaultConnections                = 5
+	DefaultPageSize                   = 50
+	DefaultTimeoutSec                 = 10
+	DefaultConnectTimeoutSec          = 10
+	DefaultSocketKeepaliveSec         = 30
+	DefaultReconnectInitialIntervalMs = 2000
+	DefaultReconnectMaxRetries        = 5
+	DefaultReconnectMaxIntervalSec    = 60
 )
 
 // if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
@@ -104,9 +110,10 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	cluster.Consistency = gocql.LocalQuorum
 	cluster.ProtoVersion = ProtocolVersion
 	cluster.DisableInitialHostLookup = DisableInitialHostLookup
-	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
-	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
+	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", DefaultTimeoutSec)) * time.Second
+	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", DefaultConnectTimeoutSec)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
+	cluster.SocketKeepalive = time.Duration(dbconf.GetInt32("socket_keepalive_sec", DefaultSocketKeepaliveSec)) * time.Second
 
 	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
 		ConsistencyLevelsToTry: []gocql.Consistency{
@@ -116,9 +123,20 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		},
 	}
 
+	reconnectIntervalMs := dbconf.GetInt32("reconnect_initial_interval_ms", DefaultReconnectInitialIntervalMs)
+	reconnectMaxRetries := int(dbconf.GetInt32("reconnect_max_retries", DefaultReconnectMaxRetries))
+	reconnectMaxIntervalSec := dbconf.GetInt32("reconnect_max_interval_sec", DefaultReconnectMaxIntervalSec)
+	cluster.ReconnectionPolicy = &gocql.ExponentialReconnectionPolicy{
+		InitialInterval: time.Duration(reconnectIntervalMs) * time.Millisecond,
+		MaxRetries:      reconnectMaxRetries,
+		MaxInterval:     time.Duration(reconnectMaxIntervalSec) * time.Second,
+	}
+
 	localDc := dbconf.GetString("local_dc")
 	if len(localDc) > 0 {
-		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
+		cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(
+			gocql.DCAwareRoundRobinPolicy(localDc),
+		)
 	}
 
 	var password string
@@ -145,6 +163,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	if isSslEnabled {
+		insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
 		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver)
 		if err != nil {
 			return nil, common.NewError(err)
@@ -152,7 +171,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 		sslOpts := &gocql.SslOptions{
 			Config:                 tlsConfig,
-			EnableHostVerification: false,
+			EnableHostVerification: !insecureSkipVerify,
 		}
 
 		cluster.SslOpts = sslOpts
@@ -205,12 +224,14 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 	certFile := dbconf.GetString("tls.cert_file")
 	keyFile := dbconf.GetString("tls.key_file")
 	caCertFile := dbconf.GetString("tls.ca_cert_file")
+	serverName := dbconf.GetString("tls.server_name")
 
 	// Create TLS config for Cassandra connection.
 	// Prefer modern ECDHE+AEAD suites for forward secrecy; keep TLS_RSA_WITH_AES_128_CBC_SHA
 	// last as a fallback for legacy Cassandra 3.11.x nodes that only negotiate that suite.
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		ServerName: serverName,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -323,6 +344,25 @@ func (c *CassandraClient) Codec() *security.AesCodec {
 
 func (c *CassandraClient) IsDbNotFound(err error) bool {
 	return errors.Is(err, gocql.ErrNotFound)
+}
+
+// IsDbTransientError returns true for errors that are transient and potentially
+// retryable: pool exhaustion, unavailability, or connection startup failure.
+func (c *CassandraClient) IsDbTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gocql.ErrNoConnections) {
+		return true
+	}
+	if errors.Is(err, gocql.ErrNoConnectionsStarted) {
+		return true
+	}
+	var unavail *gocql.RequestErrUnavailable
+	if errors.As(err, &unavail) {
+		return true
+	}
+	return false
 }
 
 func (c *CassandraClient) Close() error {
