@@ -41,7 +41,7 @@ const (
 	DefaultTestKeyspace               = "test_webconfig"
 	DisableInitialHostLookup          = false
 	DefaultSleepTimeInMillisecond     = 10
-	DefaultConnections                = 5
+	DefaultConnections                = 2
 	DefaultPageSize                   = 50
 	DefaultTimeoutSec                 = 10
 	DefaultConnectTimeoutSec          = 10
@@ -164,7 +164,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	if isSslEnabled {
 		insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
-		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver)
+		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver, insecureSkipVerify)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
@@ -216,10 +216,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 // loadCassandraTLSConfig loads TLS configuration for Cassandra connection.
 // Returns a tls.Config with certificates loaded from the configuration.
 // The function expects tls.{} block under the database driver config (cassandra or yugabyte).
-func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls.Config, error) {
-	// Check insecure_skip_verify flag first
-	insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
-
+func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string, insecureSkipVerify bool) (*tls.Config, error) {
 	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
 	certFile := dbconf.GetString("tls.cert_file")
 	keyFile := dbconf.GetString("tls.key_file")
@@ -344,25 +341,6 @@ func (c *CassandraClient) Codec() *security.AesCodec {
 
 func (c *CassandraClient) IsDbNotFound(err error) bool {
 	return errors.Is(err, gocql.ErrNotFound)
-}
-
-// IsDbTransientError returns true for errors that are transient and potentially
-// retryable: pool exhaustion, unavailability, or connection startup failure.
-func (c *CassandraClient) IsDbTransientError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, gocql.ErrNoConnections) {
-		return true
-	}
-	if errors.Is(err, gocql.ErrNoConnectionsStarted) {
-		return true
-	}
-	var unavail *gocql.RequestErrUnavailable
-	if errors.As(err, &unavail) {
-		return true
-	}
-	return false
 }
 
 func (c *CassandraClient) Close() error {
