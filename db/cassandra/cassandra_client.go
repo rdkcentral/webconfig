@@ -36,13 +36,19 @@ import (
 )
 
 const (
-	ProtocolVersion               = 4
-	DefaultKeyspace               = "webconfig"
-	DefaultTestKeyspace           = "test_webconfig"
-	DisableInitialHostLookup      = false
-	DefaultSleepTimeInMillisecond = 10
-	DefaultConnections            = 2
-	DefaultPageSize               = 50
+	ProtocolVersion                   = 4
+	DefaultKeyspace                   = "webconfig"
+	DefaultTestKeyspace               = "test_webconfig"
+	DefaultDisableInitialHostLookup   = false
+	DefaultSleepTimeInMillisecond     = 10
+	DefaultConnections                = 2
+	DefaultPageSize                   = 50
+	DefaultTimeoutSec                 = 10
+	DefaultConnectTimeoutSec          = 10
+	DefaultSocketKeepaliveSec         = 30
+	DefaultReconnectInitialIntervalMs = 2000
+	DefaultReconnectMaxRetries        = 10
+	DefaultReconnectMaxIntervalSec    = 60
 )
 
 // if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
@@ -103,10 +109,11 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	cluster.Consistency = gocql.LocalQuorum
 	cluster.ProtoVersion = ProtocolVersion
-	cluster.DisableInitialHostLookup = DisableInitialHostLookup
-	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
-	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
+	cluster.DisableInitialHostLookup = dbconf.GetBoolean("disable_initial_host_lookup", DefaultDisableInitialHostLookup)
+	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", DefaultTimeoutSec)) * time.Second
+	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", DefaultConnectTimeoutSec)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
+	cluster.SocketKeepalive = time.Duration(dbconf.GetInt32("socket_keepalive_sec", DefaultSocketKeepaliveSec)) * time.Second
 
 	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
 		ConsistencyLevelsToTry: []gocql.Consistency{
@@ -116,9 +123,20 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		},
 	}
 
+	reconnectIntervalMs := dbconf.GetInt32("reconnect_initial_interval_ms", DefaultReconnectInitialIntervalMs)
+	reconnectMaxRetries := int(dbconf.GetInt32("reconnect_max_retries", DefaultReconnectMaxRetries))
+	reconnectMaxIntervalSec := dbconf.GetInt32("reconnect_max_interval_sec", DefaultReconnectMaxIntervalSec)
+	cluster.ReconnectionPolicy = &gocql.ExponentialReconnectionPolicy{
+		InitialInterval: time.Duration(reconnectIntervalMs) * time.Millisecond,
+		MaxRetries:      reconnectMaxRetries,
+		MaxInterval:     time.Duration(reconnectMaxIntervalSec) * time.Second,
+	}
+
 	localDc := dbconf.GetString("local_dc")
 	if len(localDc) > 0 {
-		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
+		cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(
+			gocql.DCAwareRoundRobinPolicy(localDc),
+		)
 	}
 
 	var password string
@@ -145,14 +163,15 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	if isSslEnabled {
-		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver)
+		insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
+		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver, insecureSkipVerify)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
 
 		sslOpts := &gocql.SslOptions{
 			Config:                 tlsConfig,
-			EnableHostVerification: false,
+			EnableHostVerification: !insecureSkipVerify,
 		}
 
 		cluster.SslOpts = sslOpts
@@ -197,20 +216,19 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 // loadCassandraTLSConfig loads TLS configuration for Cassandra connection.
 // Returns a tls.Config with certificates loaded from the configuration.
 // The function expects tls.{} block under the database driver config (cassandra or yugabyte).
-func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls.Config, error) {
-	// Check insecure_skip_verify flag first
-	insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
-
+func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string, insecureSkipVerify bool) (*tls.Config, error) {
 	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
 	certFile := dbconf.GetString("tls.cert_file")
 	keyFile := dbconf.GetString("tls.key_file")
 	caCertFile := dbconf.GetString("tls.ca_cert_file")
+	serverName := dbconf.GetString("tls.server_name")
 
 	// Create TLS config for Cassandra connection.
 	// Prefer modern ECDHE+AEAD suites for forward secrecy; keep TLS_RSA_WITH_AES_128_CBC_SHA
 	// last as a fallback for legacy Cassandra 3.11.x nodes that only negotiate that suite.
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		ServerName: serverName,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
