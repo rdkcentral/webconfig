@@ -36,13 +36,19 @@ import (
 )
 
 const (
-	ProtocolVersion               = 4
-	DefaultKeyspace               = "webconfig"
-	DefaultTestKeyspace           = "test_webconfig"
-	DisableInitialHostLookup      = false
-	DefaultSleepTimeInMillisecond = 10
-	DefaultConnections            = 2
-	DefaultPageSize               = 50
+	ProtocolVersion                   = 4
+	DefaultKeyspace                   = "webconfig"
+	DefaultTestKeyspace               = "test_webconfig"
+	DefaultDisableInitialHostLookup   = false
+	DefaultSleepTimeInMillisecond     = 10
+	DefaultConnections                = 2
+	DefaultPageSize                   = 50
+	DefaultTimeoutSec                 = 10
+	DefaultConnectTimeoutSec          = 10
+	DefaultSocketKeepaliveSec         = 30
+	DefaultReconnectInitialIntervalMs = 2000
+	DefaultReconnectMaxRetries        = 10
+	DefaultReconnectMaxIntervalSec    = 60
 )
 
 // if 'wifi_schema_v2_enabled'=true, v1.3 is also supported
@@ -103,10 +109,11 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	cluster.Consistency = gocql.LocalQuorum
 	cluster.ProtoVersion = ProtocolVersion
-	cluster.DisableInitialHostLookup = DisableInitialHostLookup
-	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", 1)) * time.Second
-	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", 1)) * time.Second
+	cluster.DisableInitialHostLookup = dbconf.GetBoolean("disable_initial_host_lookup", DefaultDisableInitialHostLookup)
+	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", DefaultTimeoutSec)) * time.Second
+	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", DefaultConnectTimeoutSec)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
+	cluster.SocketKeepalive = time.Duration(dbconf.GetInt32("socket_keepalive_sec", DefaultSocketKeepaliveSec)) * time.Second
 
 	cluster.RetryPolicy = &gocql.DowngradingConsistencyRetryPolicy{
 		ConsistencyLevelsToTry: []gocql.Consistency{
@@ -116,9 +123,20 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		},
 	}
 
+	reconnectIntervalMs := dbconf.GetInt32("reconnect_initial_interval_ms", DefaultReconnectInitialIntervalMs)
+	reconnectMaxRetries := int(dbconf.GetInt32("reconnect_max_retries", DefaultReconnectMaxRetries))
+	reconnectMaxIntervalSec := dbconf.GetInt32("reconnect_max_interval_sec", DefaultReconnectMaxIntervalSec)
+	cluster.ReconnectionPolicy = &gocql.ExponentialReconnectionPolicy{
+		InitialInterval: time.Duration(reconnectIntervalMs) * time.Millisecond,
+		MaxRetries:      reconnectMaxRetries,
+		MaxInterval:     time.Duration(reconnectMaxIntervalSec) * time.Second,
+	}
+
 	localDc := dbconf.GetString("local_dc")
 	if len(localDc) > 0 {
-		cluster.PoolConfig.HostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(localDc)
+		cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(
+			gocql.DCAwareRoundRobinPolicy(localDc),
+		)
 	}
 
 	var password string
@@ -153,7 +171,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 		sslOpts := &gocql.SslOptions{
 			Config:                 tlsConfig,
-			EnableHostVerification: false,
+			EnableHostVerification: !insecureSkipVerify,
 		}
 
 		cluster.SslOpts = sslOpts
