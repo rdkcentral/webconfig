@@ -39,7 +39,7 @@ const (
 	ProtocolVersion                   = 4
 	DefaultKeyspace                   = "webconfig"
 	DefaultTestKeyspace               = "test_webconfig"
-	DisableInitialHostLookup          = false
+	DefaultDisableInitialHostLookup   = false
 	DefaultSleepTimeInMillisecond     = 10
 	DefaultConnections                = 2
 	DefaultPageSize                   = 50
@@ -47,7 +47,7 @@ const (
 	DefaultConnectTimeoutSec          = 10
 	DefaultSocketKeepaliveSec         = 30
 	DefaultReconnectInitialIntervalMs = 2000
-	DefaultReconnectMaxRetries        = 5
+	DefaultReconnectMaxRetries        = 10
 	DefaultReconnectMaxIntervalSec    = 60
 )
 
@@ -109,7 +109,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	cluster.Consistency = gocql.LocalQuorum
 	cluster.ProtoVersion = ProtocolVersion
-	cluster.DisableInitialHostLookup = DisableInitialHostLookup
+	cluster.DisableInitialHostLookup = dbconf.GetBoolean("disable_initial_host_lookup", DefaultDisableInitialHostLookup)
 	cluster.Timeout = time.Duration(dbconf.GetInt32("timeout_in_sec", DefaultTimeoutSec)) * time.Second
 	cluster.ConnectTimeout = time.Duration(dbconf.GetInt32("connect_timeout_in_sec", DefaultConnectTimeoutSec)) * time.Second
 	cluster.NumConns = int(dbconf.GetInt32("connections", DefaultConnections))
