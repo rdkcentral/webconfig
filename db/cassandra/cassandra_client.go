@@ -145,7 +145,8 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 	}
 
 	if isSslEnabled {
-		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver)
+		insecureSkipVerify := dbconf.GetBoolean("tls_insecure_skip_verify")
+		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver, insecureSkipVerify)
 		if err != nil {
 			return nil, common.NewError(err)
 		}
@@ -196,15 +197,13 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 // loadCassandraTLSConfig loads TLS configuration for Cassandra connection.
 // Returns a tls.Config with certificates loaded from the configuration.
-// The function expects tls.{} block under the database driver config (cassandra or yugabyte).
-func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls.Config, error) {
-	// Check insecure_skip_verify flag first
-	insecureSkipVerify := dbconf.GetBoolean("tls.insecure_skip_verify")
-
+// Reads flat tls_* keys directly under the database driver config (cassandra or yugabyte).
+func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string, insecureSkipVerify bool) (*tls.Config, error) {
 	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
-	certFile := dbconf.GetString("tls.cert_file")
-	keyFile := dbconf.GetString("tls.key_file")
-	caCertFile := dbconf.GetString("tls.ca_cert_file")
+	certFile := dbconf.GetString("tls_cert_file")
+	keyFile := dbconf.GetString("tls_key_file")
+	caCertFile := dbconf.GetString("tls_ca_cert_file")
+	serverName := dbconf.GetString("tls_server_name")
 
 	// Create TLS config for Cassandra connection.
 	// Prefer modern ECDHE+AEAD suites for forward secrecy; keep TLS_RSA_WITH_AES_128_CBC_SHA
@@ -222,6 +221,7 @@ func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string) (*tls
 			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 		},
 		InsecureSkipVerify: insecureSkipVerify,
+		ServerName:         serverName,
 	}
 
 	// When insecure_skip_verify is true and no cert files configured, skip loading certificates
