@@ -48,7 +48,7 @@ func (s *WebconfigServer) GetRefSubDocumentHandler(w http.ResponseWriter, r *htt
 			Error(w, http.StatusNotFound, nil)
 		} else {
 			LogError(w, err)
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -88,7 +88,7 @@ func (s *WebconfigServer) PostRefSubDocumentHandler(w http.ResponseWriter, r *ht
 
 	err = s.SetRefSubDocument(refId, refsubdoc)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, common.NewError(err))
+		Error(w, s.dbErrToStatus(err), common.NewError(err))
 		return
 	}
 
@@ -117,7 +117,7 @@ func (s *WebconfigServer) DeleteRefSubDocumentHandler(w http.ResponseWriter, r *
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}

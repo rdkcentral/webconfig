@@ -343,6 +343,21 @@ func (c *CassandraClient) IsDbNotFound(err error) bool {
 	return errors.Is(err, gocql.ErrNotFound)
 }
 
+func (c *CassandraClient) IsDbTimeout(err error) bool {
+	if errors.Is(err, gocql.ErrTimeoutNoResponse) {
+		return true
+	}
+	var readTimeout *gocql.RequestErrReadTimeout
+	if errors.As(err, &readTimeout) {
+		return true
+	}
+	var writeTimeout *gocql.RequestErrWriteTimeout
+	if errors.As(err, &writeTimeout) {
+		return true
+	}
+	return false
+}
+
 func (c *CassandraClient) Close() error {
 	c.Session.Close()
 	return nil

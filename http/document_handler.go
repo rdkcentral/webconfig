@@ -79,7 +79,7 @@ func (s *WebconfigServer) GetSubDocumentHandler(w http.ResponseWriter, r *http.R
 			Error(w, http.StatusNotFound, nil)
 		} else {
 			LogError(w, err)
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -169,14 +169,14 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 
 		labels, err := s.GetRootDocumentLabels(deviceId)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 			return
 		}
 		labels["client"] = metricsAgent
 
 		err = s.SetSubDocument(deviceId, subdocId, subdoc, oldState, labels, fields)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 			return
 		}
 
@@ -187,7 +187,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 			if s.IsDbNotFound(err) {
 				doc = common.NewDocument(nil)
 			} else {
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 				return
 			}
 		}
@@ -196,7 +196,7 @@ func (s *WebconfigServer) PostSubDocumentHandler(w http.ResponseWriter, r *http.
 		newRootVersion = db.HashRootVersion(doc.VersionMap())
 		err = s.SetRootDocumentVersion(deviceId, newRootVersion)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 			return
 		}
 		rootVersionMap[deviceId] = newRootVersion
@@ -233,7 +233,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -245,11 +245,11 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 			}
 			WriteOkResponse(w, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -257,7 +257,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, common.NewError(err))
+		Error(w, s.dbErrToStatus(err), common.NewError(err))
 		return
 	}
 
@@ -290,7 +290,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		if s.IsDbNotFound(err) {
 			Error(w, http.StatusNotFound, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -302,11 +302,11 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 		if s.IsDbNotFound(err) {
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 			}
 			WriteOkResponse(w, nil)
 		} else {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 		}
 		return
 	}
@@ -314,7 +314,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 	newRootVersion := db.HashRootVersion(doc.VersionMap())
 	err = s.SetRootDocumentVersion(mac, newRootVersion)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, common.NewError(err))
+		Error(w, s.dbErrToStatus(err), common.NewError(err))
 		return
 	}
 
