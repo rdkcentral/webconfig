@@ -1312,8 +1312,9 @@ func (s *WebconfigServer) SpanMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// dbErrToStatus maps a database error to its HTTP status code.
-// Cassandra timeouts become 504; all other errors become 500.
+// dbErrToStatus maps a dependency error to its HTTP status code.
+// Timeout-like errors (Cassandra timeouts, connection closed, deadline exceeded) become 504;
+// all other errors become 500.
 func (s *WebconfigServer) dbErrToStatus(err error) int {
 	if s.IsDbTimeout(err) {
 		return http.StatusGatewayTimeout

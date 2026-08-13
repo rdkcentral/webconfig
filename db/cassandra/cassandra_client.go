@@ -357,9 +357,8 @@ func (c *CassandraClient) IsDbTimeout(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
+	// context.Canceled is excluded: it indicates caller cancellation (client disconnect),
+	// not a DB/network timeout. Mapping it to 504 would misrepresent the failure cause.
 	var readTimeout *gocql.RequestErrReadTimeout
 	if errors.As(err, &readTimeout) {
 		return true
