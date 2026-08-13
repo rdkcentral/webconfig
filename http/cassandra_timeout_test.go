@@ -18,12 +18,15 @@
 package http
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/gocql/gocql"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/db/cassandra"
@@ -34,9 +37,17 @@ import (
 // errSimulatedTimeout is a sentinel used by timeoutMockClient to trigger the 504 path.
 var errSimulatedTimeout = errors.New("simulated cassandra timeout")
 
-// timeoutMockClient wraps the real (SQLite) DatabaseClient and overrides IsDbTimeout
-// and GetSubDocument so that tests can drive a Cassandra-timeout scenario without a
-// live Cassandra instance.
+// timeoutMockClient wraps the real (SQLite) DatabaseClient and overrides IsDbTimeout plus
+// selected read methods to return errSimulatedTimeout, simulating a Cassandra timeout
+// without a live Cassandra instance.  Overridden methods:
+//   - IsDbTimeout     — recognises errSimulatedTimeout as a timeout
+//   - GetSubDocument  — used by GetSubDocumentHandler (GET /document/{id})
+//   - GetRootDocumentLabels — used by PostSubDocumentHandler (POST /document/{id})
+//   - GetRootDocument — used by BuildGetDocument (GET /config)
+//   - GetDocument     — used by BuildGetDocument fallback paths
+//
+// All other interface methods (SetSubDocument, DeleteDocument, etc.) fall through to the
+// embedded SQLite client and execute normally.
 type timeoutMockClient struct {
 	db.DatabaseClient
 }
@@ -49,10 +60,23 @@ func (m *timeoutMockClient) GetSubDocument(mac, subdocId string) (*common.SubDoc
 	return nil, errSimulatedTimeout
 }
 
+func (m *timeoutMockClient) GetRootDocumentLabels(mac string) (prometheus.Labels, error) {
+	return nil, errSimulatedTimeout
+}
+
+func (m *timeoutMockClient) GetRootDocument(mac string) (*common.RootDocument, error) {
+	return nil, errSimulatedTimeout
+}
+
+func (m *timeoutMockClient) GetDocument(mac string, args ...interface{}) (*common.Document, error) {
+	return nil, errSimulatedTimeout
+}
+
 // TestIsDbTimeout tests CassandraClient.IsDbTimeout against all gocql timeout error
-// variants, including direct errors, wrapped errors, and multi-layer chains.  It also
-// verifies that non-timeout errors return false.  No live Cassandra connection is needed
-// because IsDbTimeout is a pure error-inspection function.
+// variants — including connection-closed and context deadline — as well as direct errors,
+// wrapped errors, and multi-layer chains.  Non-timeout errors must return false.
+// No live Cassandra connection is required because IsDbTimeout is a pure error-inspection
+// function.
 func TestIsDbTimeout(t *testing.T) {
 	c := &cassandra.CassandraClient{}
 
@@ -102,6 +126,36 @@ func TestIsDbTimeout(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "ErrConnectionClosed direct",
+			err:  gocql.ErrConnectionClosed,
+			want: true,
+		},
+		{
+			name: "ErrConnectionClosed wrapped",
+			err:  fmt.Errorf("layer: %w", gocql.ErrConnectionClosed),
+			want: true,
+		},
+		{
+			name: "context.DeadlineExceeded direct",
+			err:  context.DeadlineExceeded,
+			want: true,
+		},
+		{
+			name: "context.DeadlineExceeded wrapped",
+			err:  fmt.Errorf("layer: %w", context.DeadlineExceeded),
+			want: true,
+		},
+		{
+			name: "context.Canceled direct",
+			err:  context.Canceled,
+			want: true,
+		},
+		{
+			name: "context.Canceled wrapped",
+			err:  fmt.Errorf("layer: %w", context.Canceled),
+			want: true,
+		},
+		{
 			name: "ErrNotFound is not a timeout",
 			err:  gocql.ErrNotFound,
 			want: false,
@@ -136,8 +190,8 @@ func TestDbErrToStatus(t *testing.T) {
 	assert.Equal(t, server.dbErrToStatus(errors.New("other error")), http.StatusInternalServerError)
 }
 
-// TestGetSubDocumentHandlerCassandraTimeout verifies that the GET /document/{id}
-// endpoint returns 504 when the database layer reports a Cassandra timeout.
+// TestGetSubDocumentHandlerCassandraTimeout verifies that GET /document/{id} returns 504
+// when the database layer reports a Cassandra timeout on GetSubDocument.
 func TestGetSubDocumentHandlerCassandraTimeout(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.DatabaseClient = &timeoutMockClient{DatabaseClient: server.DatabaseClient}
@@ -147,6 +201,40 @@ func TestGetSubDocumentHandlerCassandraTimeout(t *testing.T) {
 	url := fmt.Sprintf("/api/v1/device/%v/document/lan", cpeMac)
 	req, err := http.NewRequest("GET", url, nil)
 	assert.NilError(t, err)
+
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusGatewayTimeout)
+}
+
+// TestPostSubDocumentHandlerCassandraTimeout verifies that POST /document/{id} returns 504
+// when the database layer reports a Cassandra timeout on GetRootDocumentLabels.
+func TestPostSubDocumentHandlerCassandraTimeout(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.DatabaseClient = &timeoutMockClient{DatabaseClient: server.DatabaseClient}
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	url := fmt.Sprintf("/api/v1/device/%v/document/lan", cpeMac)
+	req, err := http.NewRequest("POST", url, bytes.NewReader([]byte{0x80}))
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderContentType, common.HeaderApplicationMsgpack)
+
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusGatewayTimeout)
+}
+
+// TestMultipartConfigHandlerCassandraTimeout verifies that GET /config returns 504 when
+// the database layer reports a Cassandra timeout during document retrieval.
+func TestMultipartConfigHandlerCassandraTimeout(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.DatabaseClient = &timeoutMockClient{DatabaseClient: server.DatabaseClient}
+	router := server.GetRouter(true)
+
+	cpeMac := util.GenerateRandomCpeMac()
+	url := fmt.Sprintf("/api/v1/device/%v/config", cpeMac)
+	req, err := http.NewRequest("GET", url, nil)
+	assert.NilError(t, err)
+	req.Header.Set(common.HeaderSchemaVersion, "none")
 
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusGatewayTimeout)

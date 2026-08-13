@@ -177,7 +177,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 		respBytes, err := document.Bytes()
 		if err != nil {
-			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 
 		// skip updating states
@@ -226,7 +226,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 		respBytes, err = document.Bytes()
 		if err != nil {
-			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
+			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 		}
 		respStatus = http.StatusOK
 	} else if len(document.RootVersion()) == 0 {
@@ -311,7 +311,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	// ==== parse the upstreamRespBytes and store them ====
 	finalMparts, err := util.ParseMultipartAsList(upstreamRespHeader, upstreamRespBytes)
 	if err != nil {
-		return s.dbErrToStatus(err), respHeader, respBytes, common.NewError(err)
+		return http.StatusInternalServerError, respHeader, respBytes, common.NewError(err)
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 
@@ -355,7 +355,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	}
 	finalFilteredBytes, err := finalFilteredDocument.Bytes()
 	if err != nil {
-		return s.dbErrToStatus(err), upstreamRespHeader, finalFilteredBytes, common.NewError(err)
+		return http.StatusInternalServerError, upstreamRespHeader, finalFilteredBytes, common.NewError(err)
 	}
 
 	return http.StatusOK, upstreamRespHeader, finalFilteredBytes, nil
@@ -394,7 +394,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	oldDocBytes, err := document.Bytes()
 	if err != nil {
-		return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
+		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
 	}
 
 	if !s.UpstreamEnabled() {
@@ -443,7 +443,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	// ==== parse the upstreamRespBytes and store them ====
 	finalMparts, err := util.ParseMultipartAsList(upstreamRespHeader, upstreamRespBytes)
 	if err != nil {
-		return s.dbErrToStatus(err), respHeader, oldDocBytes, common.NewError(err)
+		return http.StatusInternalServerError, respHeader, oldDocBytes, common.NewError(err)
 	}
 	upstreamRespEtag := upstreamRespHeader.Get(common.HeaderEtag)
 	finalRootDocument := rootDocument.Clone()
@@ -480,7 +480,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	finalBytes, err := finalDocument.Bytes()
 	if err != nil {
-		return s.dbErrToStatus(err), upstreamRespHeader, finalBytes, common.NewError(err)
+		return http.StatusInternalServerError, upstreamRespHeader, finalBytes, common.NewError(err)
 	}
 
 	return http.StatusOK, upstreamRespHeader, finalBytes, nil

@@ -18,6 +18,7 @@
 package cassandra
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -344,7 +345,19 @@ func (c *CassandraClient) IsDbNotFound(err error) bool {
 }
 
 func (c *CassandraClient) IsDbTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
 	if errors.Is(err, gocql.ErrTimeoutNoResponse) {
+		return true
+	}
+	if errors.Is(err, gocql.ErrConnectionClosed) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if errors.Is(err, context.Canceled) {
 		return true
 	}
 	var readTimeout *gocql.RequestErrReadTimeout

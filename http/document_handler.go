@@ -246,6 +246,7 @@ func (s *WebconfigServer) DeleteSubDocumentHandler(w http.ResponseWriter, r *htt
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
 				Error(w, s.dbErrToStatus(err), common.NewError(err))
+				return
 			}
 			WriteOkResponse(w, nil)
 		} else {
@@ -303,6 +304,7 @@ func (s *WebconfigServer) DeleteDocumentHandler(w http.ResponseWriter, r *http.R
 			err := s.DeleteRootDocumentVersion(mac)
 			if err != nil {
 				Error(w, s.dbErrToStatus(err), common.NewError(err))
+				return
 			}
 			WriteOkResponse(w, nil)
 		} else {
