@@ -130,6 +130,10 @@ func (c *SqliteClient) IsDbNotFound(err error) bool {
 	return false
 }
 
+func (c *SqliteClient) IsDbTimeout(err error) bool {
+	return false
+}
+
 func (c *SqliteClient) Metrics() *common.AppMetrics {
 	return c.AppMetrics
 }
