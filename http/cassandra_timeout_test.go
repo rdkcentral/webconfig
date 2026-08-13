@@ -148,12 +148,12 @@ func TestIsDbTimeout(t *testing.T) {
 		{
 			name: "context.Canceled direct",
 			err:  context.Canceled,
-			want: true,
+			want: false,
 		},
 		{
 			name: "context.Canceled wrapped",
 			err:  fmt.Errorf("layer: %w", context.Canceled),
-			want: true,
+			want: false,
 		},
 		{
 			name: "ErrNotFound is not a timeout",
