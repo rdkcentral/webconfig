@@ -20,6 +20,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -53,10 +54,16 @@ const (
 	LevelDebug
 )
 
+// maxBytesAppliedKey is an unexported context key used to mark that
+// http.MaxBytesReader has already been applied to the request body. This
+// prevents double-wrapping when both TestingMiddleware and logRequestStarts
+// are in the same handler chain (test path).
+type maxBytesAppliedKey struct{}
+
 const (
 	MetricsEnabledDefault                = true
 	FactoryResetEnabledDefault           = false
-	serverApiTokenAuthEnabledDefault     = false
+	serverApiTokenAuthEnabledDefault     = true
 	deviceApiTokenAuthEnabledDefault     = true
 	tokenApiEnabledDefault               = false
 	activeDriverDefault                  = "cassandra"
@@ -65,6 +72,7 @@ const (
 	defaultTracestateVendorID            = "webconfig"
 	defaultSupplementaryAppendingEnabled = true
 	authPrefixLength                     = 60
+	defaultMaxRequestBodyBytes           = 1048576
 )
 
 var (
@@ -121,6 +129,7 @@ type WebconfigServer struct {
 	filterOutputByBitmapEnabled   bool
 	defaultEmptyProfileEnabled    bool
 	bitmapFilterExemptSubdocIds   []string
+	maxRequestBodyBytes           int64
 }
 
 func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
@@ -139,10 +148,31 @@ func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
 		return nil, common.NewError(err)
 	}
 
-	return &tls.Config{
-		InsecureSkipVerify: true,
+	insecureSkipVerify := conf.GetBoolean("webconfig.http_client.tls_insecure_skip_verify")
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecureSkipVerify,
 		Certificates:       []tls.Certificate{cert},
-	}, nil
+	}
+
+	caCertFile := conf.GetString("webconfig.http_client.ca_cert_file")
+	if len(caCertFile) > 0 {
+		caCert, err := os.ReadFile(caCertFile)
+		if err != nil {
+			return nil, common.NewError(fmt.Errorf("failed to read TLS CA certificate from %s: %v", caCertFile, err))
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, common.NewError(fmt.Errorf("failed to parse TLS CA certificate from %s", caCertFile))
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	if insecureSkipVerify {
+		log.Warn("HTTP client TLS certificate verification is disabled (webconfig.http_client.tls_insecure_skip_verify=true). This is insecure and should only be used for testing.")
+	}
+
+	return tlsConfig, nil
 }
 
 func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
@@ -240,7 +270,13 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	tlsConfig, _ := NewTlsConfig(conf)
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.server_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.server_api_token_auth.enabled is not set in config; defaulting to true (server API token auth enforced). See MIGRATION.md.")
+	}
 	deviceApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.device_api_token_auth.enabled", deviceApiTokenAuthEnabledDefault)
+	if conf.GetNode("webconfig.jwt.device_api_token_auth.enabled") == nil {
+		log.Warn("webconfig.jwt.device_api_token_auth.enabled is not set in config; defaulting to true (device API token auth enforced). See MIGRATION.md.")
+	}
 	tokenApiEnabled := conf.GetBoolean("webconfig.token_api_enabled", tokenApiEnabledDefault)
 
 	var listenHost string
@@ -251,7 +287,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	kafkaEnabled := conf.GetBoolean("webconfig.kafka.enabled")
 	upstreamEnabled := conf.GetBoolean("webconfig.upstream.enabled")
-	appName := conf.GetString("webconfig.app_name")
+	appName := conf.GetString("webconfig.app_name", "webconfig")
 	validateMacEnabled := conf.GetBoolean("webconfig.validate_device_id_as_mac_address", tokenApiEnabledDefault)
 	configValidPartners := conf.GetStringList("webconfig.valid_partners")
 	validPartners := []string{}
@@ -277,6 +313,41 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 		saramaConfig := sarama.NewConfig()
 		saramaConfig.Producer.Return.Errors = true
+
+		// Resilience tuning — survive Kafka broker restarts without restarting the app.
+		//
+		// Metadata.Retry.Max: lib default 3  → now 10 (configurable)
+		//   Extends retry window to 10×2s = 20s, covering the cluster stabilisation
+		//   window during leader election after a broker restart.
+		saramaConfig.Metadata.Retry.Max = int(conf.GetInt32("webconfig.kafka_producer.metadata.retry_max", 10))
+
+		// Metadata.Retry.Backoff: lib default 250ms → now 2s (configurable)
+		//   Prevents rapid-fire retries against a restarting broker; paced to give
+		//   the cluster time to stabilise between attempts.
+		saramaConfig.Metadata.Retry.Backoff = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.retry_backoff_sec", 2)) * time.Second
+
+		// Metadata.RefreshFrequency: lib default 10min → now 5min (configurable)
+		//   Proactive background refresh. Catches stale partition leaders (caused by
+		//   broker restarts) up to 5min sooner than the library default.
+		saramaConfig.Metadata.RefreshFrequency = time.Duration(conf.GetInt32("webconfig.kafka_producer.metadata.refresh_frequency_sec", 300)) * time.Second
+
+		// Producer.Retry.Max: lib default 3  → now 10 (configurable)
+		//   Internal send retries before a message is put on the Errors() channel.
+		//   Mirrors Metadata.Retry.Max — gives the producer the same tolerance for
+		//   transient broker unavailability as the consumer has for metadata fetches.
+		saramaConfig.Producer.Retry.Max = int(conf.GetInt32("webconfig.kafka_producer.producer.retry_max", 10))
+
+		// Producer.Retry.Backoff: lib default 100ms → now 2s (configurable)
+		//   Matches Metadata.Retry.Backoff cadence; avoids hammering a restarting broker.
+		saramaConfig.Producer.Retry.Backoff = time.Duration(conf.GetInt32("webconfig.kafka_producer.producer.retry_backoff_sec", 2)) * time.Second
+
+		// Net.DialTimeout / ReadTimeout / WriteTimeout: lib default 30s → now 10s (configurable)
+		//   Tighter timeouts let the retry loop engage within 10s per attempt instead
+		//   of blocking for 30s. Fail-fast on broken broker connections.
+		producerNetTimeout := time.Duration(conf.GetInt32("webconfig.kafka_producer.net.timeout_sec", 10)) * time.Second
+		saramaConfig.Net.DialTimeout = producerNetTimeout
+		saramaConfig.Net.ReadTimeout = producerNetTimeout
+		saramaConfig.Net.WriteTimeout = producerNetTimeout
 
 		// Load TLS configuration for producer
 		tlsConfig, err := common.LoadKafkaTLSConfig(conf, "webconfig.kafka_producer")
@@ -306,6 +377,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	filterOutputByBitmapEnabled := conf.GetBoolean("webconfig.filter_output_by_bitmap_enabled")
 	defaultEmptyProfileEnabled := conf.GetBoolean("webconfig.default_empty_profile_enabled")
 	bitmapFilterExemptSubdocIds := conf.GetStringList("webconfig.bitmap_filter_exempt_subdoc_ids")
+	maxRequestBodyBytes := int64(conf.GetInt32("webconfig.server.max_request_body_in_bytes", defaultMaxRequestBodyBytes))
 
 	ws := &WebconfigServer{
 		Server: &http.Server{
@@ -346,6 +418,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		filterOutputByBitmapEnabled:   filterOutputByBitmapEnabled,
 		defaultEmptyProfileEnabled:    defaultEmptyProfileEnabled,
 		bitmapFilterExemptSubdocIds:   bitmapFilterExemptSubdocIds,
+		maxRequestBodyBytes:           maxRequestBodyBytes,
 	}
 
 	return ws
@@ -376,6 +449,10 @@ func (s *WebconfigServer) TestingMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "POST" {
 			if r.Body != nil {
+				if r.Context().Value(maxBytesAppliedKey{}) == nil {
+					r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+					r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+				}
 				if rbytes, err := io.ReadAll(r.Body); err == nil {
 					xw.SetBodyBytes(rbytes)
 				}
@@ -866,6 +943,10 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 
 	if r.Method == "POST" {
 		if r.Body != nil {
+			if r.Context().Value(maxBytesAppliedKey{}) == nil {
+				r = r.WithContext(context.WithValue(r.Context(), maxBytesAppliedKey{}, true))
+				r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes)
+			}
 			bbytes, err := io.ReadAll(r.Body)
 			if err != nil {
 				fields["error"] = err
@@ -876,10 +957,8 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if userAgent != "mget" {
-		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("Request started")
-	}
+	tfields := common.FilterLogFields(fields)
+	log.WithFields(tfields).Info("Request started")
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
 	return xwriter
@@ -966,14 +1045,8 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 
 	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
 
-	var userAgent string
-	if itf, ok := fields["user_agent"]; ok {
-		userAgent = itf.(string)
-	}
-	if userAgent != "mget" {
-		tfields := common.FilterLogFields(fields)
-		log.WithFields(tfields).Info("Request finished")
-	}
+	tfields := common.FilterLogFields(fields)
+	log.WithFields(tfields).Info("Request finished")
 }
 
 func LogError(w http.ResponseWriter, err error) {
@@ -1047,6 +1120,21 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 		Key:   sarama.ByteEncoder(kbytes),
 		Value: sarama.ByteEncoder(bbytes),
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if fmt.Sprint(r) != "send on closed channel" {
+				panic(r)
+			}
+			if m := s.Metrics(); m != nil {
+				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
+			}
+			tfields["logger"] = "kafkaproducer"
+			tfields["error"] = r
+			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+		}
+	}()
+
 	s.Input() <- outMessage
 
 	tfields["logger"] = "kafkaproducer"
@@ -1081,7 +1169,24 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 			Key:   sarama.ByteEncoder(strings.ToLower(mac)),
 			Value: sarama.ByteEncoder(bbytes),
 		}
-		s.Input() <- outMessage
+
+		sent := func() (ok bool) {
+			defer func() {
+				if r := recover(); r != nil {
+					if fmt.Sprint(r) != "send on closed channel" {
+						panic(r)
+					}
+					tfields["error"] = r
+					log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
+					ok = false
+				}
+			}()
+			s.Input() <- outMessage
+			return true
+		}()
+		if !sent {
+			return
+		}
 
 		tfields["output_key"] = mac
 		tfields["output_body"] = m
@@ -1127,14 +1232,19 @@ func (s *WebconfigServer) LogToken(xw *XResponseWriter, authorization, token str
 	log.WithFields(tfields).Debug(tokenErr)
 }
 
-func (s *WebconfigServer) HandleKafkaProducerResults() {
+func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 	if s.AsyncProducer == nil {
 		return
 	}
 
 	for {
 		select {
-		case success := <-s.Successes():
+		case <-ctx.Done():
+			return
+		case success, ok := <-s.Successes():
+			if !ok {
+				return
+			}
 			if success == nil {
 				continue
 			}
@@ -1144,7 +1254,10 @@ func (s *WebconfigServer) HandleKafkaProducerResults() {
 			fields["output_partition"] = success.Partition
 			fields["output_offset"] = success.Offset
 			log.WithFields(fields).Debug("sent")
-		case pErr := <-s.Errors():
+		case pErr, ok := <-s.Errors():
+			if !ok {
+				return
+			}
 			if pErr == nil || pErr.Msg == nil {
 				continue
 			}

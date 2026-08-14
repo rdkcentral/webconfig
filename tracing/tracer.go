@@ -26,6 +26,8 @@ import (
 
 	otelpropagation "go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/rdkcentral/webconfig/common"
 )
 
 const (
@@ -108,13 +110,14 @@ func (t *XpcTracer) Region() string {
 }
 
 func initAppData(xpcTracer *XpcTracer, conf *configuration.Config) {
-	codeGitCommit := strings.Split(conf.GetString("webconfig.code_git_commit"), "-")
-	xpcTracer.appName = codeGitCommit[0]
-	if len(codeGitCommit) > 1 {
-		xpcTracer.appVersion = codeGitCommit[1]
-	}
-	if len(codeGitCommit) > 2 {
-		xpcTracer.appSHA = codeGitCommit[2]
+	codeGitCommit := conf.GetString("webconfig.code_git_commit")
+	cgcData := strings.SplitN(codeGitCommit, "-", 2)
+	xpcTracer.appName = cgcData[0]
+	xpcTracer.appVersion = codeGitCommit
+	// Fall back to the build-time binary version if code_git_commit is empty.
+	// This ensures service.version is always populated in OTel resource attributes.
+	if xpcTracer.appVersion == "" {
+		xpcTracer.appVersion = common.BinaryVersion
 	}
 
 	// Env vars
