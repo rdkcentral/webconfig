@@ -1311,3 +1311,13 @@ func (s *WebconfigServer) SpanMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// dbErrToStatus maps a dependency error to its HTTP status code.
+// Timeout-like errors (Cassandra timeouts, connection closed, deadline exceeded) become 504;
+// all other errors become 500.
+func (s *WebconfigServer) dbErrToStatus(err error) int {
+	if s.IsDbTimeout(err) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusInternalServerError
+}
