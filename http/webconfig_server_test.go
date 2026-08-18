@@ -19,8 +19,10 @@ package http
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
 )
 
@@ -53,6 +55,39 @@ func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+}
+
+func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetConfigApiTokenAuthEnabled(true)
+	router := server.GetRouter(false)
+
+	var logs strings.Builder
+	previousOutput := log.StandardLogger().Out
+	previousLevel := log.StandardLogger().Level
+	log.SetOutput(&logs)
+	log.SetLevel(log.InfoLevel)
+	defer func() {
+		log.SetOutput(previousOutput)
+		log.SetLevel(previousLevel)
+	}()
+
+	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Assert(t, !strings.Contains(logs.String(), "Request started"))
+	assert.Assert(t, !strings.Contains(logs.String(), "Request finished"))
+
+	logs.Reset()
+	req, err = http.NewRequest("GET", "/other", nil)
+	assert.NilError(t, err)
+	res = ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Assert(t, strings.Contains(logs.String(), "Request started"))
+	assert.Assert(t, strings.Contains(logs.String(), "Request finished"))
 }
 
 func TestWebconfigServerSetterGetter(t *testing.T) {
