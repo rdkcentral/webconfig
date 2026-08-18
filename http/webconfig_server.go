@@ -613,6 +613,10 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+func isConfigEndpoint(r *http.Request) bool {
+	return r.URL.Path == "/config"
+}
+
 func (s *WebconfigServer) VerifyApiToken(tokenStr string) (bool, error) {
 	if s.JwksEnabled() {
 		if _, err := s.JwksManager.VerifyApiToken(tokenStr); err != nil {
@@ -970,7 +974,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 
 	tfields := common.FilterLogFields(fields)
-	log.WithFields(tfields).Info("Request started")
+	if !isConfigEndpoint(r) {
+		log.WithFields(tfields).Info("Request started")
+	}
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
 	return xwriter
@@ -1058,7 +1064,9 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
 
 	tfields := common.FilterLogFields(fields)
-	log.WithFields(tfields).Info("Request finished")
+	if !isConfigEndpoint(r) {
+		log.WithFields(tfields).Info("Request finished")
+	}
 }
 
 func LogError(w http.ResponseWriter, err error) {
