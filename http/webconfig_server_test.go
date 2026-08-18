@@ -18,6 +18,7 @@
 package http
 
 import (
+	"net/http"
 	"testing"
 
 	"gotest.tools/assert"
@@ -27,7 +28,31 @@ func TestApiTokenAuthSecureDefaults(t *testing.T) {
 	// Admin write endpoints (document, rootdocument, poke, reference) MUST
 	// be guarded by ApiMiddleware out of the box. Regression guard for f003.
 	assert.Assert(t, serverApiTokenAuthEnabledDefault, "server API token auth must default to enabled")
+	assert.Assert(t, !configApiTokenAuthEnabledDefault, "config API token auth must default to disabled")
 	assert.Assert(t, deviceApiTokenAuthEnabledDefault, "device API token auth must default to enabled")
+}
+
+func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	assert.Assert(t, !server.ConfigApiTokenAuthEnabled())
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}
+
+func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetConfigApiTokenAuthEnabled(true)
+	assert.Assert(t, server.ConfigApiTokenAuthEnabled())
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
 func TestWebconfigServerSetterGetter(t *testing.T) {
@@ -48,6 +73,14 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	enabled = false
 	server.SetServerApiTokenAuthEnabled(enabled)
 	assert.Equal(t, server.ServerApiTokenAuthEnabled(), enabled)
+
+	// config api token auth
+	enabled = true
+	server.SetConfigApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.ConfigApiTokenAuthEnabled(), enabled)
+	enabled = false
+	server.SetConfigApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.ConfigApiTokenAuthEnabled(), enabled)
 
 	// device api token auth
 	enabled = true
