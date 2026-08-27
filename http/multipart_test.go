@@ -269,6 +269,20 @@ func TestCpeMiddleware(t *testing.T) {
 	res.Body.Close()
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 
+	// XPC-43727 a real signed token for one cpeMac presented against a
+	// different mac's /config URL must be rejected as unauthorized, not
+	// treated as an authorization (403) failure
+	otherCpeMac := util.GenerateRandomCpeMac()
+	otherConfigUrl := fmt.Sprintf("/api/v1/device/%v/config", otherCpeMac)
+	req, err = http.NewRequest("GET", otherConfigUrl, nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", token))
+	res = ExecuteRequest(req, router1).Result()
+	_, err = io.ReadAll(res.Body)
+	assert.NilError(t, err)
+	res.Body.Close()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+
 	// change the min trust to 1000
 	server1.SetMinTrust(1000)
 	assert.Equal(t, 1000, server1.MinTrust())

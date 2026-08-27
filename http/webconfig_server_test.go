@@ -104,6 +104,8 @@ func TestApiMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T)
 	}{
 		{name: "missing token"},
 		{name: "malformed authorization", auth: "Basic credentials"},
+		{name: "bearer with no token", auth: "Bearer"},
+		{name: "bearer with multiple parts", auth: "Bearer a b"},
 		{name: "malformed token", auth: "Bearer malformed", err: fmt.Errorf("malformed token")},
 		{name: "invalid token", auth: "Bearer invalid", err: fmt.Errorf("invalid token")},
 		{name: "expired token", auth: "Bearer expired", err: fmt.Errorf("token is expired")},
@@ -196,6 +198,46 @@ func TestCpeMiddlewareReturnsForbiddenForLowTrust(t *testing.T) {
 		t.Fatal("authorization failure reached the next handler")
 	}))).Result()
 	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+}
+
+// XPC-43727 every class of authentication failure (malformed header,
+// malformed/invalid/expired token, mac mismatch) must return 401, never 403.
+func TestCpeMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		auth string
+		err  error
+	}{
+		{name: "missing token"},
+		{name: "malformed authorization", auth: "Basic credentials"},
+		{name: "bearer with no token", auth: "Bearer"},
+		{name: "bearer with multiple parts", auth: "Bearer a b"},
+		{name: "malformed token", auth: "Bearer malformed", err: fmt.Errorf("malformed token")},
+		{name: "invalid signature", auth: "Bearer invalid", err: fmt.Errorf("token signature is invalid")},
+		{name: "expired token", auth: "Bearer expired", err: fmt.Errorf("token is expired")},
+		{name: "mac mismatch", auth: "Bearer mismatched-mac", err: fmt.Errorf("mac in token does not match claims")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewWebconfigServer(sc, true)
+			server.TokenManager = security.NewTokenManager(sc.Config)
+			server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+				return false, "", 0, tt.err
+			})
+
+			req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+			assert.NilError(t, err)
+			if tt.auth != "" {
+				req.Header.Set("Authorization", tt.auth)
+			}
+			req = mux.SetURLVars(req, map[string]string{"mac": "AABBCCDDEEFF"})
+			res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("authentication failure reached the next handler")
+			}))).Result()
+			assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+		})
+	}
 }
 
 func TestCpeMiddlewareReturnsBadRequestForMissingMacRouteVar(t *testing.T) {
