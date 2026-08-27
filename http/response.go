@@ -142,7 +142,7 @@ func Error(w http.ResponseWriter, status int, err error) {
 	// calling WriteHeader() multiple times will cause errors in common.HeaderContentType
 	// ==> errors like 'superfluous response.WriteHeader call' in stderr
 	switch status {
-	case http.StatusNoContent, http.StatusNotModified, http.StatusForbidden:
+	case http.StatusNoContent, http.StatusNotModified, http.StatusUnauthorized, http.StatusForbidden:
 		w.WriteHeader(status)
 	case http.StatusAccepted:
 		SetAuditValue(w, "response", err)
