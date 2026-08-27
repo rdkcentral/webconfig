@@ -94,6 +94,17 @@ func (m *JwksManager) VerifyApiToken(tokenStr string) (bool, error) {
 	return false, common.NoCapabilitiesError{}
 }
 
+// NewJwksManagerFromJWKS builds a JwksManager from an already-constructed
+// JWKS, bypassing the network fetch in NewJwksManager. Used by tests that
+// need a self-contained, signature-verified JwksManager without a live JWKS
+// endpoint.
+func NewJwksManagerFromJWKS(jwks *keyfunc.JWKS, apiCapabilities []string) *JwksManager {
+	return &JwksManager{
+		jwks:            jwks,
+		apiCapabilities: apiCapabilities,
+	}
+}
+
 func LogRefreshError(err error) {
 	fields := log.Fields{
 		"logger": "codebig",

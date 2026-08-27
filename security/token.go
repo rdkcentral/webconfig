@@ -388,7 +388,11 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 	// parse partner
 	partner := "comcast"
 	if itf, ok := claims["partner-id"]; ok {
-		partner = itf.(string)
+		partnerStr, ok := itf.(string)
+		if !ok {
+			return false, "", trust, common.NewError(fmt.Errorf("partner-id claim is not a string"))
+		}
+		partner = partnerStr
 	}
 
 	if itf, ok := claims["trust"]; ok {
