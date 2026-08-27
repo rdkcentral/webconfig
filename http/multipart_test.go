@@ -256,7 +256,7 @@ func TestCpeMiddleware(t *testing.T) {
 	_, err = io.ReadAll(res.Body)
 	assert.NilError(t, err)
 	res.Body.Close()
-	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 
 	// get a token
 	token := server1.Generate(cpeMac, 86400)

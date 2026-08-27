@@ -22,7 +22,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/rdkcentral/webconfig/common"
 	"github.com/rdkcentral/webconfig/util"
 	"gotest.tools/assert"
@@ -85,4 +87,67 @@ func TestTokenValidation(t *testing.T) {
 	assert.Assert(t, ok)
 	assert.Equal(t, parsedPartner, partner1)
 	assert.Equal(t, trust, 500)
+}
+
+// XPC-42727 a token with an invalid signature must fail as an authentication
+// error, never misclassified as ErrNoCapabilities, even when its (untrusted)
+// claims lack the required capability
+func TestVerifyTokenRejectsInvalidSignatureBeforeCapabilities(t *testing.T) {
+	if tokenManager == nil {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	token := tokenManager.Generate(strings.ToLower(cpeMac), 86400)
+
+	parts := strings.Split(token, ".")
+	assert.Equal(t, len(parts), 3)
+	// flip a character in the middle of the signature to invalidate it;
+	// avoid the last char, whose low bits may be unused by base64url padding
+	sig := []rune(parts[2])
+	mid := len(sig) / 2
+	if sig[mid] == 'A' {
+		sig[mid] = 'B'
+	} else {
+		sig[mid] = 'A'
+	}
+	tampered := parts[0] + "." + parts[1] + "." + string(sig)
+
+	requiredCapabilities := []string{"capability-not-present-in-token"}
+	ok, _, _, verr := VerifyToken(tokenManager.decodeKeys, tokenManager.cpeKids, requiredCapabilities, tampered, cpeMac)
+	assert.Assert(t, !ok)
+	assert.Assert(t, !errors.Is(verr, common.ErrNoCapabilities))
+}
+
+// XPC-42727 an expired token must fail as an authentication error, never
+// misclassified as ErrNoCapabilities, even when its (untrusted) claims lack
+// the required capability
+func TestVerifyTokenRejectsExpiredTokenBeforeCapabilities(t *testing.T) {
+	if tokenManager == nil {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	utcnow := time.Now()
+	claims := ThemisClaims{
+		KeyId:     EncodingKeyId,
+		Mac:       strings.ToLower(cpeMac),
+		PartnerId: "comcast",
+		Trust:     1000,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(utcnow.Add(-1 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(utcnow.Add(-2 * time.Hour)),
+			NotBefore: jwt.NewNumericDate(utcnow.Add(-2 * time.Hour)),
+		},
+	}
+	method := jwt.GetSigningMethod("RS256")
+	token := jwt.NewWithClaims(method, claims)
+	token.Header["kid"] = EncodingKeyId
+	tokenString, err := token.SignedString(tokenManager.encodeKey)
+	assert.NilError(t, err)
+
+	requiredCapabilities := []string{"capability-not-present-in-token"}
+	ok, _, _, verr := VerifyToken(tokenManager.decodeKeys, tokenManager.cpeKids, requiredCapabilities, tokenString, cpeMac)
+	assert.Assert(t, !ok)
+	assert.Assert(t, !errors.Is(verr, common.ErrNoCapabilities))
 }

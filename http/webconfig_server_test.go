@@ -18,10 +18,16 @@
 package http
 
 import (
+	"crypto/rsa"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/security"
 	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
 )
@@ -54,7 +60,7 @@ func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	req, err := http.NewRequest("GET", "/config", nil)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 }
 
 func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
@@ -75,7 +81,7 @@ func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
 	req, err := http.NewRequest("GET", "/config", nil)
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 	assert.Assert(t, !strings.Contains(logs.String(), "Request started"))
 	assert.Assert(t, !strings.Contains(logs.String(), "Request finished"))
 
@@ -85,9 +91,143 @@ func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
 	res = ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 	assert.Assert(t, strings.Contains(logs.String(), "Request started"))
 	assert.Assert(t, strings.Contains(logs.String(), "Request finished"))
+}
+
+func TestApiMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		auth string
+		err  error
+	}{
+		{name: "missing token"},
+		{name: "malformed authorization", auth: "Basic credentials"},
+		{name: "malformed token", auth: "Bearer malformed", err: fmt.Errorf("malformed token")},
+		{name: "invalid token", auth: "Bearer invalid", err: fmt.Errorf("invalid token")},
+		{name: "expired token", auth: "Bearer expired", err: fmt.Errorf("token is expired")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewWebconfigServer(sc, true)
+			server.TokenManager = security.NewTokenManager(sc.Config)
+			server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+				return false, "", 0, tt.err
+			})
+
+			req, err := http.NewRequest("GET", "/", nil)
+			assert.NilError(t, err)
+			if tt.auth != "" {
+				req.Header.Set("Authorization", tt.auth)
+			}
+			res := ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("authentication failure reached the next handler")
+			}))).Result()
+			assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+		})
+	}
+}
+
+func TestApiMiddlewareReturnsForbiddenForInsufficientCapabilities(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return false, "", 0, common.ErrNoCapabilities
+	})
+
+	req, err := http.NewRequest("GET", "/", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer authenticated-but-not-capable")
+	res := ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authorization failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+}
+
+func TestCpeMiddlewareReturnsUnauthorizedForInvalidToken(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return false, "", 0, fmt.Errorf("invalid token")
+	})
+
+	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer invalid")
+	req = mux.SetURLVars(req, map[string]string{"mac": "AABBCCDDEEFF"})
+	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authentication failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+}
+
+func TestCpeMiddlewareReturnsForbiddenForInsufficientCapabilities(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return false, "", 0, common.ErrNoCapabilities
+	})
+
+	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer authenticated-but-not-capable")
+	req = mux.SetURLVars(req, map[string]string{"mac": "AABBCCDDEEFF"})
+	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authorization failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+}
+
+func TestCpeMiddlewareReturnsForbiddenForLowTrust(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetMinTrust(1000)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return true, "comcast", 0, nil
+	})
+
+	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer authenticated-but-low-trust")
+	req = mux.SetURLVars(req, map[string]string{"mac": "AABBCCDDEEFF"})
+	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authorization failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+}
+
+func TestCpeMiddlewareReturnsBadRequestForMissingMacRouteVar(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+
+	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer irrelevant")
+	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("missing route var reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+}
+
+func TestTestingCpeMiddlewareReturnsUnauthorizedForMissingToken(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
+	assert.NilError(t, err)
+	req = mux.SetURLVars(req, map[string]string{"mac": "AABBCCDDEEFF"})
+	res := ExecuteRequest(req, server.TestingCpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authentication failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+}
+
+func TestErrorPreservesUnauthorizedResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	Error(recorder, http.StatusUnauthorized, nil)
+
+	assert.Equal(t, recorder.Code, http.StatusUnauthorized)
+	assert.Equal(t, recorder.Body.Len(), 0)
 }
 
 func TestWebconfigServerSetterGetter(t *testing.T) {
