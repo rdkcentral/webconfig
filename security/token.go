@@ -301,55 +301,33 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 
 	parser := &jwt.Parser{}
 
-	// this is the claims before the token is verified by the public key
+	// this is only used to read the kid from the header; claims are not
+	// trusted until the token is verified against the public key below
 	uclaims := jwt.MapClaims{}
-	if token, _, err := parser.ParseUnverified(tokenString, uclaims); err == nil {
-		// check kid
-		rawkid, ok := token.Header["kid"]
-		if !ok {
-			return false, "", trust, common.NewError(fmt.Errorf("missing kid in token"))
-		}
-		kid, ok = rawkid.(string)
-		if !ok {
-			return false, "", trust, common.NewError(fmt.Errorf("error in reading kid from header"))
-		}
-
-		ok = false
-		for _, k := range validKids {
-			if kid == k {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return false, "", trust, common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, validKids))
-		}
-
-		// check capabilities, if requiredCapabilities is nonempty
-		if len(requiredCapabilities) > 0 {
-			isCapable := false
-			if capitfs, ok := uclaims["capabilities"]; ok {
-				capvalues, ok1 := capitfs.([]interface{})
-				if ok1 {
-					for _, capvalue := range capvalues {
-						for _, rc := range requiredCapabilities {
-							if rc == capvalue {
-								isCapable = true
-								break
-							}
-						}
-						if isCapable {
-							break
-						}
-					}
-				}
-			}
-			if !isCapable {
-				return false, "", trust, common.NewError(fmt.Errorf("token without proper capabilities"))
-			}
-		}
-	} else {
+	token, _, err := parser.ParseUnverified(tokenString, uclaims)
+	if err != nil {
 		return false, "", trust, common.NewError(err)
+	}
+
+	// check kid
+	rawkid, ok := token.Header["kid"]
+	if !ok {
+		return false, "", trust, common.NewError(fmt.Errorf("missing kid in token"))
+	}
+	kid, ok = rawkid.(string)
+	if !ok {
+		return false, "", trust, common.NewError(fmt.Errorf("error in reading kid from header"))
+	}
+
+	ok = false
+	for _, k := range validKids {
+		if kid == k {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return false, "", trust, common.NewError(fmt.Errorf("token kid=%v, not in validKids=%v", kid, validKids))
 	}
 
 	decodeKey, ok := decodeKeys[kid]
@@ -357,9 +335,36 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 		return false, "", trust, common.NewError(fmt.Errorf("key object missing, kid=%v", kid))
 	}
 
+	// verify signature and registered claims (exp, nbf, etc) before trusting
+	// anything in the token, including capabilities
 	claims := jwt.MapClaims{}
 	if _, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) { return decodeKey, nil }); err != nil {
 		return false, "", trust, common.NewError(err)
+	}
+
+	// check capabilities, if requiredCapabilities is nonempty
+	// this must run only after the token has been cryptographically verified
+	if len(requiredCapabilities) > 0 {
+		isCapable := false
+		if capitfs, ok := claims["capabilities"]; ok {
+			capvalues, ok1 := capitfs.([]interface{})
+			if ok1 {
+				for _, capvalue := range capvalues {
+					for _, rc := range requiredCapabilities {
+						if rc == capvalue {
+							isCapable = true
+							break
+						}
+					}
+					if isCapable {
+						break
+					}
+				}
+			}
+		}
+		if !isCapable {
+			return false, "", trust, common.NewError(common.ErrNoCapabilities)
+		}
 	}
 
 	if len(vargs) > 1 {
@@ -383,7 +388,11 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 	// parse partner
 	partner := "comcast"
 	if itf, ok := claims["partner-id"]; ok {
-		partner = itf.(string)
+		partnerStr, ok := itf.(string)
+		if !ok {
+			return false, "", trust, common.NewError(fmt.Errorf("partner-id claim is not a string"))
+		}
+		partner = partnerStr
 	}
 
 	if itf, ok := claims["trust"]; ok {
