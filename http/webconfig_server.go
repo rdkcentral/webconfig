@@ -489,7 +489,8 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		params := mux.Vars(r)
 		mac, ok := params["mac"]
 		if !ok {
-			Error(xw, http.StatusForbidden, nil)
+			err := *common.NewHttp400Error("missing mac")
+			Error(xw, http.StatusBadRequest, common.NewError(err))
 			return
 		}
 		mac = strings.ToUpper(mac)
@@ -534,7 +535,11 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(xw, r)
 		} else {
 			s.LogToken(xw, authorization, token, tokenErr)
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(tokenErr, common.ErrNoCapabilities) || errors.Is(tokenErr, common.ErrLowTrust) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -547,6 +552,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		defer s.logRequestEnds(xw, r)
 
 		isValid := false
+		var verifyErr error
 		token := xw.Token()
 		if len(token) > 0 {
 			var kid string
@@ -562,6 +568,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 				isValid = true
 				log.WithFields(tfields).Debug("valid")
 			} else {
+				verifyErr = err
 				tfields["error"] = fmt.Sprintf("ApiMiddleware::VerifyApiToken() %v", err)
 				log.WithFields(tfields).Debug("rejected")
 			}
@@ -572,7 +579,11 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(verifyErr, common.ErrNoCapabilities) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -591,23 +602,31 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 		}
 
 		isValid := false
+		var verifyErr error
 		if len(token) > 0 {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
 			if !ok || len(mac) != 12 {
-				Error(xw, http.StatusForbidden, nil)
+				err := *common.NewHttp400Error("invalid mac")
+				Error(xw, http.StatusBadRequest, common.NewError(err))
 				return
 			}
 
-			if ok, _, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, _, _, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
+			} else {
+				verifyErr = err
 			}
 		}
 
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(verifyErr, common.ErrNoCapabilities) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
