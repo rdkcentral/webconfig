@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package kafka
 
 import (
@@ -22,8 +22,31 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/rdkcentral/webconfig/common"
+	wchttp "github.com/rdkcentral/webconfig/http"
 	"gotest.tools/assert"
 )
+
+func TestKafkaSuccessLoggingMode(t *testing.T) {
+	message := &common.EventMessage{}
+	tests := []struct {
+		name            string
+		producerEnabled bool
+		message         *common.EventMessage
+		loggingMode     string
+		want            bool
+	}{
+		{name: "producer disabled", want: true},
+		{name: "one line", producerEnabled: true, message: message, loggingMode: wchttp.KafkaLoggingModeOneLine, want: false},
+		{name: "two line", producerEnabled: true, message: message, loggingMode: wchttp.KafkaLoggingModeTwoLine, want: true},
+		{name: "no message", producerEnabled: true, loggingMode: wchttp.KafkaLoggingModeOneLine, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, shouldLogConsumerSuccess(test.producerEnabled, test.message, test.loggingMode), test.want)
+		})
+	}
+}
 
 func TestGetEventName(t *testing.T) {
 	// ==== mqtt-get ====

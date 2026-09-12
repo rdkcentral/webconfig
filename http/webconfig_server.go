@@ -74,6 +74,9 @@ const (
 	defaultSupplementaryAppendingEnabled = true
 	authPrefixLength                     = 60
 	defaultMaxRequestBodyBytes           = 1048576
+	KafkaLoggingModeOneLine              = "one_line"
+	KafkaLoggingModeTwoLine              = "two_line"
+	defaultKafkaLoggingMode              = KafkaLoggingModeOneLine
 )
 
 var (
@@ -124,6 +127,7 @@ type WebconfigServer struct {
 	supplementaryAppendingEnabled bool
 	kafkaProducerEnabled          bool
 	kafkaProducerTopic            string
+	kafkaLoggingMode              string
 	upstreamProfilesEnabled       bool
 	queryParamsValidationEnabled  bool
 	minTrust                      int
@@ -306,6 +310,10 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	var kafkaProducer sarama.AsyncProducer
 	kafkaProducerEnabled := conf.GetBoolean("webconfig.kafka_producer.enabled")
 	var kafkaProducerTopic string
+	kafkaLoggingMode := conf.GetString("webconfig.kafka_producer.logging_mode", defaultKafkaLoggingMode)
+	if kafkaLoggingMode != KafkaLoggingModeOneLine && kafkaLoggingMode != KafkaLoggingModeTwoLine {
+		panic(fmt.Errorf("webconfig.kafka_producer.logging_mode must be %q or %q", KafkaLoggingModeOneLine, KafkaLoggingModeTwoLine))
+	}
 	if kafkaProducerEnabled {
 		brokersStr := conf.GetString("webconfig.kafka_producer.brokers")
 		if len(brokersStr) == 0 {
@@ -414,6 +422,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 		kafkaProducerEnabled:          kafkaProducerEnabled,
 		kafkaProducerTopic:            kafkaProducerTopic,
+		kafkaLoggingMode:              kafkaLoggingMode,
 		upstreamProfilesEnabled:       upstreamProfilesEnabled,
 		queryParamsValidationEnabled:  queryParamsValidationEnabled,
 		minTrust:                      minTrust,
@@ -796,6 +805,17 @@ func (s *WebconfigServer) SetKafkaProducerTopic(x string) {
 	s.kafkaProducerTopic = x
 }
 
+func (s *WebconfigServer) KafkaLoggingMode() string {
+	return s.kafkaLoggingMode
+}
+
+func (s *WebconfigServer) SetKafkaLoggingMode(mode string) {
+	if mode != KafkaLoggingModeOneLine && mode != KafkaLoggingModeTwoLine {
+		return
+	}
+	s.kafkaLoggingMode = mode
+}
+
 func (s *WebconfigServer) UpstreamProfilesEnabled() bool {
 	return s.upstreamProfilesEnabled
 }
@@ -1151,7 +1171,7 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 }
 
 func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields, logMessage string) {
-	tfields := common.FilterLogFields(fields)
+	tfields := kafkaProducerLogFields(fields)
 
 	bbytes, err := json.Marshal(m)
 	if err != nil {
@@ -1186,6 +1206,22 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 	tfields["output_key"] = string(kbytes)
 	tfields["output_body"] = m
 	log.WithFields(tfields).Info(logMessage + "; send")
+}
+
+func kafkaProducerLogFields(fields log.Fields) log.Fields {
+	const producerFieldLimit = 14
+	allowedFields := [...]string{
+		"app_name", "audit_id", "body", "cpe_mac", "subdoc_id",
+		"kafka_key", "topic", "cluster_name", "kafka_partition", "kafka_offset",
+		"message_length", "duration", "event_name", "rpt",
+	}
+	producerFields := make(log.Fields, producerFieldLimit)
+	for _, field := range allowedFields {
+		if value, ok := fields[field]; ok {
+			producerFields[field] = common.FilterLogFields(log.Fields{field: value})[field]
+		}
+	}
+	return producerFields
 }
 
 func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {

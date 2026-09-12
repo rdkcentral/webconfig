@@ -70,6 +70,35 @@ func TestPostSubDocumentRequestIncludesSubdocID(t *testing.T) {
 	assert.Assert(t, !ok)
 }
 
+func TestKafkaLoggingModeDefaultsToOneLine(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeOneLine)
+
+	server.SetKafkaLoggingMode(KafkaLoggingModeTwoLine)
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeTwoLine)
+	server.SetKafkaLoggingMode("invalid")
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeTwoLine)
+}
+
+func TestKafkaProducerLogFieldsAllowlist(t *testing.T) {
+	fields := kafkaProducerLogFields(log.Fields{
+		"app_name":      "webconfig",
+		"audit_id":      "audit",
+		"cpe_mac":       "001122334455",
+		"subdoc_id":     "lan",
+		"event_name":    "mqtt-get",
+		"header":        map[string]string{"Authorization": "secret", "X-Test": "value"},
+		"authorization": "secret",
+	})
+
+	_, hasHeader := fields["header"]
+	_, hasAuthorization := fields["authorization"]
+	assert.Assert(t, !hasHeader)
+	assert.Assert(t, !hasAuthorization)
+	assert.Equal(t, fields["subdoc_id"], "lan")
+	assert.Equal(t, fields["event_name"], "mqtt-get")
+}
+
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	assert.Assert(t, !server.ConfigApiTokenAuthEnabled())

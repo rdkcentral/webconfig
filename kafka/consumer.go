@@ -46,6 +46,10 @@ type Consumer struct {
 	topicPartitionsMap         map[string][]int32
 }
 
+func shouldLogConsumerSuccess(producerEnabled bool, message *common.EventMessage, loggingMode string) bool {
+	return !producerEnabled || message == nil || loggingMode == wchttp.KafkaLoggingModeTwoLine
+}
+
 func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics, clusterName string, offsetEnum int64, topicPartitionsMap map[string][]int32) *Consumer {
 	return &Consumer{
 		WebconfigServer:            s,
@@ -260,7 +264,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				}
 			} else {
 				forwardMessage = true
-				if !c.KafkaProducerEnabled() || m == nil {
+				if shouldLogConsumerSuccess(c.KafkaProducerEnabled(), m, c.KafkaLoggingMode()) {
 					log.WithFields(fields).Info(logMessage)
 				}
 			}
