@@ -214,6 +214,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			messageLength := len(message.Value)
 			fields := log.Fields{
 				"logger":          "kafka",
+				"kafka_operation": "consumer_process",
 				"app_name":        c.AppName(),
 				"kafka_lag":       lag,
 				"kafka_key":       kafkaKey,

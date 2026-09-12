@@ -1367,7 +1367,8 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 			if err != nil {
 				log.WithFields(fields).Error(common.NewError(err))
 			} else {
-				fields["output_body_text"] = boundedKafkaPayload(vbytes)
+				fields["output_body_text"], fields["output_body_truncated"] = boundedKafkaPayload(vbytes)
+				fields["output_body_bytes"] = len(vbytes)
 			}
 
 			log.WithFields(fields).Error(pErr.Err)
@@ -1375,12 +1376,13 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 	}
 }
 
-func boundedKafkaPayload(payload []byte) string {
-	encoded := base64.StdEncoding.EncodeToString(payload)
-	if len(encoded) > maxKafkaProducerLogPayloadBytes {
-		return encoded[:maxKafkaProducerLogPayloadBytes]
+func boundedKafkaPayload(payload []byte) (string, bool) {
+	maxRawBytes := (maxKafkaProducerLogPayloadBytes / 4) * 3
+	truncated := len(payload) > maxRawBytes
+	if truncated {
+		payload = payload[:maxRawBytes]
 	}
-	return encoded
+	return base64.StdEncoding.EncodeToString(payload), truncated
 }
 
 func (s *WebconfigServer) StopXpcTracer() {

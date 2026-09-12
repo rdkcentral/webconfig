@@ -102,11 +102,23 @@ func TestKafkaProducerLogFieldsAllowlist(t *testing.T) {
 
 func TestBoundedKafkaPayload(t *testing.T) {
 	payload := make([]byte, maxKafkaProducerLogPayloadBytes)
-	bounded := boundedKafkaPayload(payload)
+	bounded, truncated := boundedKafkaPayload(payload)
 	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+	assert.Assert(t, truncated)
+	_, err := base64.StdEncoding.DecodeString(bounded)
+	assert.NilError(t, err)
 
 	payload = append(payload, 'x')
-	assert.Equal(t, len(boundedKafkaPayload(payload)), maxKafkaProducerLogPayloadBytes)
+	bounded, truncated = boundedKafkaPayload(payload)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+	assert.Assert(t, truncated)
+	_, err = base64.StdEncoding.DecodeString(bounded)
+	assert.NilError(t, err)
+
+	payload = payload[:(maxKafkaProducerLogPayloadBytes/4)*3]
+	bounded, truncated = boundedKafkaPayload(payload)
+	assert.Assert(t, !truncated)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
 }
 
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
