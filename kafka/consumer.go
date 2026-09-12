@@ -46,6 +46,17 @@ type Consumer struct {
 	topicPartitionsMap         map[string][]int32
 }
 
+const maxKafkaMessageLogPayloadBytes = 4096
+
+func boundedKafkaMessage(payload []byte) (string, bool) {
+	maxRawBytes := (maxKafkaMessageLogPayloadBytes / 4) * 3
+	truncated := len(payload) > maxRawBytes
+	if truncated {
+		payload = payload[:maxRawBytes]
+	}
+	return base64.StdEncoding.EncodeToString(payload), truncated
+}
+
 func shouldLogConsumerSuccess(producerEnabled bool, message *common.EventMessage, loggingMode string) bool {
 	return !producerEnabled || message == nil || loggingMode == wchttp.KafkaLoggingModeTwoLine
 }
@@ -260,7 +271,8 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 					log.WithFields(fields).Trace("pending")
 				} else {
 					fields["error"] = err.Error()
-					fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
+					fields["kafka_message"], fields["kafka_message_truncated"] = boundedKafkaMessage(message.Value)
+					fields["kafka_message_bytes"] = len(message.Value)
 					log.WithFields(fields).Error("errors")
 				}
 			} else {

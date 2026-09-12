@@ -18,6 +18,7 @@
 package kafka
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -46,6 +47,20 @@ func TestKafkaSuccessLoggingMode(t *testing.T) {
 			assert.Equal(t, shouldLogConsumerSuccess(test.producerEnabled, test.message, test.loggingMode), test.want)
 		})
 	}
+}
+
+func TestBoundedKafkaMessage(t *testing.T) {
+	payload := make([]byte, maxKafkaMessageLogPayloadBytes+1)
+	encoded, truncated := boundedKafkaMessage(payload)
+	assert.Assert(t, truncated)
+	assert.Equal(t, len(encoded), maxKafkaMessageLogPayloadBytes)
+	_, err := base64.StdEncoding.DecodeString(encoded)
+	assert.NilError(t, err)
+
+	payload = payload[:(maxKafkaMessageLogPayloadBytes/4)*3]
+	encoded, truncated = boundedKafkaMessage(payload)
+	assert.Assert(t, !truncated)
+	assert.Equal(t, len(encoded), maxKafkaMessageLogPayloadBytes)
 }
 
 func TestGetEventName(t *testing.T) {
