@@ -47,6 +47,29 @@ func TestApiTokenAuthSecureDefaults(t *testing.T) {
 	assert.Assert(t, deviceApiTokenAuthEnabledDefault, "device API token auth must default to enabled")
 }
 
+func TestPostSubDocumentRequestIncludesSubdocID(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+
+	req, err := http.NewRequest("POST", "/api/v1/device/001122334455/document/lan", nil)
+	assert.NilError(t, err)
+	req = mux.SetURLVars(req, map[string]string{
+		"mac":       "001122334455",
+		"subdoc_id": "lan",
+	})
+	xw := server.logRequestStarts(httptest.NewRecorder(), req)
+	assert.Equal(t, xw.Audit()["subdoc_id"], "lan")
+
+	getReq, err := http.NewRequest("GET", "/api/v1/device/001122334455/document/lan", nil)
+	assert.NilError(t, err)
+	getReq = mux.SetURLVars(getReq, map[string]string{
+		"mac":       "001122334455",
+		"subdoc_id": "lan",
+	})
+	getXw := server.logRequestStarts(httptest.NewRecorder(), getReq)
+	_, ok := getXw.Audit()["subdoc_id"]
+	assert.Assert(t, !ok)
+}
+
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	assert.Assert(t, !server.ConfigApiTokenAuthEnabled())

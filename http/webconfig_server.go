@@ -973,6 +973,11 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		mac = strings.ToUpper(mac)
 		fields["cpe_mac"] = mac
 	}
+	if r.Method == "POST" {
+		if subdocID, ok := params["subdoc_id"]; ok {
+			fields["subdoc_id"] = subdocID
+		}
+	}
 
 	xwriter := NewXResponseWriter(w, time.Now(), token, fields)
 
@@ -1145,8 +1150,8 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields) {
-	tfields := common.CopyCoreLogFields(fields)
+func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields, logMessage string) {
+	tfields := common.FilterLogFields(fields)
 
 	bbytes, err := json.Marshal(m)
 	if err != nil {
@@ -1168,7 +1173,7 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 			if m := s.Metrics(); m != nil {
 				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
 			}
-			tfields["logger"] = "kafkaproducer"
+			tfields["logger"] = "kafka"
 			tfields["error"] = r
 			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
 		}
@@ -1176,16 +1181,16 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 
 	s.Input() <- outMessage
 
-	tfields["logger"] = "kafkaproducer"
+	tfields["logger"] = "kafka"
 	tfields["output_topic"] = outMessage.Topic
 	tfields["output_key"] = string(kbytes)
 	tfields["output_body"] = m
-	log.WithFields(tfields).Info("send")
+	log.WithFields(tfields).Info(logMessage + "; send")
 }
 
 func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {
 	tfields := common.CopyCoreLogFields(fields)
-	tfields["logger"] = "kafkaproducer"
+	tfields["logger"] = "kafka"
 	tfields["output_topic"] = s.KafkaProducerTopic()
 
 	for _, m := range messages {
@@ -1288,7 +1293,7 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				continue
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafkaproducer"
+			fields["logger"] = "kafka"
 			fields["output_topic"] = success.Topic
 			fields["output_partition"] = success.Partition
 			fields["output_offset"] = success.Offset
@@ -1304,7 +1309,7 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafkaproducer"
+			fields["logger"] = "kafka"
 			fields["output_topic"] = pErr.Msg.Topic
 			fields["output_partition"] = pErr.Msg.Partition
 			kbytes, err := pErr.Msg.Key.Encode()

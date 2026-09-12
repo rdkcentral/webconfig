@@ -260,7 +260,9 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				}
 			} else {
 				forwardMessage = true
-				log.WithFields(fields).Info(logMessage)
+				if !c.KafkaProducerEnabled() || m == nil {
+					log.WithFields(fields).Info(logMessage)
+				}
 			}
 
 			// build metrics dimensions and update metrics
@@ -281,7 +283,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			}
 
 			if c.KafkaProducerEnabled() && m != nil && forwardMessage {
-				c.ForwardKafkaMessage(message.Key, m, fields)
+				c.ForwardKafkaMessage(message.Key, m, fields, logMessage)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {
 						// build a root/success message
@@ -294,7 +296,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 								TransactionUuid:   m.TransactionUuid,
 								Version:           m.Version,
 							}
-							c.ForwardKafkaMessage(message.Key, em, fields)
+							c.ForwardKafkaMessage(message.Key, em, fields, logMessage)
 						}
 					}
 				}
