@@ -287,6 +287,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			}
 
 			if c.KafkaProducerEnabled() && m != nil && forwardMessage {
+				fields["kafka_operation"] = "producer_send"
 				c.ForwardKafkaMessage(message.Key, m, fields, logMessage)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {
@@ -300,6 +301,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 								TransactionUuid:   m.TransactionUuid,
 								Version:           m.Version,
 							}
+							fields["kafka_operation"] = "state_correction_send"
 							c.ForwardKafkaMessage(message.Key, em, fields, logMessage)
 						}
 					}

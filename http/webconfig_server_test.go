@@ -97,6 +97,16 @@ func TestKafkaProducerLogFieldsAllowlist(t *testing.T) {
 	assert.Assert(t, !hasAuthorization)
 	assert.Equal(t, fields["subdoc_id"], "lan")
 	assert.Equal(t, fields["event_name"], "mqtt-get")
+	assert.Equal(t, fields["kafka_operation"], nil)
+}
+
+func TestBoundedKafkaPayload(t *testing.T) {
+	payload := make([]byte, maxKafkaProducerLogPayloadBytes)
+	bounded := boundedKafkaPayload(payload)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+
+	payload = append(payload, 'x')
+	assert.Equal(t, len(boundedKafkaPayload(payload)), maxKafkaProducerLogPayloadBytes)
 }
 
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
