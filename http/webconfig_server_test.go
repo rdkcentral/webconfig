@@ -121,6 +121,23 @@ func TestBoundedKafkaPayload(t *testing.T) {
 	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
 }
 
+func TestProducerErrorPayloadFields(t *testing.T) {
+	fields := producerErrorPayloadFields([]byte(`{"status":"failed"}`))
+	assert.Equal(t, fields["output_body"].(map[string]interface{})["status"], "failed")
+	_, hasText := fields["output_body_text"]
+	assert.Assert(t, !hasText)
+	assert.Assert(t, !fields["output_body_truncated"].(bool))
+
+	fields = producerErrorPayloadFields([]byte("not-json"))
+	_, hasBody := fields["output_body"]
+	assert.Assert(t, !hasBody)
+	_, hasText = fields["output_body_text"]
+	assert.Assert(t, hasText)
+
+	fields = producerErrorPayloadFields(make([]byte, maxKafkaProducerLogPayloadBytes))
+	assert.Assert(t, fields["output_body_truncated"].(bool))
+}
+
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	assert.Assert(t, !server.ConfigApiTokenAuthEnabled())

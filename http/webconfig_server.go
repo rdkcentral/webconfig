@@ -1367,13 +1367,30 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 			if err != nil {
 				log.WithFields(fields).Error(common.NewError(err))
 			} else {
-				fields["output_body_text"], fields["output_body_truncated"] = boundedKafkaPayload(vbytes)
-				fields["output_body_bytes"] = len(vbytes)
+				common.UpdateLogFields(fields, producerErrorPayloadFields(vbytes))
 			}
 
 			log.WithFields(fields).Error(pErr.Err)
 		}
 	}
+}
+
+func producerErrorPayloadFields(payload []byte) log.Fields {
+	fields := log.Fields{
+		"output_body_bytes":     len(payload),
+		"output_body_truncated": false,
+	}
+	maxRawBytes := (maxKafkaProducerLogPayloadBytes / 4) * 3
+	if len(payload) <= maxRawBytes {
+		var body interface{}
+		if err := json.Unmarshal(payload, &body); err == nil {
+			fields["output_body"] = body
+			return fields
+		}
+	}
+
+	fields["output_body_text"], fields["output_body_truncated"] = boundedKafkaPayload(payload)
+	return fields
 }
 
 func boundedKafkaPayload(payload []byte) (string, bool) {
