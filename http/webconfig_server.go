@@ -74,6 +74,10 @@ const (
 	defaultSupplementaryAppendingEnabled = true
 	authPrefixLength                     = 60
 	defaultMaxRequestBodyBytes           = 1048576
+	maxKafkaProducerLogPayloadBytes      = 4096
+	KafkaLoggingModeOneLine              = "one_line"
+	KafkaLoggingModeTwoLine              = "two_line"
+	defaultKafkaLoggingMode              = KafkaLoggingModeOneLine
 )
 
 var (
@@ -124,6 +128,7 @@ type WebconfigServer struct {
 	supplementaryAppendingEnabled bool
 	kafkaProducerEnabled          bool
 	kafkaProducerTopic            string
+	kafkaLoggingMode              string
 	upstreamProfilesEnabled       bool
 	queryParamsValidationEnabled  bool
 	minTrust                      int
@@ -306,6 +311,13 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	var kafkaProducer sarama.AsyncProducer
 	kafkaProducerEnabled := conf.GetBoolean("webconfig.kafka_producer.enabled")
 	var kafkaProducerTopic string
+	kafkaLoggingMode := conf.GetString("webconfig.kafka_producer.logging_mode", defaultKafkaLoggingMode)
+	if kafkaLoggingMode != KafkaLoggingModeOneLine && kafkaLoggingMode != KafkaLoggingModeTwoLine {
+		if kafkaProducerEnabled {
+			panic(fmt.Errorf("webconfig.kafka_producer.logging_mode must be %q or %q", KafkaLoggingModeOneLine, KafkaLoggingModeTwoLine))
+		}
+		kafkaLoggingMode = defaultKafkaLoggingMode
+	}
 	if kafkaProducerEnabled {
 		brokersStr := conf.GetString("webconfig.kafka_producer.brokers")
 		if len(brokersStr) == 0 {
@@ -414,6 +426,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		supplementaryAppendingEnabled: supplementaryAppendingEnabled,
 		kafkaProducerEnabled:          kafkaProducerEnabled,
 		kafkaProducerTopic:            kafkaProducerTopic,
+		kafkaLoggingMode:              kafkaLoggingMode,
 		upstreamProfilesEnabled:       upstreamProfilesEnabled,
 		queryParamsValidationEnabled:  queryParamsValidationEnabled,
 		minTrust:                      minTrust,
@@ -796,6 +809,17 @@ func (s *WebconfigServer) SetKafkaProducerTopic(x string) {
 	s.kafkaProducerTopic = x
 }
 
+func (s *WebconfigServer) KafkaLoggingMode() string {
+	return s.kafkaLoggingMode
+}
+
+func (s *WebconfigServer) SetKafkaLoggingMode(mode string) {
+	if mode != KafkaLoggingModeOneLine && mode != KafkaLoggingModeTwoLine {
+		return
+	}
+	s.kafkaLoggingMode = mode
+}
+
 func (s *WebconfigServer) UpstreamProfilesEnabled() bool {
 	return s.upstreamProfilesEnabled
 }
@@ -973,6 +997,11 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 		mac = strings.ToUpper(mac)
 		fields["cpe_mac"] = mac
 	}
+	if r.Method == "POST" {
+		if subdocID, ok := params["subdoc_id"]; ok {
+			fields["subdoc_id"] = subdocID
+		}
+	}
 
 	xwriter := NewXResponseWriter(w, time.Now(), token, fields)
 
@@ -1145,8 +1174,11 @@ func GetResponseLogObjs(rbytes []byte) (interface{}, string) {
 	return itf, ""
 }
 
-func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields) {
-	tfields := common.CopyCoreLogFields(fields)
+func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMessage, fields log.Fields, logMessage string) {
+	tfields := kafkaProducerLogFields(fields)
+	if _, ok := tfields["kafka_operation"]; !ok {
+		tfields["kafka_operation"] = "producer_send"
+	}
 
 	bbytes, err := json.Marshal(m)
 	if err != nil {
@@ -1168,7 +1200,7 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 			if m := s.Metrics(); m != nil {
 				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
 			}
-			tfields["logger"] = "kafkaproducer"
+			tfields["logger"] = s.KafkaProducerLogger()
 			tfields["error"] = r
 			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
 		}
@@ -1176,16 +1208,32 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 
 	s.Input() <- outMessage
 
-	tfields["logger"] = "kafkaproducer"
+	tfields["logger"] = s.KafkaProducerLogger()
 	tfields["output_topic"] = outMessage.Topic
 	tfields["output_key"] = string(kbytes)
-	tfields["output_body"] = m
-	log.WithFields(tfields).Info("send")
+	log.WithFields(tfields).Info(logMessage + "; send")
+}
+
+func kafkaProducerLogFields(fields log.Fields) log.Fields {
+	const producerFieldLimit = 15
+	allowedFields := [...]string{
+		"app_name", "audit_id", "body", "cpe_mac", "subdoc_id",
+		"kafka_key", "topic", "cluster_name", "kafka_partition", "kafka_offset",
+		"message_length", "duration", "event_name", "rpt", "kafka_operation",
+	}
+	producerFields := make(log.Fields, producerFieldLimit)
+	for _, field := range allowedFields {
+		if value, ok := fields[field]; ok {
+			producerFields[field] = common.FilterLogFields(log.Fields{field: value})[field]
+		}
+	}
+	return producerFields
 }
 
 func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {
-	tfields := common.CopyCoreLogFields(fields)
-	tfields["logger"] = "kafkaproducer"
+	tfields := kafkaProducerLogFields(fields)
+	tfields["logger"] = s.KafkaProducerLogger()
+	tfields["kafka_operation"] = "state_correction_send"
 	tfields["output_topic"] = s.KafkaProducerTopic()
 
 	for _, m := range messages {
@@ -1228,7 +1276,6 @@ func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMes
 		}
 
 		tfields["output_key"] = mac
-		tfields["output_body"] = m
 		log.WithFields(tfields).Info("send")
 	}
 }
@@ -1288,7 +1335,8 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				continue
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafkaproducer"
+			fields["logger"] = s.KafkaProducerLogger()
+			fields["kafka_operation"] = "producer_result"
 			fields["output_topic"] = success.Topic
 			fields["output_partition"] = success.Partition
 			fields["output_offset"] = success.Offset
@@ -1304,7 +1352,8 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafkaproducer"
+			fields["logger"] = s.KafkaProducerLogger()
+			fields["kafka_operation"] = "producer_result"
 			fields["output_topic"] = pErr.Msg.Topic
 			fields["output_partition"] = pErr.Msg.Partition
 			kbytes, err := pErr.Msg.Key.Encode()
@@ -1318,19 +1367,46 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 			if err != nil {
 				log.WithFields(fields).Error(common.NewError(err))
 			} else {
-				var itf interface{}
-				err1 := json.Unmarshal(vbytes, &itf)
-				if err1 != nil {
-					log.WithFields(fields).Error(common.NewError(err1))
-					fields["output_body_text"] = base64.StdEncoding.EncodeToString(vbytes)
-				} else {
-					fields["output_body"] = itf
-				}
+				common.UpdateLogFields(fields, producerErrorPayloadFields(vbytes))
 			}
 
 			log.WithFields(fields).Error(pErr.Err)
 		}
 	}
+}
+
+func (s *WebconfigServer) KafkaProducerLogger() string {
+	if s.KafkaLoggingMode() == KafkaLoggingModeTwoLine {
+		return "kafkaproducer"
+	}
+	return "kafka"
+}
+
+func producerErrorPayloadFields(payload []byte) log.Fields {
+	fields := log.Fields{
+		"output_body_bytes":     len(payload),
+		"output_body_truncated": false,
+	}
+	maxRawBytes := (maxKafkaProducerLogPayloadBytes / 4) * 3
+	if len(payload) <= maxRawBytes {
+		var body interface{}
+		if err := json.Unmarshal(payload, &body); err == nil {
+			fields["output_body"] = body
+			return fields
+		}
+	}
+
+	fields["output_body_text"], fields["output_body_truncated"] = boundedKafkaPayload(payload)
+	return fields
+}
+
+func boundedKafkaPayload(payload []byte) (string, bool) {
+	maxRawBytes := (maxKafkaProducerLogPayloadBytes / 4) * 3
+	truncated := len(payload) > maxRawBytes
+	if truncated {
+		payload = payload[:maxRawBytes]
+	}
+	return base64.StdEncoding.EncodeToString(payload), truncated
 }
 
 func (s *WebconfigServer) StopXpcTracer() {
