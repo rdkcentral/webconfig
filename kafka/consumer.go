@@ -46,6 +46,30 @@ type Consumer struct {
 	topicPartitionsMap         map[string][]int32
 }
 
+func addKafkaEventLogFields(fields log.Fields, eventName, rptHeaderValue string) {
+	if eventName != "webpa-state" {
+		fields["event_name"] = eventName
+	}
+	if rptHeaderValue != "" {
+		fields["rpt"] = rptHeaderValue
+	}
+}
+
+const maxKafkaMessageLogPayloadBytes = 4096
+
+func boundedKafkaMessage(payload []byte) (string, bool) {
+	maxRawBytes := (maxKafkaMessageLogPayloadBytes / 4) * 3
+	truncated := len(payload) > maxRawBytes
+	if truncated {
+		payload = payload[:maxRawBytes]
+	}
+	return base64.StdEncoding.EncodeToString(payload), truncated
+}
+
+func shouldLogConsumerSuccess(producerEnabled bool, message *common.EventMessage, loggingMode string) bool {
+	return !producerEnabled || message == nil || loggingMode == wchttp.KafkaLoggingModeTwoLine
+}
+
 func NewConsumer(s *wchttp.WebconfigServer, ratelimitMessagesPerSecond int, m *common.AppMetrics, clusterName string, offsetEnum int64, topicPartitionsMap map[string][]int32) *Consumer {
 	return &Consumer{
 		WebconfigServer:            s,
@@ -210,6 +234,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			messageLength := len(message.Value)
 			fields := log.Fields{
 				"logger":          "kafka",
+				"kafka_operation": "consumer_process",
 				"app_name":        c.AppName(),
 				"kafka_lag":       lag,
 				"kafka_key":       kafkaKey,
@@ -244,8 +269,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			session.MarkMessage(message, "")
 			duration := int(time.Since(start).Nanoseconds() / 1000000)
 			fields["duration"] = duration
-			fields["event_name"] = eventName
-			fields["rpt"] = rptHeaderValue
+			addKafkaEventLogFields(fields, eventName, rptHeaderValue)
 
 			forwardMessage := false
 			if err != nil {
@@ -255,12 +279,15 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 					log.WithFields(fields).Trace("pending")
 				} else {
 					fields["error"] = err.Error()
-					fields["kafka_message"] = base64.StdEncoding.EncodeToString(message.Value)
+					fields["kafka_message"], fields["kafka_message_truncated"] = boundedKafkaMessage(message.Value)
+					fields["kafka_message_bytes"] = len(message.Value)
 					log.WithFields(fields).Error("errors")
 				}
 			} else {
 				forwardMessage = true
-				log.WithFields(fields).Info(logMessage)
+				if shouldLogConsumerSuccess(c.KafkaProducerEnabled(), m, c.KafkaLoggingMode()) {
+					log.WithFields(fields).Info(logMessage)
+				}
 			}
 
 			// build metrics dimensions and update metrics
@@ -281,7 +308,8 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			}
 
 			if c.KafkaProducerEnabled() && m != nil && forwardMessage {
-				c.ForwardKafkaMessage(message.Key, m, fields)
+				fields["kafka_operation"] = "producer_send"
+				c.ForwardKafkaMessage(message.Key, m, fields, logMessage)
 				if len(m.Reports) == 0 {
 					if m.HttpStatusCode != nil && *m.HttpStatusCode == http.StatusNotModified && len(updatedSubdocIds) > 0 {
 						// build a root/success message
@@ -294,7 +322,8 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 								TransactionUuid:   m.TransactionUuid,
 								Version:           m.Version,
 							}
-							c.ForwardKafkaMessage(message.Key, em, fields)
+							fields["kafka_operation"] = "state_correction_send"
+							c.ForwardKafkaMessage(message.Key, em, fields, logMessage)
 						}
 					}
 				}
@@ -303,7 +332,6 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			return nil
 		}
 	}
-	return nil
 }
 
 func (c *Consumer) AppName() string {
