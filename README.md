@@ -130,8 +130,9 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
 ```shell
     kafka_producer {
         enabled = true
-        // one_line consolidates consumer and producer enqueue success;
-        // two_line also emits the consumer processing success record.
+        // one_line consolidates consumer and producer enqueue success under logger=kafka;
+        // two_line also emits the consumer processing success record and uses
+        // logger=kafkaproducer for producer records.
         logging_mode = "one_line"
         brokers = "kafka-broker:9093"
         topic = "webconfig_downstream"

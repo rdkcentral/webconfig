@@ -1200,7 +1200,7 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 			if m := s.Metrics(); m != nil {
 				m.ObserveKafkaProducerErr(s.KafkaProducerTopic(), -1)
 			}
-			tfields["logger"] = "kafka"
+			tfields["logger"] = s.KafkaProducerLogger()
 			tfields["error"] = r
 			log.WithFields(tfields).Warn("dropped: producer closed during shutdown")
 		}
@@ -1208,7 +1208,7 @@ func (s *WebconfigServer) ForwardKafkaMessage(kbytes []byte, m *common.EventMess
 
 	s.Input() <- outMessage
 
-	tfields["logger"] = "kafka"
+	tfields["logger"] = s.KafkaProducerLogger()
 	tfields["output_topic"] = outMessage.Topic
 	tfields["output_key"] = string(kbytes)
 	log.WithFields(tfields).Info(logMessage + "; send")
@@ -1232,7 +1232,7 @@ func kafkaProducerLogFields(fields log.Fields) log.Fields {
 
 func (s *WebconfigServer) ForwardSuccessKafkaMessages(messages []common.EventMessage, fields log.Fields) {
 	tfields := kafkaProducerLogFields(fields)
-	tfields["logger"] = "kafka"
+	tfields["logger"] = s.KafkaProducerLogger()
 	tfields["kafka_operation"] = "state_correction_send"
 	tfields["output_topic"] = s.KafkaProducerTopic()
 
@@ -1335,7 +1335,7 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				continue
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafka"
+			fields["logger"] = s.KafkaProducerLogger()
 			fields["kafka_operation"] = "producer_result"
 			fields["output_topic"] = success.Topic
 			fields["output_partition"] = success.Partition
@@ -1352,7 +1352,7 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 				m.ObserveKafkaProducerErr(pErr.Msg.Topic, pErr.Msg.Partition)
 			}
 			fields := make(log.Fields)
-			fields["logger"] = "kafka"
+			fields["logger"] = s.KafkaProducerLogger()
 			fields["kafka_operation"] = "producer_result"
 			fields["output_topic"] = pErr.Msg.Topic
 			fields["output_partition"] = pErr.Msg.Partition
@@ -1373,6 +1373,13 @@ func (s *WebconfigServer) HandleKafkaProducerResults(ctx context.Context) {
 			log.WithFields(fields).Error(pErr.Err)
 		}
 	}
+}
+
+func (s *WebconfigServer) KafkaProducerLogger() string {
+	if s.KafkaLoggingMode() == KafkaLoggingModeTwoLine {
+		return "kafkaproducer"
+	}
+	return "kafka"
 }
 
 func producerErrorPayloadFields(payload []byte) log.Fields {

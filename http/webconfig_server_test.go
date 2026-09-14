@@ -80,6 +80,14 @@ func TestKafkaLoggingModeDefaultsToOneLine(t *testing.T) {
 	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeTwoLine)
 }
 
+func TestKafkaProducerLoggerFollowsLoggingMode(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	assert.Equal(t, server.KafkaProducerLogger(), "kafka")
+
+	server.SetKafkaLoggingMode(KafkaLoggingModeTwoLine)
+	assert.Equal(t, server.KafkaProducerLogger(), "kafkaproducer")
+}
+
 func TestKafkaProducerLogFieldsAllowlist(t *testing.T) {
 	fields := kafkaProducerLogFields(log.Fields{
 		"app_name":      "webconfig",
