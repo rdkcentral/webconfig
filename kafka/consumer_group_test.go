@@ -77,7 +77,8 @@ func TestKafkaEventLogFields(t *testing.T) {
 		{name: "webpa state default", eventName: "webpa-state"},
 		{name: "mqtt get", eventName: "mqtt-get", rpt: "x/fr/webconfig/get", wantEvent: "mqtt-get", wantRPT: "x/fr/webconfig/get", hasEvent: true, hasRPT: true},
 		{name: "mqtt state", eventName: "mqtt-state", rpt: "x/fr/webconfig/poke", wantEvent: "mqtt-state", wantRPT: "x/fr/webconfig/poke", hasEvent: true, hasRPT: true},
-		{name: "unknown event without rpt", eventName: "unknown-no-rpt"},
+		{name: "unknown event without rpt", eventName: "unknown-no-rpt", wantEvent: "unknown-no-rpt", hasEvent: true},
+		{name: "unknown event with rpt", eventName: "unknown-rpt", rpt: "indigo", wantEvent: "unknown-rpt", wantRPT: "indigo", hasEvent: true, hasRPT: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

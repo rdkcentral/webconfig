@@ -47,7 +47,7 @@ type Consumer struct {
 }
 
 func addKafkaEventLogFields(fields log.Fields, eventName, rptHeaderValue string) {
-	if eventName == "mqtt-get" || eventName == "mqtt-state" {
+	if eventName != "webpa-state" {
 		fields["event_name"] = eventName
 	}
 	if rptHeaderValue != "" {
@@ -332,7 +332,6 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			return nil
 		}
 	}
-	return nil
 }
 
 func (c *Consumer) AppName() string {
