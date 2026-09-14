@@ -25,6 +25,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/rdkcentral/webconfig/common"
 	wchttp "github.com/rdkcentral/webconfig/http"
+	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
 )
 
@@ -61,6 +62,39 @@ func TestBoundedKafkaMessage(t *testing.T) {
 	encoded, truncated = boundedKafkaMessage(payload)
 	assert.Assert(t, !truncated)
 	assert.Equal(t, len(encoded), maxKafkaMessageLogPayloadBytes)
+}
+
+func TestKafkaEventLogFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		eventName string
+		rpt       string
+		wantEvent string
+		wantRPT   string
+		hasEvent  bool
+		hasRPT    bool
+	}{
+		{name: "webpa state default", eventName: "webpa-state"},
+		{name: "mqtt get", eventName: "mqtt-get", rpt: "x/fr/webconfig/get", wantEvent: "mqtt-get", wantRPT: "x/fr/webconfig/get", hasEvent: true, hasRPT: true},
+		{name: "mqtt state", eventName: "mqtt-state", rpt: "x/fr/webconfig/poke", wantEvent: "mqtt-state", wantRPT: "x/fr/webconfig/poke", hasEvent: true, hasRPT: true},
+		{name: "unknown event without rpt", eventName: "unknown-no-rpt"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fields := log.Fields{}
+			addKafkaEventLogFields(fields, test.eventName, test.rpt)
+			value, hasEvent := fields["event_name"]
+			assert.Equal(t, hasEvent, test.hasEvent)
+			if test.hasEvent {
+				assert.Equal(t, value, test.wantEvent)
+			}
+			value, hasRPT := fields["rpt"]
+			assert.Equal(t, hasRPT, test.hasRPT)
+			if test.hasRPT {
+				assert.Equal(t, value, test.wantRPT)
+			}
+		})
+	}
 }
 
 func TestGetEventName(t *testing.T) {

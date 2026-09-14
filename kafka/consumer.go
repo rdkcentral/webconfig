@@ -46,6 +46,15 @@ type Consumer struct {
 	topicPartitionsMap         map[string][]int32
 }
 
+func addKafkaEventLogFields(fields log.Fields, eventName, rptHeaderValue string) {
+	if eventName == "mqtt-get" || eventName == "mqtt-state" {
+		fields["event_name"] = eventName
+	}
+	if rptHeaderValue != "" {
+		fields["rpt"] = rptHeaderValue
+	}
+}
+
 const maxKafkaMessageLogPayloadBytes = 4096
 
 func boundedKafkaMessage(payload []byte) (string, bool) {
@@ -260,8 +269,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			session.MarkMessage(message, "")
 			duration := int(time.Since(start).Nanoseconds() / 1000000)
 			fields["duration"] = duration
-			fields["event_name"] = eventName
-			fields["rpt"] = rptHeaderValue
+			addKafkaEventLogFields(fields, eventName, rptHeaderValue)
 
 			forwardMessage := false
 			if err != nil {
