@@ -44,6 +44,7 @@ func TestApiTokenAuthSecureDefaults(t *testing.T) {
 	// be guarded by ApiMiddleware out of the box. Regression guard for f003.
 	assert.Assert(t, serverApiTokenAuthEnabledDefault, "server API token auth must default to enabled")
 	assert.Assert(t, !configApiTokenAuthEnabledDefault, "config API token auth must default to disabled")
+	assert.Assert(t, !tokenApiTokenAuthEnabledDefault, "token API token auth must default to disabled")
 	assert.Assert(t, deviceApiTokenAuthEnabledDefault, "device API token auth must default to enabled")
 }
 
@@ -164,6 +165,30 @@ func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	router := server.GetRouter(false)
 
 	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+}
+
+func TestTokenEndpointRemainsUnauthenticatedWhenDisabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	assert.Assert(t, !server.TokenApiTokenAuthEnabled())
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+}
+
+func TestTokenEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	server.SetTokenApiTokenAuthEnabled(true)
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
@@ -703,6 +728,14 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	enabled = false
 	server.SetConfigApiTokenAuthEnabled(enabled)
 	assert.Equal(t, server.ConfigApiTokenAuthEnabled(), enabled)
+
+	// token api token auth
+	enabled = true
+	server.SetTokenApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.TokenApiTokenAuthEnabled(), enabled)
+	enabled = false
+	server.SetTokenApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.TokenApiTokenAuthEnabled(), enabled)
 
 	// device api token auth
 	enabled = true
