@@ -169,6 +169,18 @@ func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 }
 
+func TestConfigEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetConfigApiTokenAuthEnabled(true)
+	router := server.GetRouter(true)
+
+	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer test-token")
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+}
+
 func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.SetConfigApiTokenAuthEnabled(true)

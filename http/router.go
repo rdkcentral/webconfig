@@ -32,8 +32,12 @@ func (s *WebconfigServer) AddBaseRoutes(testOnly bool, router *mux.Router) {
 	r2.HandleFunc("", s.VersionHandler).Methods("GET")
 
 	r3 := router.Path("/config").Subrouter()
-	if s.ConfigApiTokenAuthEnabled() {
+	if testOnly {
+		r3.Use(s.TestingMiddleware)
+	} else if s.ConfigApiTokenAuthEnabled() {
 		r3.Use(s.ApiMiddleware)
+	} else {
+		r3.Use(s.NoAuthMiddleware)
 	}
 	r3.HandleFunc("", s.ServerConfigHandler).Methods("GET")
 
