@@ -325,6 +325,7 @@ webconfig {
 		tls_cert_file = "` + certFile + `"
 		tls_key_file = "` + keyFile + `"
 		tls_ca_cert_file = "` + caCertFile + `"
+			tls_server_name = "kafka.example.com"
 	}
 }
 `
@@ -336,6 +337,9 @@ webconfig {
 	assert.Assert(t, len(tlsConfig.Certificates) == 1, "Should have one client certificate")
 	assert.Assert(t, tlsConfig.RootCAs != nil, "Should have custom CA")
 	assert.Assert(t, !tlsConfig.InsecureSkipVerify, "Should not skip verification")
+	assert.Equal(t, tlsConfig.ServerName, "kafka.example.com")
+	assert.Equal(t, tlsConfig.MinVersion, uint16(0x0303))
+	assert.Assert(t, len(tlsConfig.CipherSuites) > 0, "Should configure TLS cipher suites")
 }
 
 func TestLoadKafkaTLSConfig_DifferentPrefixes(t *testing.T) {
