@@ -150,7 +150,7 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
 
 **Certificate Requirements:**
 
-1. **Client Certificate (mTLS)**: If `cert_file` and `key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
+1. **Client Certificate (mTLS)**: If `tls_cert_file` and `tls_key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
 
 2. **CA Certificate**: If `tls_ca_cert_file` is provided, it will be used to verify the Kafka broker's certificate. This is useful when using self-signed certificates or internal CAs.
 

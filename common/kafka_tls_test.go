@@ -20,6 +20,7 @@ package common
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -340,6 +341,35 @@ webconfig {
 	assert.Equal(t, tlsConfig.ServerName, "kafka.example.com")
 	assert.Equal(t, tlsConfig.MinVersion, uint16(0x0303))
 	assert.Assert(t, len(tlsConfig.CipherSuites) > 0, "Should configure TLS cipher suites")
+	assert.Assert(t, !containsCipherSuite(tlsConfig.CipherSuites, tls.TLS_RSA_WITH_AES_128_CBC_SHA), "Kafka should not enable the Cassandra legacy cipher suite")
+}
+
+func TestLoadTLSConfig_CassandraIncludesLegacyCipher(t *testing.T) {
+	conf := configuration.ParseString(`
+webconfig {
+	database {
+		cassandra {
+			tls_server_name = "cassandra.example.com"
+			tls_insecure_skip_verify = false
+		}
+	}
+}
+`)
+
+	tlsConfig, err := LoadTLSConfig(conf.GetConfig("webconfig.database.cassandra"), "", "Cassandra")
+
+	assert.NilError(t, err)
+	assert.Equal(t, tlsConfig.ServerName, "cassandra.example.com")
+	assert.Assert(t, containsCipherSuite(tlsConfig.CipherSuites, tls.TLS_RSA_WITH_AES_128_CBC_SHA), "Cassandra should retain its legacy 3.11.x cipher suite")
+}
+
+func containsCipherSuite(cipherSuites []uint16, wanted uint16) bool {
+	for _, cipherSuite := range cipherSuites {
+		if cipherSuite == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func TestLoadKafkaTLSConfig_DifferentPrefixes(t *testing.T) {
