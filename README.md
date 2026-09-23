@@ -84,11 +84,14 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
 
 **TLS Configuration Options:**
 
-- `tls.enabled` - Enable/disable TLS for Kafka connections (default: false)
-- `tls.cert_file` - Path to client certificate file for mTLS authentication (optional)
-- `tls.key_file` - Path to client private key file for mTLS authentication (optional)
-- `tls.ca_cert_file` - Path to CA certificate file for broker verification (optional)
-- `tls.insecure_skip_verify` - Skip certificate verification (insecure, for testing only, default: false)
+- `tls_enabled` - Enable/disable TLS for Kafka connections (default: false)
+- `tls_cert_file` - Path to client certificate file for mTLS authentication (optional)
+- `tls_key_file` - Path to client private key file for mTLS authentication (optional)
+- `tls_ca_cert_file` - Path to CA certificate file for broker verification (optional)
+- `tls_insecure_skip_verify` - Skip certificate verification (insecure, for testing only, default: false)
+- `tls_server_name` - Optional SNI and certificate name override (default: empty)
+
+Kafka keeps its existing `tls_enabled` flag for each consumer cluster and producer. Cassandra uses its existing `is_ssl_enabled` flag; after TLS is enabled, both integrations use the same flat `tls_*` fields, including identical `tls_insecure_skip_verify` and `tls_server_name` behavior.
 
 **Consumer TLS Configuration Example:**
 
@@ -99,13 +102,12 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
         topics = "config-version-report"
         consumer_group = "webconfig"
 
-        tls {
-            enabled = true
-            cert_file = "/etc/webconfig/kafka/client.crt"
-            key_file = "/etc/webconfig/kafka/client.key"
-            ca_cert_file = "/etc/webconfig/kafka/ca.crt"
-            insecure_skip_verify = false
-        }
+        tls_enabled = true
+        tls_cert_file = "/etc/webconfig/kafka/client.crt"
+        tls_key_file = "/etc/webconfig/kafka/client.key"
+        tls_ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+        tls_insecure_skip_verify = false
+        tls_server_name = "kafka.example.com"
 
         # Per-cluster TLS configuration
         clusters {
@@ -114,12 +116,12 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
                 brokers = "kafka-mesh:9093"
                 topics = "staging-chi-onewifi-from-device"
 
-                tls {
-                    enabled = true
-                    cert_file = "/etc/webconfig/kafka/mesh-client.crt"
-                    key_file = "/etc/webconfig/kafka/mesh-client.key"
-                    ca_cert_file = "/etc/webconfig/kafka/mesh-ca.crt"
-                }
+                tls_enabled = true
+                tls_cert_file = "/etc/webconfig/kafka/mesh-client.crt"
+                tls_key_file = "/etc/webconfig/kafka/mesh-client.key"
+                tls_ca_cert_file = "/etc/webconfig/kafka/mesh-ca.crt"
+                tls_insecure_skip_verify = false
+                tls_server_name = "kafka-mesh.example.com"
             }
         }
     }
@@ -137,20 +139,20 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
         brokers = "kafka-broker:9093"
         topic = "webconfig_downstream"
 
-        tls {
-            enabled = true
-            cert_file = "/etc/webconfig/kafka/producer-client.crt"
-            key_file = "/etc/webconfig/kafka/producer-client.key"
-            ca_cert_file = "/etc/webconfig/kafka/ca.crt"
-        }
+        tls_enabled = true
+        tls_cert_file = "/etc/webconfig/kafka/producer-client.crt"
+        tls_key_file = "/etc/webconfig/kafka/producer-client.key"
+        tls_ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+        tls_insecure_skip_verify = false
+        tls_server_name = "kafka.example.com"
     }
 ```
 
 **Certificate Requirements:**
 
-1. **Client Certificate (mTLS)**: If `cert_file` and `key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
+1. **Client Certificate (mTLS)**: If `tls_cert_file` and `tls_key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
 
-2. **CA Certificate**: If `ca_cert_file` is provided, it will be used to verify the Kafka broker's certificate. This is useful when using self-signed certificates or internal CAs.
+2. **CA Certificate**: If `tls_ca_cert_file` is provided, it will be used to verify the Kafka broker's certificate. This is useful when using self-signed certificates or internal CAs.
 
 3. **Certificate Validation**: All certificate files are validated at startup. The application will fail to start with clear error messages if:
    - Certificate files are missing or unreadable
@@ -160,8 +162,8 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
 **TLS Security Best Practices:**
 
 1. **Use TLS in Production**: Always enable TLS for production Kafka connections to encrypt data in transit
-2. **Use mTLS**: Provide client certificates (`cert_file` and `key_file`) for mutual authentication
-3. **Verify Certificates**: Never use `insecure_skip_verify = true` in production - it disables certificate verification and is insecure
+2. **Use mTLS**: Provide client certificates (`tls_cert_file` and `tls_key_file`) for mutual authentication
+3. **Verify Certificates**: Never use `tls_insecure_skip_verify = true` in production - it disables certificate verification and is insecure
 4. **Protect Certificate Files**: Set appropriate file permissions (0600) on certificate and key files
 5. **Use Secure Ports**: Configure Kafka brokers to listen on secure ports (typically 9093 for TLS)
 6. **Certificate Rotation**: Plan for certificate rotation - the service must be restarted to pick up new certificates
