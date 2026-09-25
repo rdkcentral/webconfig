@@ -19,8 +19,6 @@ package cassandra
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -33,7 +31,6 @@ import (
 	"github.com/rdkcentral/webconfig/db"
 	"github.com/rdkcentral/webconfig/security"
 	"github.com/rdkcentral/webconfig/util"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -165,7 +162,7 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 
 	if isSslEnabled {
 		insecureSkipVerify := dbconf.GetBoolean("tls_insecure_skip_verify")
-		tlsConfig, err := loadCassandraTLSConfig(dbconf, dbdriver, insecureSkipVerify)
+		tlsConfig, err := common.LoadTLSConfig(dbconf, "", "Cassandra")
 		if err != nil {
 			return nil, common.NewError(err)
 		}
@@ -212,128 +209,6 @@ func NewCassandraClient(conf *configuration.Config, testOnly bool) (*CassandraCl
 		supplementaryPrecookEnabled:      supplementaryPrecookEnabled,
 		supplementaryPrecookStateTTLDays: supplementaryPrecookStateTTLDays,
 	}, nil
-}
-
-// loadCassandraTLSConfig loads TLS configuration for Cassandra connection.
-// Returns a tls.Config with certificates loaded from the configuration.
-// Reads flat tls_* keys directly under the database driver config (cassandra or yugabyte).
-func loadCassandraTLSConfig(dbconf *configuration.Config, dbdriver string, insecureSkipVerify bool) (*tls.Config, error) {
-	// Load client certificates for mTLS if provided (optional when insecure_skip_verify is true)
-	certFile := dbconf.GetString("tls_cert_file")
-	keyFile := dbconf.GetString("tls_key_file")
-	caCertFile := dbconf.GetString("tls_ca_cert_file")
-	serverName := dbconf.GetString("tls_server_name")
-
-	// Create TLS config for Cassandra connection.
-	// Prefer modern ECDHE+AEAD suites for forward secrecy; keep TLS_RSA_WITH_AES_128_CBC_SHA
-	// last as a fallback for legacy Cassandra 3.11.x nodes that only negotiate that suite.
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ServerName: serverName,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-			// Legacy fallback for Cassandra 3.11.x — do not remove
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-		},
-		InsecureSkipVerify: insecureSkipVerify,
-	}
-
-	// When insecure_skip_verify is true and no cert files configured, skip loading certificates
-	// This allows TLS without client authentication (server-only TLS)
-	if insecureSkipVerify && (len(certFile) == 0 || len(keyFile) == 0) {
-		// Insecure mode without client certificates - skip cert loading
-		log.WithFields(log.Fields{
-			"driver": dbdriver,
-		}).Warn("Cassandra TLS enabled in insecure mode without client certificates")
-	} else if len(certFile) > 0 && len(keyFile) > 0 {
-		// Only validate cert files exist when verification is enabled
-		if !insecureSkipVerify {
-			// Validate certificate file exists
-			if _, err := os.Stat(certFile); os.IsNotExist(err) {
-				return nil, fmt.Errorf("Cassandra TLS certificate file does not exist: %s", certFile)
-			}
-
-			// Validate key file exists
-			if _, err := os.Stat(keyFile); os.IsNotExist(err) {
-				return nil, fmt.Errorf("Cassandra TLS key file does not exist: %s", keyFile)
-			}
-		}
-
-		// Load and parse the certificate and key
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load Cassandra TLS certificate and key from %s and %s: %v", certFile, keyFile, err)
-		}
-
-		tlsConfig.Certificates = []tls.Certificate{cert}
-		log.WithFields(log.Fields{
-			"driver":    dbdriver,
-			"cert_file": certFile,
-			"key_file":  keyFile,
-		}).Info("Loaded Cassandra TLS client certificate for mTLS")
-	} else if len(certFile) > 0 || len(keyFile) > 0 {
-		// Partial cert configuration detected - require both cert and key when verification is enabled
-		if !insecureSkipVerify {
-			return nil, fmt.Errorf("Cassandra TLS enabled with verification but incomplete certificate configuration (cert: %s, key: %s)", certFile, keyFile)
-		}
-	}
-
-	// Load CA certificate if provided (optional when insecure_skip_verify is true)
-	// When insecure_skip_verify is true and no CA file configured, skip loading CA cert
-	// This allows TLS without server verification (insecure mode)
-	if insecureSkipVerify && len(caCertFile) == 0 {
-		// Insecure mode without CA cert - skip CA loading
-		log.WithFields(log.Fields{
-			"driver": dbdriver,
-		}).Warn("Cassandra TLS enabled in insecure mode without CA certificate")
-	} else if len(caCertFile) > 0 {
-		// Only validate CA cert file exists when verification is enabled
-		if !insecureSkipVerify {
-			// Validate CA certificate file exists
-			if _, err := os.Stat(caCertFile); os.IsNotExist(err) {
-				return nil, fmt.Errorf("Cassandra TLS CA certificate file does not exist: %s", caCertFile)
-			}
-		}
-
-		// Load CA certificate
-		caCert, err := os.ReadFile(caCertFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read Cassandra TLS CA certificate from %s: %v", caCertFile, err)
-		}
-
-		// Parse CA certificate
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse Cassandra TLS CA certificate from %s", caCertFile)
-		}
-
-		tlsConfig.RootCAs = caCertPool
-		log.WithFields(log.Fields{
-			"driver":       dbdriver,
-			"ca_cert_file": caCertFile,
-		}).Info("Loaded Cassandra TLS CA certificate for server verification")
-	}
-
-	if insecureSkipVerify {
-		log.WithFields(log.Fields{
-			"driver": dbdriver,
-		}).Warn("Cassandra TLS certificate verification is disabled (insecure_skip_verify=true). This is insecure and should only be used for testing.")
-	}
-
-	log.WithFields(log.Fields{
-		"driver":               dbdriver,
-		"has_client_cert":      len(tlsConfig.Certificates) > 0,
-		"has_ca_cert":          tlsConfig.RootCAs != nil,
-		"insecure_skip_verify": insecureSkipVerify,
-		"cipher_suites":        len(tlsConfig.CipherSuites),
-	}).Info("TLS configuration loaded for Cassandra connection")
-
-	return tlsConfig, nil
 }
 
 func (c *CassandraClient) Codec() *security.AesCodec {
