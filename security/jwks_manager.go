@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package security
 
 import (
@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc/v2"
-	"github.com/rdkcentral/webconfig/common"
-	"github.com/rdkcentral/webconfig/util"
 	"github.com/go-akka/configuration"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rdkcentral/webconfig/common"
+	"github.com/rdkcentral/webconfig/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -80,7 +80,10 @@ func (m *JwksManager) VerifyApiToken(tokenStr string) (bool, error) {
 		if itf, ok := mclaims["capabilities"]; ok {
 			if iitfs, ok := itf.([]interface{}); ok {
 				for _, iitf := range iitfs {
-					ss := iitf.(string)
+					ss, ok := iitf.(string)
+					if !ok {
+						continue
+					}
 					if util.Contains(m.apiCapabilities, ss) {
 						return true, nil
 					}
@@ -89,6 +92,17 @@ func (m *JwksManager) VerifyApiToken(tokenStr string) (bool, error) {
 		}
 	}
 	return false, common.NoCapabilitiesError{}
+}
+
+// NewJwksManagerFromJWKS builds a JwksManager from an already-constructed
+// JWKS, bypassing the network fetch in NewJwksManager. Used by tests that
+// need a self-contained, signature-verified JwksManager without a live JWKS
+// endpoint.
+func NewJwksManagerFromJWKS(jwks *keyfunc.JWKS, apiCapabilities []string) *JwksManager {
+	return &JwksManager{
+		jwks:            jwks,
+		apiCapabilities: apiCapabilities,
+	}
 }
 
 func LogRefreshError(err error) {

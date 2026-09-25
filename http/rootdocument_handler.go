@@ -48,7 +48,7 @@ func (s *WebconfigServer) GetRootDocumentHandler(w http.ResponseWriter, r *http.
 			Error(w, http.StatusNotFound, nil)
 			return
 		}
-		Error(w, http.StatusInternalServerError, err)
+		Error(w, s.dbErrToStatus(err), common.NewError(err))
 		return
 	}
 
@@ -98,7 +98,7 @@ func (s *WebconfigServer) PostRootDocumentHandler(w http.ResponseWriter, r *http
 	}
 	err = s.SetRootDocument(mac, rootdoc)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, common.NewError(err))
+		Error(w, s.dbErrToStatus(err), common.NewError(err))
 		return
 	}
 

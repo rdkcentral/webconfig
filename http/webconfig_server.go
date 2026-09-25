@@ -64,6 +64,7 @@ const (
 	MetricsEnabledDefault                = true
 	FactoryResetEnabledDefault           = false
 	serverApiTokenAuthEnabledDefault     = true
+	configApiTokenAuthEnabledDefault     = false
 	deviceApiTokenAuthEnabledDefault     = true
 	tokenApiEnabledDefault               = false
 	activeDriverDefault                  = "cassandra"
@@ -109,6 +110,7 @@ type WebconfigServer struct {
 	metricsEnabled                bool
 	factoryResetEnabled           bool
 	serverApiTokenAuthEnabled     bool
+	configApiTokenAuthEnabled     bool
 	deviceApiTokenAuthEnabled     bool
 	tokenApiEnabled               bool
 	kafkaEnabled                  bool
@@ -270,6 +272,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 	tlsConfig, _ := NewTlsConfig(conf)
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
+	configApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.config_api_token_auth.enabled", configApiTokenAuthEnabledDefault)
 	if conf.GetNode("webconfig.jwt.server_api_token_auth.enabled") == nil {
 		log.Warn("webconfig.jwt.server_api_token_auth.enabled is not set in config; defaulting to true (server API token auth enforced). See MIGRATION.md.")
 	}
@@ -399,6 +402,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		metricsEnabled:                metricsEnabled,
 		factoryResetEnabled:           factoryResetEnabled,
 		serverApiTokenAuthEnabled:     serverApiTokenAuthEnabled,
+		configApiTokenAuthEnabled:     configApiTokenAuthEnabled,
 		deviceApiTokenAuthEnabled:     deviceApiTokenAuthEnabled,
 		tokenApiEnabled:               tokenApiEnabled,
 		kafkaEnabled:                  kafkaEnabled,
@@ -485,7 +489,8 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 		params := mux.Vars(r)
 		mac, ok := params["mac"]
 		if !ok {
-			Error(xw, http.StatusForbidden, nil)
+			err := *common.NewHttp400Error("missing mac")
+			Error(xw, http.StatusBadRequest, common.NewError(err))
 			return
 		}
 		mac = strings.ToUpper(mac)
@@ -530,7 +535,11 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(xw, r)
 		} else {
 			s.LogToken(xw, authorization, token, tokenErr)
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(tokenErr, common.ErrNoCapabilities) || errors.Is(tokenErr, common.ErrLowTrust) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -543,6 +552,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		defer s.logRequestEnds(xw, r)
 
 		isValid := false
+		var verifyErr error
 		token := xw.Token()
 		if len(token) > 0 {
 			var kid string
@@ -558,6 +568,7 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 				isValid = true
 				log.WithFields(tfields).Debug("valid")
 			} else {
+				verifyErr = err
 				tfields["error"] = fmt.Sprintf("ApiMiddleware::VerifyApiToken() %v", err)
 				log.WithFields(tfields).Debug("rejected")
 			}
@@ -568,7 +579,11 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(verifyErr, common.ErrNoCapabilities) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -587,26 +602,38 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 		}
 
 		isValid := false
+		var verifyErr error
 		if len(token) > 0 {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
 			if !ok || len(mac) != 12 {
-				Error(xw, http.StatusForbidden, nil)
+				err := *common.NewHttp400Error("invalid mac")
+				Error(xw, http.StatusBadRequest, common.NewError(err))
 				return
 			}
 
-			if ok, _, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, _, _, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
+			} else {
+				verifyErr = err
 			}
 		}
 
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			Error(xw, http.StatusForbidden, nil)
+			if errors.Is(verifyErr, common.ErrNoCapabilities) {
+				Error(xw, http.StatusForbidden, nil)
+			} else {
+				Error(xw, http.StatusUnauthorized, nil)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
+}
+
+func isConfigEndpoint(r *http.Request) bool {
+	return r.URL.Path == "/config"
 }
 
 func (s *WebconfigServer) VerifyApiToken(tokenStr string) (bool, error) {
@@ -640,6 +667,14 @@ func (s *WebconfigServer) ServerApiTokenAuthEnabled() bool {
 
 func (s *WebconfigServer) SetServerApiTokenAuthEnabled(enabled bool) {
 	s.serverApiTokenAuthEnabled = enabled
+}
+
+func (s *WebconfigServer) ConfigApiTokenAuthEnabled() bool {
+	return s.configApiTokenAuthEnabled
+}
+
+func (s *WebconfigServer) SetConfigApiTokenAuthEnabled(enabled bool) {
+	s.configApiTokenAuthEnabled = enabled
 }
 
 func (s *WebconfigServer) DeviceApiTokenAuthEnabled() bool {
@@ -958,7 +993,9 @@ func (s *WebconfigServer) logRequestStarts(w http.ResponseWriter, r *http.Reques
 	}
 
 	tfields := common.FilterLogFields(fields)
-	log.WithFields(tfields).Info("Request started")
+	if !isConfigEndpoint(r) {
+		log.WithFields(tfields).Info("Request started")
+	}
 
 	xwriter.LogDebug(r, "tracing", fmt.Sprintf("Trace final out_traceparent %s out_traceState %s", xpcTrace.OutTraceparent, xpcTrace.OutTracestate))
 	return xwriter
@@ -1046,7 +1083,9 @@ func (s *WebconfigServer) logRequestEnds(xw *XResponseWriter, r *http.Request) {
 	s.XpcTracer.SetSpan(fields, s.XpcTracer.MoracideTagPrefix())
 
 	tfields := common.FilterLogFields(fields)
-	log.WithFields(tfields).Info("Request finished")
+	if !isConfigEndpoint(r) {
+		log.WithFields(tfields).Info("Request finished")
+	}
 }
 
 func LogError(w http.ResponseWriter, err error) {
@@ -1310,4 +1349,14 @@ func (s *WebconfigServer) SpanMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// dbErrToStatus maps a dependency error to its HTTP status code.
+// Timeout-like errors (Cassandra timeouts, connection closed, deadline exceeded) become 504;
+// all other errors become 500.
+func (s *WebconfigServer) dbErrToStatus(err error) int {
+	if s.IsDbTimeout(err) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusInternalServerError
 }

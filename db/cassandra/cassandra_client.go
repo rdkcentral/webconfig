@@ -18,6 +18,7 @@
 package cassandra
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -341,6 +342,32 @@ func (c *CassandraClient) Codec() *security.AesCodec {
 
 func (c *CassandraClient) IsDbNotFound(err error) bool {
 	return errors.Is(err, gocql.ErrNotFound)
+}
+
+func (c *CassandraClient) IsDbTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gocql.ErrTimeoutNoResponse) {
+		return true
+	}
+	if errors.Is(err, gocql.ErrConnectionClosed) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// context.Canceled is excluded: it indicates caller cancellation (client disconnect),
+	// not a DB/network timeout. Mapping it to 504 would misrepresent the failure cause.
+	var readTimeout *gocql.RequestErrReadTimeout
+	if errors.As(err, &readTimeout) {
+		return true
+	}
+	var writeTimeout *gocql.RequestErrWriteTimeout
+	if errors.As(err, &writeTimeout) {
+		return true
+	}
+	return false
 }
 
 func (c *CassandraClient) Close() error {
