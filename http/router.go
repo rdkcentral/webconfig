@@ -43,7 +43,13 @@ func (s *WebconfigServer) AddBaseRoutes(testOnly bool, router *mux.Router) {
 
 	if s.TokenApiEnabled() {
 		r4 := router.Path("/api/v1/token").Subrouter()
-		r4.Use(s.NoAuthMiddleware)
+		if testOnly {
+			r4.Use(s.TestingMiddleware)
+		} else if s.TokenApiTokenAuthEnabled() {
+			r4.Use(s.ApiMiddleware)
+		} else {
+			r4.Use(s.NoAuthMiddleware)
+		}
 		r4.HandleFunc("", s.CreateTokenHandler).Methods("POST")
 	}
 
