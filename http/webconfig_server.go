@@ -65,6 +65,7 @@ const (
 	FactoryResetEnabledDefault           = false
 	serverApiTokenAuthEnabledDefault     = true
 	configApiTokenAuthEnabledDefault     = false
+	tokenApiTokenAuthEnabledDefault      = false
 	deviceApiTokenAuthEnabledDefault     = true
 	tokenApiEnabledDefault               = false
 	activeDriverDefault                  = "cassandra"
@@ -115,6 +116,7 @@ type WebconfigServer struct {
 	factoryResetEnabled           bool
 	serverApiTokenAuthEnabled     bool
 	configApiTokenAuthEnabled     bool
+	tokenApiTokenAuthEnabled      bool
 	deviceApiTokenAuthEnabled     bool
 	tokenApiEnabled               bool
 	kafkaEnabled                  bool
@@ -278,6 +280,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
 	configApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.config_api_token_auth.enabled", configApiTokenAuthEnabledDefault)
+	tokenApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.token_api_token_auth.enabled", tokenApiTokenAuthEnabledDefault)
 	if conf.GetNode("webconfig.jwt.server_api_token_auth.enabled") == nil {
 		log.Warn("webconfig.jwt.server_api_token_auth.enabled is not set in config; defaulting to true (server API token auth enforced). See MIGRATION.md.")
 	}
@@ -415,6 +418,7 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		factoryResetEnabled:           factoryResetEnabled,
 		serverApiTokenAuthEnabled:     serverApiTokenAuthEnabled,
 		configApiTokenAuthEnabled:     configApiTokenAuthEnabled,
+		tokenApiTokenAuthEnabled:      tokenApiTokenAuthEnabled,
 		deviceApiTokenAuthEnabled:     deviceApiTokenAuthEnabled,
 		tokenApiEnabled:               tokenApiEnabled,
 		kafkaEnabled:                  kafkaEnabled,
@@ -688,6 +692,14 @@ func (s *WebconfigServer) ConfigApiTokenAuthEnabled() bool {
 
 func (s *WebconfigServer) SetConfigApiTokenAuthEnabled(enabled bool) {
 	s.configApiTokenAuthEnabled = enabled
+}
+
+func (s *WebconfigServer) TokenApiTokenAuthEnabled() bool {
+	return s.tokenApiTokenAuthEnabled
+}
+
+func (s *WebconfigServer) SetTokenApiTokenAuthEnabled(enabled bool) {
+	s.tokenApiTokenAuthEnabled = enabled
 }
 
 func (s *WebconfigServer) DeviceApiTokenAuthEnabled() bool {
