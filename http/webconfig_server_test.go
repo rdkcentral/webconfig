@@ -194,6 +194,18 @@ func TestTokenEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 }
 
+func TestTokenEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	server.SetTokenApiTokenAuthEnabled(true)
+	router := server.GetRouter(true)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+}
+
 func TestConfigEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.SetConfigApiTokenAuthEnabled(true)
