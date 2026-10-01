@@ -184,6 +184,50 @@ func TestVerifyTokenEnforcesCpeCapabilitiesWhenConfigured(t *testing.T) {
 	assert.Assert(t, errors.Is(err, common.ErrNoCapabilities))
 }
 
+func TestVerifyTokenRejectsNonStringCapabilityWithoutPanic(t *testing.T) {
+	if tokenManager == nil {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	claims := jwt.MapClaims{
+		"mac":          strings.ToLower(cpeMac),
+		"capabilities": []interface{}{map[string]interface{}{"nested": true}},
+		"exp":          time.Now().Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.GetSigningMethod("RS256"), claims)
+	token.Header["kid"] = EncodingKeyId
+	tokenString, err := token.SignedString(tokenManager.encodeKey)
+	assert.NilError(t, err)
+
+	ok, _, _, verifyErr := VerifyToken(tokenManager.decodeKeys, tokenManager.cpeKids, []string{"cpe:config:read"}, tokenString, cpeMac)
+	assert.Assert(t, !ok)
+	assert.Assert(t, errors.Is(verifyErr, common.ErrNoCapabilities))
+}
+
+func TestVerifyTokenChecksMacBeforeCapabilities(t *testing.T) {
+	if tokenManager == nil {
+		t.Skip("webconfig.jwt.enabled = false")
+	}
+
+	tokenMac := util.GenerateRandomCpeMac()
+	requestMac := util.GenerateRandomCpeMac()
+	claims := jwt.MapClaims{
+		"mac":          strings.ToLower(tokenMac),
+		"capabilities": []string{"cpe:other"},
+		"exp":          time.Now().Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.GetSigningMethod("RS256"), claims)
+	token.Header["kid"] = EncodingKeyId
+	tokenString, err := token.SignedString(tokenManager.encodeKey)
+	assert.NilError(t, err)
+
+	ok, _, _, verifyErr := VerifyToken(tokenManager.decodeKeys, tokenManager.cpeKids, []string{"cpe:config:read"}, tokenString, requestMac)
+	assert.Assert(t, !ok)
+	assert.Assert(t, !errors.Is(verifyErr, common.ErrNoCapabilities))
+	assert.ErrorContains(t, verifyErr, "does not match")
+}
+
 // XPC-42727 an expired token must fail as an authentication error, never
 // misclassified as ErrNoCapabilities, even when its (untrusted) claims lack
 // the required capability

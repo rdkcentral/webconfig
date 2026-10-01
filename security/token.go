@@ -342,31 +342,6 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 		return false, "", trust, common.NewError(err)
 	}
 
-	// check capabilities, if requiredCapabilities is nonempty
-	// this must run only after the token has been cryptographically verified
-	if len(requiredCapabilities) > 0 {
-		isCapable := false
-		if capitfs, ok := claims["capabilities"]; ok {
-			capvalues, ok1 := capitfs.([]interface{})
-			if ok1 {
-				for _, capvalue := range capvalues {
-					for _, rc := range requiredCapabilities {
-						if rc == capvalue {
-							isCapable = true
-							break
-						}
-					}
-					if isCapable {
-						break
-					}
-				}
-			}
-		}
-		if !isCapable {
-			return false, "", trust, common.NewError(common.ErrNoCapabilities)
-		}
-	}
-
 	if len(vargs) > 1 {
 		mac := vargs[1]
 		// mac must match
@@ -382,6 +357,34 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 		}
 		if !isMatched {
 			return false, "", trust, common.NewError(fmt.Errorf("mac in token(%v) does not match claims=%v", mac, claims))
+		}
+	}
+
+	// Check capabilities after signature and route binding validation. Entries
+	// are untrusted claim values and must be strings before comparison.
+	if len(requiredCapabilities) > 0 {
+		isCapable := false
+		if capitfs, ok := claims["capabilities"]; ok {
+			if capvalues, ok := capitfs.([]interface{}); ok {
+				for _, capvalue := range capvalues {
+					capability, ok := capvalue.(string)
+					if !ok {
+						continue
+					}
+					for _, requiredCapability := range requiredCapabilities {
+						if requiredCapability == capability {
+							isCapable = true
+							break
+						}
+					}
+					if isCapable {
+						break
+					}
+				}
+			}
+		}
+		if !isCapable {
+			return false, "", trust, common.NewError(common.ErrNoCapabilities)
 		}
 	}
 

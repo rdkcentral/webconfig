@@ -44,7 +44,107 @@ func TestApiTokenAuthSecureDefaults(t *testing.T) {
 	// be guarded by ApiMiddleware out of the box. Regression guard for f003.
 	assert.Assert(t, serverApiTokenAuthEnabledDefault, "server API token auth must default to enabled")
 	assert.Assert(t, !configApiTokenAuthEnabledDefault, "config API token auth must default to disabled")
+	assert.Assert(t, !tokenApiTokenAuthEnabledDefault, "token API token auth must default to disabled")
 	assert.Assert(t, deviceApiTokenAuthEnabledDefault, "device API token auth must default to enabled")
+}
+
+func TestPostSubDocumentRequestIncludesSubdocID(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+
+	req, err := http.NewRequest("POST", "/api/v1/device/001122334455/document/lan", nil)
+	assert.NilError(t, err)
+	req = mux.SetURLVars(req, map[string]string{
+		"mac":       "001122334455",
+		"subdoc_id": "lan",
+	})
+	xw := server.logRequestStarts(httptest.NewRecorder(), req)
+	assert.Equal(t, xw.Audit()["subdoc_id"], "lan")
+
+	getReq, err := http.NewRequest("GET", "/api/v1/device/001122334455/document/lan", nil)
+	assert.NilError(t, err)
+	getReq = mux.SetURLVars(getReq, map[string]string{
+		"mac":       "001122334455",
+		"subdoc_id": "lan",
+	})
+	getXw := server.logRequestStarts(httptest.NewRecorder(), getReq)
+	_, ok := getXw.Audit()["subdoc_id"]
+	assert.Assert(t, !ok)
+}
+
+func TestKafkaLoggingModeDefaultsToOneLine(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeOneLine)
+
+	server.SetKafkaLoggingMode(KafkaLoggingModeTwoLine)
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeTwoLine)
+	server.SetKafkaLoggingMode("invalid")
+	assert.Equal(t, server.KafkaLoggingMode(), KafkaLoggingModeTwoLine)
+}
+
+func TestKafkaProducerLoggerFollowsLoggingMode(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	assert.Equal(t, server.KafkaProducerLogger(), "kafka")
+
+	server.SetKafkaLoggingMode(KafkaLoggingModeTwoLine)
+	assert.Equal(t, server.KafkaProducerLogger(), "kafkaproducer")
+}
+
+func TestKafkaProducerLogFieldsAllowlist(t *testing.T) {
+	fields := kafkaProducerLogFields(log.Fields{
+		"app_name":      "webconfig",
+		"audit_id":      "audit",
+		"cpe_mac":       "001122334455",
+		"subdoc_id":     "lan",
+		"event_name":    "mqtt-get",
+		"header":        map[string]string{"Authorization": "secret", "X-Test": "value"},
+		"authorization": "secret",
+	})
+
+	_, hasHeader := fields["header"]
+	_, hasAuthorization := fields["authorization"]
+	assert.Assert(t, !hasHeader)
+	assert.Assert(t, !hasAuthorization)
+	assert.Equal(t, fields["subdoc_id"], "lan")
+	assert.Equal(t, fields["event_name"], "mqtt-get")
+	assert.Equal(t, fields["kafka_operation"], nil)
+}
+
+func TestBoundedKafkaPayload(t *testing.T) {
+	payload := make([]byte, maxKafkaProducerLogPayloadBytes)
+	bounded, truncated := boundedKafkaPayload(payload)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+	assert.Assert(t, truncated)
+	_, err := base64.StdEncoding.DecodeString(bounded)
+	assert.NilError(t, err)
+
+	payload = append(payload, 'x')
+	bounded, truncated = boundedKafkaPayload(payload)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+	assert.Assert(t, truncated)
+	_, err = base64.StdEncoding.DecodeString(bounded)
+	assert.NilError(t, err)
+
+	payload = payload[:(maxKafkaProducerLogPayloadBytes/4)*3]
+	bounded, truncated = boundedKafkaPayload(payload)
+	assert.Assert(t, !truncated)
+	assert.Equal(t, len(bounded), maxKafkaProducerLogPayloadBytes)
+}
+
+func TestProducerErrorPayloadFields(t *testing.T) {
+	fields := producerErrorPayloadFields([]byte(`{"status":"failed"}`))
+	assert.Equal(t, fields["output_body"].(map[string]interface{})["status"], "failed")
+	_, hasText := fields["output_body_text"]
+	assert.Assert(t, !hasText)
+	assert.Assert(t, !fields["output_body_truncated"].(bool))
+
+	fields = producerErrorPayloadFields([]byte("not-json"))
+	_, hasBody := fields["output_body"]
+	assert.Assert(t, !hasBody)
+	_, hasText = fields["output_body_text"]
+	assert.Assert(t, hasText)
+
+	fields = producerErrorPayloadFields(make([]byte, maxKafkaProducerLogPayloadBytes))
+	assert.Assert(t, fields["output_body_truncated"].(bool))
 }
 
 func TestConfigEndpointRemainsUnauthenticatedByDefault(t *testing.T) {
@@ -68,6 +168,54 @@ func TestConfigEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
 	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+}
+
+func TestTokenEndpointRemainsUnauthenticatedWhenDisabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	assert.Assert(t, !server.TokenApiTokenAuthEnabled())
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+}
+
+func TestTokenEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	server.SetTokenApiTokenAuthEnabled(true)
+	router := server.GetRouter(false)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+}
+
+func TestTokenEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetTokenApiEnabled(true)
+	server.SetTokenApiTokenAuthEnabled(true)
+	router := server.GetRouter(true)
+
+	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
+	assert.NilError(t, err)
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+}
+
+func TestConfigEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.SetConfigApiTokenAuthEnabled(true)
+	router := server.GetRouter(true)
+
+	req, err := http.NewRequest("GET", "/config", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer test-token")
+	res := ExecuteRequest(req, router).Result()
+	assert.Equal(t, res.StatusCode, http.StatusOK)
 }
 
 func TestApiMiddlewareSuppressesConfigRequestLogs(t *testing.T) {
@@ -604,6 +752,14 @@ func TestWebconfigServerSetterGetter(t *testing.T) {
 	enabled = false
 	server.SetConfigApiTokenAuthEnabled(enabled)
 	assert.Equal(t, server.ConfigApiTokenAuthEnabled(), enabled)
+
+	// token api token auth
+	enabled = true
+	server.SetTokenApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.TokenApiTokenAuthEnabled(), enabled)
+	enabled = false
+	server.SetTokenApiTokenAuthEnabled(enabled)
+	assert.Equal(t, server.TokenApiTokenAuthEnabled(), enabled)
 
 	// device api token auth
 	enabled = true
