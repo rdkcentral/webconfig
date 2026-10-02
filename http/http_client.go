@@ -349,7 +349,7 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		}
 
 		switch res.StatusCode {
-		case http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound:
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound:
 			return rbytes, nil, false, common.NewError(err)
 		}
 		return rbytes, nil, true, common.NewError(err)

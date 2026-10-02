@@ -48,6 +48,9 @@ type DatabaseClient interface {
 	// not found
 	IsDbNotFound(error) bool
 
+	// timeout
+	IsDbTimeout(error) bool
+
 	// set metrics
 	Metrics() *common.AppMetrics
 	SetMetrics(*common.AppMetrics)

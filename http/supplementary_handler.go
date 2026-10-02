@@ -59,7 +59,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		// Check state from xpc_group_config by cpe_mac and group_id=telemetry
 		telemetrySubdoc, err := s.GetSubDocument(mac, "telemetry")
 		if err != nil && !s.IsDbNotFound(err) {
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 			return
 		}
 
@@ -156,7 +156,7 @@ func (s *WebconfigServer) MultipartSupplementaryHandler(w http.ResponseWriter, r
 		rootdoc, err = s.GetRootDocument(mac)
 		if err != nil {
 			if !s.IsDbNotFound(err) {
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 				return
 			}
 		}
