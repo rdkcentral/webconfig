@@ -179,7 +179,7 @@ func TestTokenEndpointRemainsUnauthenticatedWhenDisabled(t *testing.T) {
 	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }
 
 func TestTokenEndpointRequiresApiTokenWhenEnabled(t *testing.T) {
@@ -203,7 +203,7 @@ func TestTokenEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
 	req, err := http.NewRequest("POST", "/api/v1/token", strings.NewReader("not-json"))
 	assert.NilError(t, err)
 	res := ExecuteRequest(req, router).Result()
-	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }
 
 func TestConfigEndpointUsesTestingMiddlewareInTestRouter(t *testing.T) {
