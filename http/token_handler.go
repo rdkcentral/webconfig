@@ -14,7 +14,7 @@
 * limitations under the License.
 *
 * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 package http
 
 import (
@@ -46,7 +46,7 @@ func (s *WebconfigServer) CreateTokenHandler(w http.ResponseWriter, r *http.Requ
 	// Unmarshal
 	tokenRequest := TokenRequest{}
 	if err := json.Unmarshal(bodyBytes, &tokenRequest); err != nil {
-		Error(w, http.StatusInternalServerError, err)
+		Error(w, http.StatusBadRequest, err)
 		return
 	}
 
