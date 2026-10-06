@@ -147,7 +147,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		}
 		if err != nil {
 			if !s.IsDbNotFound(err) {
-				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+				return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 			}
 			return http.StatusNotFound, respHeader, nil, common.NewError(err)
 		}
@@ -164,7 +164,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 		document, err = db.LoadRefSubDocuments(c, document, fields)
 		if err != nil {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 		}
 
 		if s.FilterOutputByBitmapEnabled() {
@@ -183,7 +183,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		// skip updating states
 		if userAgent != "mget" {
 			if err := db.UpdateDocumentStateIndeployment(c, mac, document, fields); err != nil {
-				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+				return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 			}
 		}
 
@@ -194,7 +194,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	if err != nil {
 		if !s.IsDbNotFound(err) {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 		}
 		// 404
 		if !postUpstream {
@@ -216,7 +216,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		if !postUpstream {
 			document, err = db.LoadRefSubDocuments(c, document, fields)
 			if err != nil {
-				return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+				return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 			}
 		}
 
@@ -243,7 +243,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 	if !postUpstream {
 		// update states to InDeployment before the final response
 		if err := db.UpdateDocumentStateIndeployment(c, mac, document, fields); err != nil {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 		}
 
 		// 304
@@ -305,7 +305,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		if errors.As(err, &rherr) {
 			return rherr.StatusCode, respHeader, nil, common.NewError(err)
 		}
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 	}
 
 	// ==== parse the upstreamRespBytes and store them ====
@@ -331,7 +331,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 		// update states based on the final document
 		err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, false, deviceVersionMap, fields)
 		if err != nil {
-			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
+			return s.dbErrToStatus(err), upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 		}
 	}
 
@@ -351,7 +351,7 @@ func BuildWebconfigResponse(s *WebconfigServer, rHeader http.Header, route strin
 
 	finalFilteredDocument, err = db.LoadRefSubDocuments(c, finalFilteredDocument, fields)
 	if err != nil {
-		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+		return s.dbErrToStatus(err), upstreamRespHeader, nil, common.NewError(err)
 	}
 	finalFilteredBytes, err := finalFilteredDocument.Bytes()
 	if err != nil {
@@ -375,7 +375,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	rootDocument, err := db.PreprocessRootDocument(c, rHeader, mac, partnerId, fields)
 	if err != nil {
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 	}
 
 	document, err := c.GetDocument(mac, fields)
@@ -383,7 +383,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		if s.IsDbNotFound(err) {
 			return http.StatusNotFound, respHeader, nil, nil
 		} else {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 		}
 	}
 	if document == nil {
@@ -400,7 +400,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 	if !s.UpstreamEnabled() {
 		err := c.DeleteDocument(mac)
 		if err != nil {
-			return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+			return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 		}
 		return http.StatusNotFound, respHeader, nil, nil
 	}
@@ -437,7 +437,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		if errors.As(err, &rherr) {
 			return rherr.StatusCode, respHeader, nil, common.NewError(err)
 		}
-		return http.StatusInternalServerError, respHeader, nil, common.NewError(err)
+		return s.dbErrToStatus(err), respHeader, nil, common.NewError(err)
 	}
 
 	// ==== parse the upstreamRespBytes and store them ====
@@ -460,7 +460,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 		// update states based on the final document
 		err = db.WriteDocumentFromUpstream(c, mac, upstreamRespEtag, finalDocument, document, true, nil, fields)
 		if err != nil {
-			return http.StatusInternalServerError, upstreamRespHeader, upstreamRespBytes, common.NewError(err)
+			return s.dbErrToStatus(err), upstreamRespHeader, upstreamRespBytes, common.NewError(err)
 		}
 	}
 
@@ -470,7 +470,7 @@ func BuildFactoryResetResponse(s *WebconfigServer, rHeader http.Header, fields l
 
 	finalDocument, err = db.LoadRefSubDocuments(c, finalDocument, fields)
 	if err != nil {
-		return http.StatusInternalServerError, upstreamRespHeader, nil, common.NewError(err)
+		return s.dbErrToStatus(err), upstreamRespHeader, nil, common.NewError(err)
 	}
 
 	// filter by bitmaps and blockedIds

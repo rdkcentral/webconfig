@@ -89,7 +89,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 					Error(w, http.StatusNotFound, nil)
 					return
 				}
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 				return
 			}
 			if document.Length() == 0 {
@@ -118,7 +118,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 
 			err = db.UpdateStatesInBatch(s.DatabaseClient, deviceId, metricsAgent, fields, document.StateMap())
 			if err != nil {
-				Error(w, http.StatusInternalServerError, common.NewError(err))
+				Error(w, s.dbErrToStatus(err), common.NewError(err))
 				return
 			}
 		}
@@ -134,7 +134,7 @@ func (s *WebconfigServer) PokeHandler(w http.ResponseWriter, r *http.Request) {
 				Error(w, http.StatusNoContent, nil)
 				return
 			}
-			Error(w, http.StatusInternalServerError, common.NewError(err))
+			Error(w, s.dbErrToStatus(err), common.NewError(err))
 			return
 		}
 		if document.Length() == 0 {

@@ -36,6 +36,7 @@ var (
 	ErrInvalidQueryParams = fmt.Errorf("invalid query parameters")
 	ErrLowTrust           = fmt.Errorf("token trust is lower than threshold")
 	ErrPending            = fmt.Errorf("application_status pending")
+	ErrNoCapabilities     = NoCapabilitiesError{}
 )
 
 type Http400Error struct {
