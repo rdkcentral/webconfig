@@ -184,6 +184,14 @@ func NewTlsConfig(conf *configuration.Config) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+func mustNewTlsConfig(conf *configuration.Config) *tls.Config {
+	tlsConfig, err := NewTlsConfig(conf)
+	if err != nil {
+		panic(fmt.Errorf("failed to configure outbound HTTP TLS: %w", err))
+	}
+	return tlsConfig
+}
+
 func GetTestDatabaseClient(sc *common.ServerConfig) db.DatabaseClient {
 	// TODO check the client init for enabled
 	var tdbclient db.DatabaseClient
@@ -275,8 +283,16 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 		notLoggedHeaders = append(notLoggedHeaders, strings.ToLower(x))
 	}
 
-	// tlsConfig, here we ignore any error
-	tlsConfig, _ := NewTlsConfig(conf)
+	var tlsConfig *tls.Config
+	if testOnly {
+		var tlsErr error
+		tlsConfig, tlsErr = NewTlsConfig(conf)
+		if tlsErr != nil {
+			log.Warnf("outbound HTTP TLS is unavailable in test-only server: %v", tlsErr)
+		}
+	} else {
+		tlsConfig = mustNewTlsConfig(conf)
+	}
 
 	serverApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.server_api_token_auth.enabled", serverApiTokenAuthEnabledDefault)
 	configApiTokenAuthEnabled := conf.GetBoolean("webconfig.jwt.config_api_token_auth.enabled", configApiTokenAuthEnabledDefault)
