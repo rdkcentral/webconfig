@@ -651,6 +651,24 @@ func TestParseSupportedDocsHeaderIgnitewifi(t *testing.T) {
 	assert.Assert(t, !IsSubdocSupported(cpeBitmap, "hotspotwantolan"))
 }
 
+func TestParseSupportedDocsHeaderNetworkintelligence(t *testing.T) {
+	// group_id=5, group-bit=2 → CPE bit 44 (networkintelligence)
+	group5Value := (5 << 24) + (1 << (2 - 1)) // bit 2 set in group 5
+	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v", group5Value)
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	assert.Assert(t, IsSubdocSupported(cpeBitmap, "networkintelligence"))
+	assert.Assert(t, !IsSubdocSupported(cpeBitmap, "advsecurity"))
+
+	supportedSubdocIds := []string{
+		"networkintelligence",
+	}
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
+}
+
 func TestParseSupportedDocsHeaderBothNewSubdocs(t *testing.T) {
 	// group 12: bits 1, 2, 3 → CPE bits 21 (wanmanager), 23 (wanfailover), 42 (hotspotwantolan)
 	// group 2:  bits 1, 2, 3, 4 → CPE bits 7 (privatessid), 8 (homessid), 9 (radio), 43 (ignitewifi)
