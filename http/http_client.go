@@ -82,7 +82,11 @@ func NewHttpClient(conf *configuration.Config, serviceName string, tlsConfig *tl
 
 	confKey = fmt.Sprintf("webconfig.%v.retry_in_msecs", serviceName)
 	retryInMsecs := int(conf.GetInt32(confKey, defaultRetriesInMsecs))
+	// Explicit http_client.user_agent overrides the app name default.
 	userAgent := conf.GetString("webconfig.http_client.user_agent")
+	if len(userAgent) == 0 {
+		userAgent = conf.GetString("webconfig.app_name", "webconfig")
+	}
 
 	moracideTagPrefix := strings.ToLower(conf.GetString("webconfig.tracing.moracide_tag_prefix", tracing.DefaultMoracideTagPrefix))
 
