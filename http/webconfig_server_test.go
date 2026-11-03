@@ -460,7 +460,7 @@ func TestApiMiddlewareJwksEnabledRouteRejectsInvalidSignature(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
 }
 
-func TestCpeMiddlewareReturnsUnauthorizedForInvalidToken(t *testing.T) {
+func TestCpeMiddlewareReturnsForbiddenForInvalidToken(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.TokenManager = security.NewTokenManager(sc.Config)
 	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
@@ -474,7 +474,7 @@ func TestCpeMiddlewareReturnsUnauthorizedForInvalidToken(t *testing.T) {
 	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("authentication failure reached the next handler")
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
 func TestCpeMiddlewareReturnsForbiddenForInsufficientCapabilities(t *testing.T) {
@@ -512,9 +512,9 @@ func TestCpeMiddlewareReturnsForbiddenForLowTrust(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
-// XPC-43727 every class of authentication failure (malformed header,
-// malformed/invalid/expired token, mac mismatch) must return 401, never 403.
-func TestCpeMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T) {
+// Every class of CPE authentication failure (malformed header,
+// malformed/invalid/expired token, mac mismatch) must return 403.
+func TestCpeMiddlewareReturnsForbiddenForAuthenticationFailures(t *testing.T) {
 	tests := []struct {
 		name string
 		auth string
@@ -547,7 +547,7 @@ func TestCpeMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T)
 			res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Fatal("authentication failure reached the next handler")
 			}))).Result()
-			assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+			assert.Equal(t, res.StatusCode, http.StatusForbidden)
 		})
 	}
 }
@@ -564,8 +564,8 @@ func TestCpeMiddlewareReturnsBadRequestForMissingMacRouteVar(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
 }
 
-// XPC-43727 an actually malformed JWT (not a mocked verifier error) must
-// still be classified as 401 through the real TokenManager.VerifyToken path
+// An actually malformed JWT (not a mocked verifier error) must be rejected
+// as 403 through the real TokenManager.VerifyToken path
 func TestCpeMiddlewareRejectsActualMalformedJwt(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.TokenManager = security.NewTokenManager(sc.Config)
@@ -577,13 +577,13 @@ func TestCpeMiddlewareRejectsActualMalformedJwt(t *testing.T) {
 	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("malformed jwt reached the next handler")
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
-// XPC-43727 a real signed token for one mac presented against a different
-// mac must be rejected as 401, using an in-memory generated key pair so this
-// assertion is isolated from external key files/db setup (unlike the
-// equivalent case in multipart_test.go's TestCpeMiddleware)
+// A real signed token for one mac presented against a different mac must be
+// rejected as 403, using an in-memory generated key pair so this assertion is
+// isolated from external key files/db setup (unlike the equivalent case in
+// multipart_test.go's TestCpeMiddleware)
 func TestCpeMiddlewareRejectsRealSignedTokenWithWrongMac(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	assert.NilError(t, err)
@@ -616,10 +616,10 @@ func TestCpeMiddlewareRejectsRealSignedTokenWithWrongMac(t *testing.T) {
 	res := ExecuteRequest(req, server.CpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("wrong-mac token reached the next handler")
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
-func TestTestingCpeMiddlewareReturnsUnauthorizedForMissingToken(t *testing.T) {
+func TestTestingCpeMiddlewareReturnsForbiddenForMissingToken(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	req, err := http.NewRequest("GET", "/api/v1/device/AABBCCDDEEFF/config", nil)
 	assert.NilError(t, err)
@@ -627,14 +627,13 @@ func TestTestingCpeMiddlewareReturnsUnauthorizedForMissingToken(t *testing.T) {
 	res := ExecuteRequest(req, server.TestingCpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("authentication failure reached the next handler")
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
-// XPC-43727 TestingCpeMiddleware independently parses the Authorization
-// header and calls VerifyCpeToken directly; verify it classifies the same
-// authentication failure classes as CpeMiddleware, despite the separate
-// implementation.
-func TestTestingCpeMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T) {
+// TestingCpeMiddleware independently parses the Authorization header and calls
+// VerifyCpeToken directly; verify it classifies the same authentication failure
+// classes as CpeMiddleware, despite the separate implementation.
+func TestTestingCpeMiddlewareReturnsForbiddenForAuthenticationFailures(t *testing.T) {
 	tests := []struct {
 		name string
 		auth string
@@ -664,13 +663,13 @@ func TestTestingCpeMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *tes
 			res := ExecuteRequest(req, server.TestingCpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Fatal("authentication failure reached the next handler")
 			}))).Result()
-			assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+			assert.Equal(t, res.StatusCode, http.StatusForbidden)
 		})
 	}
 }
 
-// XPC-43727 an actually malformed JWT (not a mocked verifier error) must
-// still be classified as 401 through the real TokenManager.VerifyToken path
+// An actually malformed JWT (not a mocked verifier error) must be rejected as
+// 403 through the real TokenManager.VerifyToken path
 func TestTestingCpeMiddlewareRejectsActualMalformedJwt(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.TokenManager = security.NewTokenManager(sc.Config)
@@ -682,7 +681,7 @@ func TestTestingCpeMiddlewareRejectsActualMalformedJwt(t *testing.T) {
 	res := ExecuteRequest(req, server.TestingCpeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("malformed jwt reached the next handler")
 	}))).Result()
-	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
 // XPC-43727 TestingCpeMiddleware also supports a genuine post-authentication
@@ -704,10 +703,9 @@ func TestTestingCpeMiddlewareReturnsForbiddenForInsufficientCapabilities(t *test
 	assert.Equal(t, res.StatusCode, http.StatusForbidden)
 }
 
-// XPC-43727 TestingCpeMiddleware independently validates the mac route var
-// (exact length 12), unlike CpeMiddleware's ValidateMac; verify a malformed
-// or missing mac is classified as 400, not 401, when a Bearer token is
-// present.
+// TestingCpeMiddleware independently validates the mac route var (exact length
+// 12); verify a malformed or missing mac is classified as 400, not an auth
+// failure, when a Bearer token is present.
 func TestTestingCpeMiddlewareReturnsBadRequestForInvalidMac(t *testing.T) {
 	tests := []struct {
 		name string
