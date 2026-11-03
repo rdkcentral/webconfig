@@ -163,7 +163,8 @@ func (c *HttpClient) Do(method string, url string, header http.Header, bbytes []
 		req.Header.Set(common.HeaderUserAgent, c.userAgent)
 	}
 
-	logHeader := header.Clone()
+	// log the headers actually sent, including the configured user_agent override
+	logHeader := req.Header.Clone()
 	auth := logHeader.Get("Authorization")
 	if len(auth) > 0 {
 		logHeader.Set("Authorization", "****")

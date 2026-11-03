@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc/v2"
+	"github.com/go-akka/configuration"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/rdkcentral/webconfig/common"
@@ -38,6 +39,21 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
 )
+
+func TestMustNewTlsConfigPanicsWhenClientCertificateCannotBeLoaded(t *testing.T) {
+	conf := configuration.ParseString(`webconfig.http_client {
+		cert_file = "/missing/client.pem"
+		private_key_file = "/missing/client.pem"
+	}`)
+
+	defer func() {
+		recovered := recover()
+		assert.Assert(t, recovered != nil, "expected TLS setup failure to panic")
+		assert.Assert(t, strings.Contains(fmt.Sprint(recovered), "failed to configure outbound HTTP TLS"))
+	}()
+
+	mustNewTlsConfig(conf)
+}
 
 func TestApiTokenAuthSecureDefaults(t *testing.T) {
 	// Admin write endpoints (document, rootdocument, poke, reference) MUST
