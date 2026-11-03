@@ -568,11 +568,8 @@ func (s *WebconfigServer) CpeMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(xw, r)
 		} else {
 			s.LogToken(xw, authorization, token, tokenErr)
-			if errors.Is(tokenErr, common.ErrNoCapabilities) || errors.Is(tokenErr, common.ErrLowTrust) {
-				Error(xw, http.StatusForbidden, nil)
-			} else {
-				Error(xw, http.StatusUnauthorized, nil)
-			}
+			// 401 may fit some auth failures better, but CPE devices require 403 per the WebConfig/CPE contract.
+			Error(xw, http.StatusForbidden, nil)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -635,7 +632,6 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 		}
 
 		isValid := false
-		var verifyErr error
 		if len(token) > 0 {
 			params := mux.Vars(r)
 			mac, ok := params["mac"]
@@ -645,21 +641,16 @@ func (s *WebconfigServer) TestingCpeMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			if ok, _, _, err := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
+			if ok, _, _, _ := s.VerifyCpeToken(token, strings.ToLower(mac)); ok {
 				isValid = true
-			} else {
-				verifyErr = err
 			}
 		}
 
 		if isValid {
 			next.ServeHTTP(xw, r)
 		} else {
-			if errors.Is(verifyErr, common.ErrNoCapabilities) {
-				Error(xw, http.StatusForbidden, nil)
-			} else {
-				Error(xw, http.StatusUnauthorized, nil)
-			}
+			// 403 for all auth failures, matching CpeMiddleware and the WebConfig/CPE contract.
+			Error(xw, http.StatusForbidden, nil)
 		}
 	}
 	return http.HandlerFunc(fn)
