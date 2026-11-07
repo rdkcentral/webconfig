@@ -18,6 +18,8 @@
 package security
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"os"
 	"strings"
@@ -182,6 +184,35 @@ func TestVerifyTokenEnforcesCpeCapabilitiesWhenConfigured(t *testing.T) {
 	ok, _, _, err = VerifyToken(tokenManager.decodeKeys, tokenManager.cpeKids, requiredCapabilities, nonMatching, cpeMac)
 	assert.Assert(t, !ok)
 	assert.Assert(t, errors.Is(err, common.ErrNoCapabilities))
+}
+
+// The capability mismatch error carries the verified "sub" claim for logging,
+// and never the raw token
+func TestVerifyTokenInsufficientCapabilitiesCarriesVerifiedSubject(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NilError(t, err)
+	const kid = "sub-capability-test-key"
+	decodeKeys := map[string]*rsa.PublicKey{kid: &privateKey.PublicKey}
+
+	cpeMac := util.GenerateRandomCpeMac()
+	claims := jwt.MapClaims{
+		"mac":          strings.ToLower(cpeMac),
+		"sub":          "x1:xpc-qa:696ec8",
+		"capabilities": []string{"cpe:other"},
+		"exp":          time.Now().Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.GetSigningMethod("RS256"), claims)
+	token.Header["kid"] = kid
+	tokenString, err := token.SignedString(privateKey)
+	assert.NilError(t, err)
+
+	ok, _, _, verifyErr := VerifyToken(decodeKeys, []string{kid}, []string{"cpe:config:read"}, tokenString, cpeMac)
+	assert.Assert(t, !ok)
+	assert.Assert(t, errors.Is(verifyErr, common.ErrNoCapabilities))
+	var noCapsErr common.NoCapabilitiesError
+	assert.Assert(t, errors.As(verifyErr, &noCapsErr))
+	assert.Equal(t, noCapsErr.SatClientId, "x1:xpc-qa:696ec8")
+	assert.Assert(t, !strings.Contains(verifyErr.Error(), tokenString))
 }
 
 func TestVerifyTokenRejectsNonStringCapabilityWithoutPanic(t *testing.T) {
