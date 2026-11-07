@@ -54,6 +54,7 @@ var (
 		},
 		5: {
 			{1, 12},
+			{2, 44}, // networkintelligence
 		},
 		6: {
 			{1, 13}, // mesh
@@ -154,6 +155,7 @@ var (
 		"channelplan":             41,
 		"hotspotwantolan":         42,
 		"ignitewifi":              43,
+		"networkintelligence":     44,
 	}
 )
 
