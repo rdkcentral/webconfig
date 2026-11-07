@@ -152,8 +152,16 @@ func GetCaller(args ...int) string {
 }
 
 type NoCapabilitiesError struct {
+	// SatClientId is the "sub" claim of a token that passed signature and expiry verification
+	SatClientId string
 }
 
 func (e NoCapabilitiesError) Error() string {
 	return "no required capabilities"
+}
+
+// Is matches any NoCapabilitiesError so errors.Is(err, ErrNoCapabilities) ignores SatClientId
+func (e NoCapabilitiesError) Is(target error) bool {
+	_, ok := target.(NoCapabilitiesError)
+	return ok
 }

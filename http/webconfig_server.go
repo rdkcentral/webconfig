@@ -600,7 +600,15 @@ func (s *WebconfigServer) ApiMiddleware(next http.Handler) http.Handler {
 			} else {
 				verifyErr = err
 				tfields["error"] = fmt.Sprintf("ApiMiddleware::VerifyApiToken() %v", err)
-				log.WithFields(tfields).Debug("rejected")
+				if errors.Is(err, common.ErrNoCapabilities) {
+					var capErr common.NoCapabilitiesError
+					if errors.As(err, &capErr) {
+						tfields["sat_client_id"] = capErr.SatClientId
+					}
+					log.WithFields(tfields).Info("rejected")
+				} else {
+					log.WithFields(tfields).Debug("rejected")
+				}
 			}
 		} else {
 			xw.LogDebug(r, "token", "ApiMiddleware() error no token")
