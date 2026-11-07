@@ -303,6 +303,67 @@ func TestApiMiddlewareReturnsUnauthorizedForAuthenticationFailures(t *testing.T)
 	}
 }
 
+// Insufficient capabilities are logged at Info with the verified sat_client_id;
+// the raw token must never appear in the logs
+func TestApiMiddlewareLogsInsufficientCapabilitiesWithSatClientId(t *testing.T) {
+	const token = "header.payload.signature"
+	server := NewWebconfigServer(sc, true)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return false, "", 0, common.NoCapabilitiesError{SatClientId: "x1:xpc-qa:696ec8"}
+	})
+
+	var logs strings.Builder
+	previousOutput := log.StandardLogger().Out
+	previousLevel := log.StandardLogger().Level
+	log.SetOutput(&logs)
+	log.SetLevel(log.InfoLevel)
+	defer func() {
+		log.SetOutput(previousOutput)
+		log.SetLevel(previousLevel)
+	}()
+
+	req, err := http.NewRequest("GET", "/", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	res := ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authorization failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusForbidden)
+	assert.Assert(t, strings.Contains(logs.String(), "rejected"))
+	assert.Assert(t, strings.Contains(logs.String(), `sat_client_id="x1:xpc-qa:696ec8"`))
+	assert.Assert(t, !strings.Contains(logs.String(), token))
+}
+
+// Other authentication failures keep the Debug-level rejection without sat_client_id
+func TestApiMiddlewareKeepsAuthenticationRejectionAtDebug(t *testing.T) {
+	server := NewWebconfigServer(sc, true)
+	server.TokenManager = security.NewTokenManager(sc.Config)
+	server.TokenManager.SetVerifyFunc(func(_ map[string]*rsa.PublicKey, _ []string, _ []string, _ ...string) (bool, string, int, error) {
+		return false, "", 0, fmt.Errorf("invalid token")
+	})
+
+	var logs strings.Builder
+	previousOutput := log.StandardLogger().Out
+	previousLevel := log.StandardLogger().Level
+	log.SetOutput(&logs)
+	log.SetLevel(log.InfoLevel)
+	defer func() {
+		log.SetOutput(previousOutput)
+		log.SetLevel(previousLevel)
+	}()
+
+	req, err := http.NewRequest("GET", "/", nil)
+	assert.NilError(t, err)
+	req.Header.Set("Authorization", "Bearer invalid")
+	res := ExecuteRequest(req, server.ApiMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("authentication failure reached the next handler")
+	}))).Result()
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Assert(t, !strings.Contains(logs.String(), "rejected"))
+	assert.Assert(t, !strings.Contains(logs.String(), "sat_client_id"))
+}
+
 func TestApiMiddlewareReturnsForbiddenForInsufficientCapabilities(t *testing.T) {
 	server := NewWebconfigServer(sc, true)
 	server.TokenManager = security.NewTokenManager(sc.Config)
