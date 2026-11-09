@@ -91,6 +91,7 @@ func TestJwksManagerVerifyApiTokenMissingCapability(t *testing.T) {
 
 	utcnow := time.Now()
 	token := signJwksTestToken(t, privateKey, jwt.MapClaims{
+		"sub":          "x1:xpc-qa:696ec8",
 		"capabilities": []interface{}{"some:other:capability"},
 		"exp":          utcnow.Add(time.Hour).Unix(),
 	})
@@ -99,6 +100,7 @@ func TestJwksManagerVerifyApiTokenMissingCapability(t *testing.T) {
 	assert.Assert(t, !ok)
 	var noCapsErr common.NoCapabilitiesError
 	assert.Assert(t, errors.As(err, &noCapsErr))
+	assert.Equal(t, noCapsErr.SatClientId, "x1:xpc-qa:696ec8")
 }
 
 // XPC-43727 a non-string entry in the capabilities claim must not panic;

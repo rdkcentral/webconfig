@@ -45,6 +45,7 @@ var (
 			{2, 8},
 			{3, 9},
 			{4, 43}, // ignitewifi
+			{5, 45}, // repurposed2gvap
 		},
 		3: {
 			{1, 10},
@@ -156,6 +157,7 @@ var (
 		"hotspotwantolan":         42,
 		"ignitewifi":              43,
 		"networkintelligence":     44,
+		"repurposed2gvap":         45,
 	}
 )
 

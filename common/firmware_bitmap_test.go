@@ -692,3 +692,21 @@ func TestParseSupportedDocsHeaderBothNewSubdocs(t *testing.T) {
 	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
 	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
 }
+
+func TestParseSupportedDocsHeaderRepurposed2gvap(t *testing.T) {
+	// group_id=2, group-bit=5 → CPE bit 45 (repurposed2gvap)
+	group2Value := (2 << 24) + (1 << (5 - 1)) // bit 5 set in group 2
+	rdkSupportedDocsHeaderStr := fmt.Sprintf("%v", group2Value)
+
+	cpeBitmap, err := GetCpeBitmap(rdkSupportedDocsHeaderStr)
+	assert.NilError(t, err)
+	assert.Assert(t, IsSubdocSupported(cpeBitmap, "repurposed2gvap"))
+	assert.Assert(t, !IsSubdocSupported(cpeBitmap, "ignitewifi"))
+
+	supportedSubdocIds := []string{
+		"repurposed2gvap",
+	}
+	parsedSupportedMap := GetSupportedMap(cpeBitmap)
+	supportedSubdocMap := BuildSupportedSubdocMapWithDefaults(supportedSubdocIds)
+	assert.DeepEqual(t, parsedSupportedMap, supportedSubdocMap)
+}

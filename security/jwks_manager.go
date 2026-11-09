@@ -91,7 +91,8 @@ func (m *JwksManager) VerifyApiToken(tokenStr string) (bool, error) {
 			}
 		}
 	}
-	return false, common.NoCapabilitiesError{}
+	sub, _ := claims.GetSubject()
+	return false, common.NoCapabilitiesError{SatClientId: sub}
 }
 
 // NewJwksManagerFromJWKS builds a JwksManager from an already-constructed
