@@ -91,7 +91,7 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
 - `tls_insecure_skip_verify` - Skip certificate verification (insecure, for testing only, default: false)
 - `tls_server_name` - Optional SNI and certificate name override (default: empty)
 
-Legacy `tls_ca_cert_file` is no longer accepted; startup fails with an error asking you to rename it to `tls_ca_file`.
+`tls_ca_cert_file` is a legacy alias for `tls_ca_file`, kept temporarily so one ConfigMap works with binaries that predate `tls_ca_file`. If both are set to the same value, that value is used. If both are set to different values, startup fails with a configuration error. If only the legacy name is set, it is used and a deprecation warning is logged. Remove the legacy name once every deployed binary reads `tls_ca_file`.
 
 Kafka keeps its existing `tls_enabled` flag for each consumer cluster and producer. Cassandra uses its existing `is_ssl_enabled` flag; after TLS is enabled, both integrations use the same flat `tls_*` fields, including identical `tls_insecure_skip_verify` and `tls_server_name` behavior.
 

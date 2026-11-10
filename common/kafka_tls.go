@@ -44,9 +44,14 @@ func LoadTLSConfig(conf *configuration.Config, prefix, component string) (*tls.C
 	caFile := conf.GetString(key("tls_ca_file"))
 	serverName := conf.GetString(key("tls_server_name"))
 
-	// Fail loudly rather than silently ignoring the CA and falling back to the system pool.
-	if len(conf.GetString(key("tls_ca_cert_file"))) > 0 {
-		return nil, NewError(fmt.Errorf("%s: tls_ca_cert_file is no longer supported; rename it to tls_ca_file", component))
+	// tls_ca_cert_file is the legacy name for tls_ca_file and is still deployed.
+	// Both names are accepted. Identical values are allowed; different values are an error.
+	if legacyCAFile := conf.GetString(key("tls_ca_cert_file")); len(legacyCAFile) > 0 {
+		if len(caFile) > 0 && caFile != legacyCAFile {
+			return nil, NewError(fmt.Errorf("%s: tls_ca_file (%s) and tls_ca_cert_file (%s) are both set to different values; keep only tls_ca_file", component, caFile, legacyCAFile))
+		}
+		log.WithField("component", component).Warn("tls_ca_cert_file is deprecated; use tls_ca_file")
+		caFile = legacyCAFile
 	}
 
 	cipherSuites := []uint16{
