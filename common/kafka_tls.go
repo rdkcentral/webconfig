@@ -41,8 +41,13 @@ func LoadTLSConfig(conf *configuration.Config, prefix, component string) (*tls.C
 	insecureSkipVerify := conf.GetBoolean(key("tls_insecure_skip_verify"))
 	certFile := conf.GetString(key("tls_cert_file"))
 	keyFile := conf.GetString(key("tls_key_file"))
-	caCertFile := conf.GetString(key("tls_ca_cert_file"))
+	caFile := conf.GetString(key("tls_ca_file"))
 	serverName := conf.GetString(key("tls_server_name"))
+
+	// Fail loudly rather than silently ignoring the CA and falling back to the system pool.
+	if len(conf.GetString(key("tls_ca_cert_file"))) > 0 {
+		return nil, NewError(fmt.Errorf("%s: tls_ca_cert_file is no longer supported; rename it to tls_ca_file", component))
+	}
 
 	cipherSuites := []uint16{
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -63,60 +68,54 @@ func LoadTLSConfig(conf *configuration.Config, prefix, component string) (*tls.C
 		InsecureSkipVerify: insecureSkipVerify,
 	}
 
-	if insecureSkipVerify && (len(certFile) == 0 || len(keyFile) == 0) {
-		log.WithField("component", component).Warn("TLS enabled in insecure mode without client certificates")
-	} else if len(certFile) > 0 && len(keyFile) > 0 {
-		if !insecureSkipVerify {
-			if _, err := os.Stat(certFile); os.IsNotExist(err) {
-				return nil, NewError(fmt.Errorf("TLS certificate file does not exist: %s", certFile))
-			}
-			if _, err := os.Stat(keyFile); os.IsNotExist(err) {
-				return nil, NewError(fmt.Errorf("TLS key file does not exist: %s", keyFile))
-			}
+	if len(certFile) > 0 {
+		// Combined PEM: when no separate key is configured, the private key is read from tls_cert_file.
+		keySource := keyFile
+		if len(keySource) == 0 {
+			keySource = certFile
+		} else if err := checkFileExists(keySource, "TLS key"); err != nil {
+			return nil, err
+		}
+		if err := checkFileExists(certFile, "TLS certificate"); err != nil {
+			return nil, err
 		}
 
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		cert, err := tls.LoadX509KeyPair(certFile, keySource)
 		if err != nil {
-			return nil, NewError(fmt.Errorf("failed to load TLS certificate and key from %s and %s: %v", certFile, keyFile, err))
+			return nil, NewError(fmt.Errorf("failed to load TLS certificate and key from %s and %s (without tls_key_file, the private key must be in tls_cert_file): %v", certFile, keySource, err))
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 		log.WithFields(log.Fields{
 			"component": component,
 			"cert_file": certFile,
-			"key_file":  keyFile,
-		}).Info("Loaded TLS client certificate for mTLS")
-	} else if len(certFile) > 0 || len(keyFile) > 0 {
-		if !insecureSkipVerify {
-			return nil, NewError(fmt.Errorf("TLS enabled with verification but incomplete certificate configuration (cert: %s, key: %s)", certFile, keyFile))
-		}
+			"key_file":  keySource,
+		}).Info("Loaded TLS client certificate")
+	} else if len(keyFile) > 0 {
+		return nil, NewError(fmt.Errorf("TLS key file %s is configured without tls_cert_file", keyFile))
 	}
 
-	if insecureSkipVerify && len(caCertFile) == 0 {
-		log.WithField("component", component).Warn("TLS enabled in insecure mode without CA certificate")
-	} else if len(caCertFile) > 0 {
-		if !insecureSkipVerify {
-			if _, err := os.Stat(caCertFile); os.IsNotExist(err) {
-				return nil, NewError(fmt.Errorf("TLS CA certificate file does not exist: %s", caCertFile))
-			}
+	if len(caFile) > 0 {
+		if err := checkFileExists(caFile, "TLS CA certificate"); err != nil {
+			return nil, err
 		}
 
-		caCert, err := os.ReadFile(caCertFile)
+		caCert, err := os.ReadFile(caFile)
 		if err != nil {
-			return nil, NewError(fmt.Errorf("failed to read TLS CA certificate from %s: %v", caCertFile, err))
+			return nil, NewError(fmt.Errorf("failed to read TLS CA certificate from %s: %v", caFile, err))
 		}
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, NewError(fmt.Errorf("failed to parse TLS CA certificate from %s", caCertFile))
+			return nil, NewError(fmt.Errorf("failed to parse TLS CA certificate from %s", caFile))
 		}
 		tlsConfig.RootCAs = caCertPool
 		log.WithFields(log.Fields{
 			"component":    component,
-			"ca_cert_file": caCertFile,
+			"ca_cert_file": caFile,
 		}).Info("Loaded TLS CA certificate for server verification")
 	}
 
 	if insecureSkipVerify {
-		log.WithField("component", component).Warn("TLS certificate verification is disabled (insecure_skip_verify=true). This is insecure and should only be used for testing.")
+		log.WithField("component", component).Warn("TLS certificate verification is disabled (tls_insecure_skip_verify=true). This is insecure and should only be used for testing.")
 	}
 	log.WithFields(log.Fields{
 		"component":            component,
@@ -127,6 +126,14 @@ func LoadTLSConfig(conf *configuration.Config, prefix, component string) (*tls.C
 	}).Info("TLS configuration loaded")
 
 	return tlsConfig, nil
+}
+
+// checkFileExists returns a clear configuration error when path does not exist.
+func checkFileExists(path, description string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return NewError(fmt.Errorf("%s file does not exist: %s", description, path))
+	}
+	return nil
 }
 
 // LoadKafkaTLSConfig loads enabled Kafka TLS configuration from HOCON.

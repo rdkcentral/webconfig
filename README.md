@@ -85,11 +85,13 @@ Webconfig supports secure TLS/SSL connections to Kafka brokers for both consumer
 **TLS Configuration Options:**
 
 - `tls_enabled` - Enable/disable TLS for Kafka connections (default: false)
-- `tls_cert_file` - Path to client certificate file for mTLS authentication (optional)
-- `tls_key_file` - Path to client private key file for mTLS authentication (optional)
-- `tls_ca_cert_file` - Path to CA certificate file for broker verification (optional)
+- `tls_ca_file` - Path to CA certificate file(s) used to verify the broker (optional; system CA pool when unset)
+- `tls_cert_file` - Path to the client certificate for mutual TLS (optional). Either a combined PEM containing the certificate and private key, or the certificate alone when `tls_key_file` is set
+- `tls_key_file` - Path to the client private key for mutual TLS (optional). Leave unset when `tls_cert_file` is a combined PEM
 - `tls_insecure_skip_verify` - Skip certificate verification (insecure, for testing only, default: false)
 - `tls_server_name` - Optional SNI and certificate name override (default: empty)
+
+Legacy `tls_ca_cert_file` is no longer accepted; startup fails with an error asking you to rename it to `tls_ca_file`.
 
 Kafka keeps its existing `tls_enabled` flag for each consumer cluster and producer. Cassandra uses its existing `is_ssl_enabled` flag; after TLS is enabled, both integrations use the same flat `tls_*` fields, including identical `tls_insecure_skip_verify` and `tls_server_name` behavior.
 
@@ -103,9 +105,8 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
         consumer_group = "webconfig"
 
         tls_enabled = true
-        tls_cert_file = "/etc/webconfig/kafka/client.crt"
-        tls_key_file = "/etc/webconfig/kafka/client.key"
-        tls_ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+        tls_cert_file = "/etc/webconfig/kafka/client.pem"
+        tls_ca_file = "/etc/webconfig/kafka/ca.crt"
         tls_insecure_skip_verify = false
         tls_server_name = "kafka.example.com"
 
@@ -119,7 +120,7 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
                 tls_enabled = true
                 tls_cert_file = "/etc/webconfig/kafka/mesh-client.crt"
                 tls_key_file = "/etc/webconfig/kafka/mesh-client.key"
-                tls_ca_cert_file = "/etc/webconfig/kafka/mesh-ca.crt"
+                tls_ca_file = "/etc/webconfig/kafka/mesh-ca.crt"
                 tls_insecure_skip_verify = false
                 tls_server_name = "kafka-mesh.example.com"
             }
@@ -140,9 +141,8 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
         topic = "webconfig_downstream"
 
         tls_enabled = true
-        tls_cert_file = "/etc/webconfig/kafka/producer-client.crt"
-        tls_key_file = "/etc/webconfig/kafka/producer-client.key"
-        tls_ca_cert_file = "/etc/webconfig/kafka/ca.crt"
+        tls_cert_file = "/etc/webconfig/kafka/producer-client.pem"
+        tls_ca_file = "/etc/webconfig/kafka/ca.crt"
         tls_insecure_skip_verify = false
         tls_server_name = "kafka.example.com"
     }
@@ -150,9 +150,13 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
 
 **Certificate Requirements:**
 
-1. **Client Certificate (mTLS)**: If `tls_cert_file` and `tls_key_file` are provided, mutual TLS authentication is enabled. The certificate and key must be in PEM format.
+1. **Client Certificate (mutual TLS)**: `tls_cert_file` is optional. When it is set, the client certificate and private key are loaded with `tls.LoadX509KeyPair`:
+   - **Combined PEM**: leave `tls_key_file` unset. `tls_cert_file` must contain both the certificate and the private key.
+   - **Separate files**: set `tls_key_file` to the private key. `tls_cert_file` contains only the certificate.
+   - If client credentials are configured but cannot be loaded (missing file, invalid PEM, or a key that does not match the certificate), startup fails. TLS is never silently downgraded to server-only authentication.
+   - `tls_key_file` without `tls_cert_file` is rejected.
 
-2. **CA Certificate**: If `tls_ca_cert_file` is provided, it will be used to verify the Kafka broker's certificate. This is useful when using self-signed certificates or internal CAs.
+2. **CA Certificate**: `tls_ca_file` contains the CA certificate(s) used to verify the Kafka broker. It is always loaded and validated, including when `tls_insecure_skip_verify = true`.
 
 3. **Certificate Validation**: All certificate files are validated at startup. The application will fail to start with clear error messages if:
    - Certificate files are missing or unreadable
@@ -162,7 +166,7 @@ Kafka keeps its existing `tls_enabled` flag for each consumer cluster and produc
 **TLS Security Best Practices:**
 
 1. **Use TLS in Production**: Always enable TLS for production Kafka connections to encrypt data in transit
-2. **Use mTLS**: Provide client certificates (`tls_cert_file` and `tls_key_file`) for mutual authentication
+2. **Use mutual TLS**: Provide a client certificate (`tls_cert_file`, plus `tls_key_file` if the key is in a separate file) so the broker can authenticate the client
 3. **Verify Certificates**: Never use `tls_insecure_skip_verify = true` in production - it disables certificate verification and is insecure
 4. **Protect Certificate Files**: Set appropriate file permissions (0600) on certificate and key files
 5. **Use Secure Ports**: Configure Kafka brokers to listen on secure ports (typically 9093 for TLS)
