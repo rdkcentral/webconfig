@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/go-akka/configuration"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"gotest.tools/assert"
 )
 
@@ -391,6 +392,93 @@ func TestKafkaTLSClientCert_MutualHandshake(t *testing.T) {
 			} else {
 				assert.Assert(t, serverErr != nil, "server requiring client certificates must reject a client without one")
 			}
+		})
+	}
+}
+
+// Verifies the handshake log reports whether the broker requested a client certificate and whether one was sent.
+func TestKafkaTLSHandshakeDialer_LogsClientCertificateStatus(t *testing.T) {
+	serverPair := newTestCertPair(t, "localhost")
+	clientPair := newTestCertPair(t)
+
+	serverCert, err := tls.X509KeyPair(serverPair.certPEM, serverPair.keyPEM)
+	assert.NilError(t, err)
+	clientPool := x509.NewCertPool()
+	assert.Assert(t, clientPool.AppendCertsFromPEM(clientPair.certPEM))
+	serverCAFile := writeTestFile(t, "server-ca.crt", serverPair.certPEM)
+	combinedFile := writeTestFile(t, "client-combined.pem", clientPair.combined())
+
+	testCases := []struct {
+		name          string
+		clientAuth    tls.ClientAuthType
+		settings      string
+		expectRequest bool
+		expectSent    bool
+	}{
+		{
+			name:          "broker requires client certificate and client sends one",
+			clientAuth:    tls.RequireAndVerifyClientCert,
+			settings:      "tls_cert_file = " + quoted(combinedFile),
+			expectRequest: true,
+			expectSent:    true,
+		},
+		{
+			name:          "broker requests client certificate but client sends none",
+			clientAuth:    tls.RequestClientCert,
+			settings:      "",
+			expectRequest: true,
+			expectSent:    false,
+		},
+		{
+			name:          "broker does not request client certificate",
+			clientAuth:    tls.NoClientCert,
+			settings:      "tls_cert_file = " + quoted(combinedFile),
+			expectRequest: false,
+			expectSent:    false,
+		},
+	}
+
+	hook := logtest.NewGlobal()
+	defer hook.Reset()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hook.Reset()
+			ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
+				Certificates: []tls.Certificate{serverCert},
+				ClientAuth:   tc.clientAuth,
+				ClientCAs:    clientPool,
+				MinVersion:   tls.VersionTLS12,
+			})
+			assert.NilError(t, err)
+			defer ln.Close()
+
+			go func() {
+				conn, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				_ = conn.(*tls.Conn).Handshake()
+			}()
+
+			body := "tls_enabled = true\ntls_ca_file = " + quoted(serverCAFile) + "\ntls_server_name = \"localhost\"\n" + tc.settings
+			clientTLS, err := loadKafkaTLSForTest(body)
+			assert.NilError(t, err)
+
+			hook.Reset()
+			d := NewKafkaTLSHandshakeDialer(clientTLS, 5*time.Second, 0, nil)
+			conn, err := d.Dial("tcp", ln.Addr().String())
+			assert.NilError(t, err)
+			defer conn.Close()
+
+			entries := hook.AllEntries()
+			assert.Equal(t, len(entries), 1)
+			assert.Equal(t, entries[0].Message, "TLS handshake completed")
+			assert.Equal(t, entries[0].Data["logger"], "kafka")
+			assert.Equal(t, entries[0].Data["broker"], ln.Addr().String())
+			assert.Equal(t, entries[0].Data["client_certificate_requested"], tc.expectRequest)
+			assert.Equal(t, entries[0].Data["client_certificate_sent"], tc.expectSent)
 		})
 	}
 }
