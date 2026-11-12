@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -481,4 +482,105 @@ func TestKafkaTLSHandshakeDialer_LogsClientCertificateStatus(t *testing.T) {
 			assert.Equal(t, entries[0].Data["client_certificate_sent"], tc.expectSent)
 		})
 	}
+}
+
+// Verifies a failed handshake still logs the client certificate status and the error before the dial returns.
+func TestKafkaTLSHandshakeDialer_LogsFailureWithClientCertificateStatus(t *testing.T) {
+	serverPair := newTestCertPair(t, "localhost")
+	clientPair := newTestCertPair(t)
+
+	serverCert, err := tls.X509KeyPair(serverPair.certPEM, serverPair.keyPEM)
+	assert.NilError(t, err)
+	clientPool := x509.NewCertPool()
+	assert.Assert(t, clientPool.AppendCertsFromPEM(clientPair.certPEM))
+	serverCAFile := writeTestFile(t, "server-ca.crt", serverPair.certPEM)
+
+	hook := logtest.NewGlobal()
+	defer hook.Reset()
+
+	// TLS 1.2 reports the broker's rejection during the client handshake.
+	// TLS 1.3 completes the client handshake first, so the rejection is not seen by the dialer.
+	testCases := []struct {
+		name        string
+		version     uint16
+		expectError bool
+	}{
+		{name: "TLS 1.2 broker rejects missing client certificate", version: tls.VersionTLS12, expectError: true},
+		{name: "TLS 1.3 rejection occurs after client handshake completes", version: tls.VersionTLS13, expectError: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hook.Reset()
+			ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
+				Certificates: []tls.Certificate{serverCert},
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientCAs:    clientPool,
+				MinVersion:   tc.version,
+				MaxVersion:   tc.version,
+			})
+			assert.NilError(t, err)
+			defer ln.Close()
+
+			go func() {
+				conn, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				_ = conn.(*tls.Conn).Handshake()
+			}()
+
+			body := "tls_enabled = true\ntls_ca_file = " + quoted(serverCAFile) + "\ntls_server_name = \"localhost\""
+			clientTLS, err := loadKafkaTLSForTest(body)
+			assert.NilError(t, err)
+			clientTLS.MaxVersion = tc.version
+
+			hook.Reset()
+			d := NewKafkaTLSHandshakeDialer(clientTLS, 5*time.Second, 0, nil)
+			conn, err := d.Dial("tcp", ln.Addr().String())
+			if conn != nil {
+				defer conn.Close()
+			}
+
+			entries := hook.AllEntries()
+			assert.Equal(t, len(entries), 1)
+			assert.Equal(t, entries[0].Data["logger"], "kafka")
+			assert.Equal(t, entries[0].Data["broker"], ln.Addr().String())
+			assert.Equal(t, entries[0].Data["client_certificate_requested"], true)
+			assert.Equal(t, entries[0].Data["client_certificate_sent"], false)
+
+			if tc.expectError {
+				assert.Assert(t, err != nil, "dial should fail when the broker rejects the handshake")
+				assert.Equal(t, entries[0].Message, "TLS handshake failed")
+				assert.Assert(t, entries[0].Data["error"] != nil, "failure log must include the original error")
+			} else {
+				assert.NilError(t, err)
+				assert.Equal(t, entries[0].Message, "TLS handshake completed")
+			}
+		})
+	}
+}
+
+// Verifies a refused TCP connection is logged as a broker connection failure, not a TLS handshake failure.
+func TestKafkaTLSHandshakeDialer_TCPDialFailureIsNotHandshakeFailure(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.NilError(t, err)
+	addr := ln.Addr().String()
+	assert.NilError(t, ln.Close())
+
+	hook := logtest.NewGlobal()
+	defer hook.Reset()
+
+	d := NewKafkaTLSHandshakeDialer(&tls.Config{MinVersion: tls.VersionTLS12}, 2*time.Second, 0, nil)
+	conn, err := d.Dial("tcp", addr)
+	assert.Assert(t, err != nil, "dial to a closed port must fail")
+	assert.Assert(t, conn == nil)
+
+	entries := hook.AllEntries()
+	assert.Equal(t, len(entries), 1)
+	assert.Equal(t, entries[0].Message, "Kafka broker connection failed")
+	assert.Equal(t, entries[0].Data["broker"], addr)
+	assert.Equal(t, entries[0].Data["client_certificate_requested"], false)
+	assert.Equal(t, entries[0].Data["client_certificate_sent"], false)
 }

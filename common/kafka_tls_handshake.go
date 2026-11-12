@@ -20,6 +20,7 @@ package common
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"time"
 
@@ -31,6 +32,16 @@ type clientCertStatus struct {
 	requested bool
 	sent      bool
 }
+
+// connectError marks a failure before the TLS handshake starts (TCP dial or address parsing),
+// so it is not reported as a handshake failure.
+type connectError struct {
+	err error
+}
+
+func (e connectError) Error() string { return e.err.Error() }
+
+func (e connectError) Unwrap() error { return e.err }
 
 // KafkaTLSHandshakeDialer performs the TLS handshake for each Kafka broker connection itself. sarama
 // wraps connections with tls.Client internally and does not expose the handshake result, so the
@@ -64,15 +75,22 @@ func (d *KafkaTLSHandshakeDialer) Dial(network, addr string) (net.Conn, error) {
 
 func (d *KafkaTLSHandshakeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, status, err := d.dialTLS(ctx, network, addr)
-	if err != nil {
-		return nil, err
-	}
-	log.WithFields(log.Fields{
+	fields := log.Fields{
 		"logger":                       "kafka",
 		"broker":                       addr,
 		"client_certificate_requested": status.requested,
 		"client_certificate_sent":      status.sent,
-	}).Info("TLS handshake completed")
+	}
+	if err != nil {
+		var connErr connectError
+		if errors.As(err, &connErr) {
+			log.WithFields(fields).WithError(err).Error("Kafka broker connection failed")
+		} else {
+			log.WithFields(fields).WithError(err).Error("TLS handshake failed")
+		}
+		return nil, err
+	}
+	log.WithFields(fields).Info("TLS handshake completed")
 	return conn, nil
 }
 
@@ -80,7 +98,7 @@ func (d *KafkaTLSHandshakeDialer) dialTLS(ctx context.Context, network, addr str
 	var status clientCertStatus
 	raw, err := d.netDialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, status, err
+		return nil, status, connectError{err}
 	}
 
 	cfg := d.tlsConfig.Clone()
@@ -88,7 +106,7 @@ func (d *KafkaTLSHandshakeDialer) dialTLS(ctx context.Context, network, addr str
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			raw.Close()
-			return nil, status, err
+			return nil, status, connectError{err}
 		}
 		cfg.ServerName = host
 	}
