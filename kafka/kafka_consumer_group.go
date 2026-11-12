@@ -159,8 +159,9 @@ func NewKafkaConsumerGroup(conf *configuration.Config, s *wchttp.WebconfigServer
 		return nil, common.NewError(fmt.Errorf("failed to load TLS configuration for %s: %v", prefix, err))
 	}
 	if tlsConfig != nil {
-		sconfig.Net.TLS.Enable = true
-		sconfig.Net.TLS.Config = tlsConfig
+		// The handshake runs in the proxy dialer instead of Net.TLS so its result can be logged.
+		sconfig.Net.Proxy.Enable = true
+		sconfig.Net.Proxy.Dialer = common.NewKafkaTLSHandshakeDialer(tlsConfig, sconfig.Net.DialTimeout, sconfig.Net.KeepAlive, sconfig.Net.LocalAddr)
 	}
 
 	consumer := NewConsumer(s, ratelimitMessagesPerSecond, m, clusterName, offsetEnum, topicPartitionsMap)
