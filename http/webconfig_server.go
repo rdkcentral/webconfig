@@ -389,8 +389,9 @@ func NewWebconfigServer(sc *common.ServerConfig, testOnly bool) *WebconfigServer
 			panic(fmt.Errorf("failed to load TLS configuration for Kafka producer: %v", err))
 		}
 		if tlsConfig != nil {
-			saramaConfig.Net.TLS.Enable = true
-			saramaConfig.Net.TLS.Config = tlsConfig
+			// The handshake runs in the proxy dialer instead of Net.TLS so its result can be logged.
+			saramaConfig.Net.Proxy.Enable = true
+			saramaConfig.Net.Proxy.Dialer = common.NewKafkaTLSHandshakeDialer(tlsConfig, saramaConfig.Net.DialTimeout, saramaConfig.Net.KeepAlive, saramaConfig.Net.LocalAddr)
 		}
 
 		kafkaProducer, err = sarama.NewAsyncProducer(brokers, saramaConfig)
