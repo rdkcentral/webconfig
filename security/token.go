@@ -384,7 +384,8 @@ func VerifyToken(decodeKeys map[string]*rsa.PublicKey, validKids []string, requi
 			}
 		}
 		if !isCapable {
-			return false, "", trust, common.NewError(common.ErrNoCapabilities)
+			sub, _ := claims.GetSubject()
+			return false, "", trust, common.NewError(common.NoCapabilitiesError{SatClientId: sub})
 		}
 	}
 

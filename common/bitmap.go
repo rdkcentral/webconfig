@@ -45,6 +45,7 @@ var (
 			{2, 8},
 			{3, 9},
 			{4, 43}, // ignitewifi
+			{5, 45}, // repurposed2gvap
 		},
 		3: {
 			{1, 10},
@@ -54,6 +55,7 @@ var (
 		},
 		5: {
 			{1, 12},
+			{2, 44}, // networkintelligence
 		},
 		6: {
 			{1, 13}, // mesh
@@ -154,6 +156,8 @@ var (
 		"channelplan":             41,
 		"hotspotwantolan":         42,
 		"ignitewifi":              43,
+		"networkintelligence":     44,
+		"repurposed2gvap":         45,
 	}
 )
 

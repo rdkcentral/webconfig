@@ -147,7 +147,7 @@ func TestLoadKafkaTLSConfig_WithCACertificate(t *testing.T) {
 webconfig {
 	kafka {
 			tls_enabled = true
-		tls_ca_cert_file = "` + caCertFile + `"
+		tls_ca_file = "` + caCertFile + `"
 	}
 }
 `
@@ -209,11 +209,10 @@ webconfig {
 	conf := configuration.ParseString(confStr)
 	tlsConfig, err := LoadKafkaTLSConfig(conf, "webconfig.kafka")
 
-	// When insecure_skip_verify is true, missing cert files should not cause validation errors on file check,
-	// but will still fail when trying to actually load them
-	assert.Assert(t, err != nil, "Should return error trying to load non-existent files")
+	// Explicitly configured client credentials must never be skipped, even with insecure verification.
+	assert.Assert(t, err != nil, "Should return error for missing client certificate file")
 	assert.Assert(t, tlsConfig == nil)
-	assert.ErrorContains(t, err, "failed to load TLS certificate")
+	assert.ErrorContains(t, err, "does not exist")
 }
 
 func TestLoadKafkaTLSConfig_InvalidCertFile(t *testing.T) {
@@ -250,7 +249,7 @@ func TestLoadKafkaTLSConfig_MissingCACertFile(t *testing.T) {
 webconfig {
 	kafka {
 			tls_enabled = true
-		tls_ca_cert_file = "/nonexistent/ca.crt"
+		tls_ca_file = "/nonexistent/ca.crt"
 	}
 }
 `
@@ -268,18 +267,16 @@ webconfig {
 	kafka {
 			tls_enabled = true
 		tls_insecure_skip_verify = true
-		tls_ca_cert_file = "/nonexistent/ca.crt"
+		tls_ca_file = "/nonexistent/ca.crt"
 	}
 }
 `
 	conf := configuration.ParseString(confStr)
 	tlsConfig, err := LoadKafkaTLSConfig(conf, "webconfig.kafka")
 
-	// When insecure_skip_verify is true, missing CA file will not cause validation error on file check,
-	// but will still fail when trying to actually read it
-	assert.Assert(t, err != nil, "Should return error trying to load non-existent CA file")
+	assert.Assert(t, err != nil, "Should return error for missing CA file even with insecure verification")
 	assert.Assert(t, tlsConfig == nil)
-	assert.ErrorContains(t, err, "failed to read TLS CA certificate")
+	assert.ErrorContains(t, err, "does not exist")
 }
 
 func TestLoadKafkaTLSConfig_InvalidCACertFile(t *testing.T) {
@@ -295,7 +292,7 @@ func TestLoadKafkaTLSConfig_InvalidCACertFile(t *testing.T) {
 webconfig {
 	kafka {
 			tls_enabled = true
-		tls_ca_cert_file = "` + caCertFile + `"
+		tls_ca_file = "` + caCertFile + `"
 	}
 }
 `
@@ -325,7 +322,7 @@ webconfig {
 			tls_enabled = true
 		tls_cert_file = "` + certFile + `"
 		tls_key_file = "` + keyFile + `"
-		tls_ca_cert_file = "` + caCertFile + `"
+		tls_ca_file = "` + caCertFile + `"
 			tls_server_name = "kafka.example.com"
 	}
 }
