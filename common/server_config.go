@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/go-akka/configuration"
+	hoconvalidator "github.com/gurkankaymak/hocon"
 )
 
 var (
@@ -45,11 +46,27 @@ func NewServerConfig(configFile string) (*ServerConfig, error) {
 	if err != nil {
 		return nil, NewError(err)
 	}
-	conf := configuration.ParseString(string(configBytes))
+	if _, err := hoconvalidator.ParseStringUnresolved(string(configBytes)); err != nil {
+		return nil, NewError(fmt.Errorf("invalid config file %s: %w", configFile, err))
+	}
+	conf, err := parseHocon(string(configBytes))
+	if err != nil {
+		return nil, NewError(fmt.Errorf("invalid config file %s: %w", configFile, err))
+	}
 	return &ServerConfig{
 		Config:      conf,
 		configBytes: configBytes,
 	}, nil
+}
+
+// parseHocon converts go-akka parser panics into errors.
+func parseHocon(content string) (conf *configuration.Config, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("hocon parse error: %v", r)
+		}
+	}()
+	return configuration.ParseString(content), nil
 }
 
 func (c *ServerConfig) ConfigBytes() []byte {
